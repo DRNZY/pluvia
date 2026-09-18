@@ -175,6 +175,40 @@ impl PangoTextRenderer {
         antialias: bool,
         angle: f64,
     ) -> Result<Rect, cairo::Error> {
+        self.render_text_to_context_with_spacing(
+            cr,
+            text,
+            font_face,
+            font_size,
+            color,
+            x,
+            y,
+            align,
+            style,
+            case,
+            antialias,
+            angle,
+            0.0,
+        )
+    }
+
+    /// Renders text to a Cairo `Context` with full alignment, casing, styling, rotation, and letter spacing.
+    pub fn render_text_to_context_with_spacing(
+        &self,
+        cr: &Context,
+        text: &str,
+        font_face: &str,
+        font_size: f64,
+        color: Color,
+        x: f64,
+        y: f64,
+        align: TextAlign,
+        style: TextStyle,
+        case: TextCase,
+        antialias: bool,
+        angle: f64,
+        letter_spacing: f64,
+    ) -> Result<Rect, cairo::Error> {
         let formatted_text = case.apply(text);
 
         cr.save()?;
@@ -203,6 +237,14 @@ impl PangoTextRenderer {
         }
 
         layout.set_font_description(Some(&desc));
+
+        if letter_spacing != 0.0 {
+            let attr_list = pango::AttrList::new();
+            let pango_spacing = (letter_spacing * pango::SCALE as f64) as i32;
+            let attr = pango::AttrInt::new_letter_spacing(pango_spacing);
+            attr_list.insert(attr);
+            layout.set_attributes(Some(&attr_list));
+        }
 
         match align {
             TextAlign::Left => layout.set_alignment(pango::Alignment::Left),

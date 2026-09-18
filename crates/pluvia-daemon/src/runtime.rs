@@ -102,13 +102,35 @@ impl SkinRuntime {
                 .unwrap_or(0.0);
             let w = meter.w.unwrap_or(100.0);
             let h = meter.h.unwrap_or(40.0);
-            if x + w > max_w {
-                max_w = x + w;
+            let align = meter
+                .get("stringalign")
+                .map(pluvia_core::render::TextAlign::parse)
+                .unwrap_or(pluvia_core::render::TextAlign::Left);
+
+            let right = match align {
+                pluvia_core::render::TextAlign::Center => (x + w / 2.0).max(w).max(x),
+                pluvia_core::render::TextAlign::Right => x.max(w),
+                _ => x + w,
+            };
+
+            if right > max_w {
+                max_w = right;
             }
             if y + h > max_h {
                 max_h = y + h;
             }
         }
+
+        let rainmeter_sec = config.raw_sections.get("rainmeter");
+        if let Some(sec) = rainmeter_sec {
+            if let Some(sw) = sec.get("skinwidth").or_else(|| sec.get("windoww")).and_then(|v| v.parse::<f64>().ok()) {
+                max_w = max_w.max(sw);
+            }
+            if let Some(sh) = sec.get("skinheight").or_else(|| sec.get("windowh")).and_then(|v| v.parse::<f64>().ok()) {
+                max_h = max_h.max(sh);
+            }
+        }
+
         let w = (max_w.ceil() as u32).max(200);
         let h = (max_h.ceil() as u32).max(100);
 

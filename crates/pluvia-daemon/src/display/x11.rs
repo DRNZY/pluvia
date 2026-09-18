@@ -110,6 +110,9 @@ extern "C" {
         nelements: libc::c_int,
     ) -> libc::c_int;
     fn XFlush(display: *mut Display) -> libc::c_int;
+    fn XSetErrorHandler(
+        handler: Option<unsafe extern "C" fn(*mut Display, *mut libc::c_void) -> libc::c_int>,
+    ) -> libc::c_int;
     fn XShapeCombineRectangles(
         display: *mut Display,
         dest: Window,
@@ -121,6 +124,10 @@ extern "C" {
         op: libc::c_int,
         ordering: libc::c_int,
     );
+}
+
+unsafe extern "C" fn x11_error_handler(_dpy: *mut Display, _err: *mut libc::c_void) -> libc::c_int {
+    0
 }
 
 extern "C" {
@@ -246,6 +253,7 @@ impl X11Surface {
 
     fn open_native_window(bounds: &SurfaceBounds) -> Option<NativeX11> {
         unsafe {
+            XSetErrorHandler(Some(x11_error_handler));
             let display = XOpenDisplay(std::ptr::null());
             if display.is_null() {
                 return None;
@@ -298,6 +306,13 @@ impl X11Surface {
             let desktop_atom = XInternAtom(display, b"_NET_WM_DESKTOP\0".as_ptr() as *const _, 0);
             let all_desktops: libc::c_ulong = 0xFFFFFFFF;
             XChangeProperty(display, win, desktop_atom, 6 /* XA_CARDINAL */, 32, 0, &all_desktops as *const _ as *const libc::c_uchar, 1);
+
+            let utf8_string = XInternAtom(display, b"UTF8_STRING\0".as_ptr() as *const _, 0);
+            let name_atom = XInternAtom(display, b"_NET_WM_NAME\0".as_ptr() as *const _, 0);
+            let title = b"Pluvia\0";
+            XChangeProperty(display, win, name_atom, utf8_string, 8, 0, title.as_ptr(), 6);
+            let wm_name = XInternAtom(display, b"WM_NAME\0".as_ptr() as *const _, 0);
+            XChangeProperty(display, win, wm_name, 31 /* XA_STRING */, 8, 0, title.as_ptr(), 6);
 
             XMapWindow(display, win);
             XFlush(display);
@@ -488,7 +503,7 @@ impl DesktopSurface for X11Surface {
                         xrects.as_ptr(),
                         xrects.len() as libc::c_int,
                         0, /* ShapeSet */
-                        1, /* YXBanded */
+                        0, /* Unsorted */
                     );
                 }
 

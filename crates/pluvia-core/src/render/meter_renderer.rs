@@ -180,7 +180,31 @@ impl MeterRenderer {
             .and_then(|s| s.parse::<f64>().ok())
             .unwrap_or(0.0);
 
-        let rect = self.text_renderer.render_text_to_context(
+        let mut letter_spacing = 0.0;
+        if let Some(spacing_str) = meter.get("characterspacing").or_else(|| meter.get("tracking")) {
+            if let Ok(val) = spacing_str.trim().parse::<f64>() {
+                letter_spacing = val;
+            }
+        }
+        if letter_spacing == 0.0 {
+            for (key, val) in &meter.properties {
+                if key.starts_with("inlinesetting") {
+                    let parts: Vec<&str> = val.split('|').map(|s| s.trim()).collect();
+                    if parts.len() >= 2 && parts[0].eq_ignore_ascii_case("characterspacing") {
+                        let s1 = parts[1].parse::<f64>().unwrap_or(0.0);
+                        let s2 = if parts.len() >= 3 {
+                            parts[2].parse::<f64>().unwrap_or(0.0)
+                        } else {
+                            s1
+                        };
+                        letter_spacing = s1 + s2;
+                        break;
+                    }
+                }
+            }
+        }
+
+        let rect = self.text_renderer.render_text_to_context_with_spacing(
             cr,
             &substituted,
             font_face,
@@ -193,6 +217,7 @@ impl MeterRenderer {
             case,
             meter.anti_alias,
             angle,
+            letter_spacing,
         )?;
 
         Ok(rect)
