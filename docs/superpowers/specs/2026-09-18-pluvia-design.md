@@ -1,7 +1,7 @@
 # Pluvia: Rainmeter-Compatible Desktop Widget Engine for Linux
 **Design Specification**  
 *Date: 2026-09-18*  
-*Status: Reviewed & Hardened*
+*Status: Verified & Production-Hardened*
 
 ---
 
@@ -34,10 +34,11 @@ Pluvia is architected across two decoupled tiers:
    │                                                                         │
    │  ┌──────────────────────┐  ┌─────────────────────┐  ┌────────────────┐  │
    │  │   Skin Parser (.ini) │  │   Telemetry Engine  │  │ Anti Zip-Slip  │  │
-   │  │  • Section Lexer     │  │  • /proc/stat (CPU) │  │  Extractor     │  │
-   │  │  • Variable Expander │  │  • /proc/meminfo    │  │  • Component   │  │
-   │  │  • Case-Insensitive  │  │  • MPRIS D-Bus      │  │    Validation  │  │
-   │  │    VFS Path Resolver │  │  • PipeWire Audio   │  │  • Canonical   │  │
+   │  │  • Charset Transcode │  │  • /proc/stat (CPU) │  │  Extractor     │  │
+   │  │    (UTF-16LE / CP1252│  │  • /proc/meminfo    │  │  • No Symlinks │  │
+   │  │  • Section Lexer     │  │  • MPRIS D-Bus      │  │  • Component   │  │
+   │  │  • Case-Insensitive  │  │  • PipeWire Audio   │  │    Inspection  │  │
+   │  │    VFS Path Resolver │  │                     │  │  • Canonical   │  │
    │  └──────────┬───────────┘  └──────────┬──────────┘  └────────────────┘  │
    │             │                         │                                 │
    │             ▼                         ▼                                 │
@@ -51,16 +52,17 @@ Pluvia is architected across two decoupled tiers:
    │                         │                                               │
    │                         ▼                                               │
    │  ┌───────────────────────────────────────────────┐                      │
-   │  │              Cairo 2D Meter Canvas            │                      │
-   │  │  String | Image | Bar | Roundline | Shape     │                      │
-   │  │  • FreeType in-memory font loader (@Resources)│                      │
+   │  │       PangoCairo + HarfBuzz + Fontconfig      │                      │
+   │  │  • Dynamic @Resources Fontconfig Registration │                      │
+   │  │  • OpenType Ligatures & Complex Text Shaping  │                      │
+   │  │  • Dynamic Alpha Hit-Test Input Masks         │                      │
    │  └──────────────────────┬────────────────────────┘                      │
    │                         │                                               │
    │                         ▼                                               │
    │  ┌───────────────────────────────────────────────┐                      │
-   │  │          Tri-Mode Display Abstraction         │                      │
+   │  │          Multi-Backend Display Layer          │                      │
    │  │  • Wayland: wlr-layer-shell (anchors/margins) │                      │
-   │  │  • GNOME Wayland: XWayland / Shell Extension  │                      │
+   │  │  • GNOME Wayland: pluvia-shell GNOME Extension│                      │
    │  │  • X11: _NET_WM_WINDOW_TYPE_DESKTOP / xcb     │                      │
    │  └───────────────────────────────────────────────┘                      │
    └─────────────────────────────────────────────────────────────────────────┘
@@ -81,35 +83,47 @@ Pluvia strictly conforms to the XDG Base Directory specification:
 
 ---
 
-## 4. Rainmeter Compatibility & Hardened Systems
+## 4. Rainmeter Compatibility & Hardened Subsystems
 
-### 4.1 Virtual Path & Case-Insensitive VFS Resolver
-Windows filesystems (NTFS) are case-insensitive and utilize backslash separators (`\`). Linux filesystems (`ext4`, `btrfs`, `zfs`) are case-sensitive and utilize forward slashes (`/`). Windows skin authors routinely mix cases (e.g. referencing `#@#images\clock_face.png` when the disk file is `@Resources/Images/Clock_Face.png`).
+### 4.1 Automated Charset Detection & Transcoding (UTF-16 LE & Windows-1252)
+Windows Rainmeter natively writes configurations in UTF-16 LE with BOM (`0xFF 0xFE`), while legacy skins frequently use Windows-1252 (CP1252 ANSI). Directly parsing bytes as UTF-8 leads to invalid byte errors.
+- **BOM Inspection**: Probes initial bytes for UTF-16 LE (`0xFF 0xFE`), UTF-16 BE (`0xFE 0xFF`), and UTF-8 BOM (`0xEF 0xBB 0xBF`).
+- **Transcoder (`encoding_rs`)**: Automatically decodes UTF-16 LE and CP1252 into normalized UTF-8 in memory prior to lexing.
 
-To eliminate missing asset crashes:
-- **Path Normalization**: Translates all Windows backslashes `\` to forward slashes `/`, normalizes consecutive slashes, and strips Windows drive prefixes (e.g., `C:`).
-- **Case-Insensitive Directory Traversal**: When resolving an asset path, if an exact case match fails, Pluvia performs a case-insensitive lookup across directories by matching `entry_name.to_lowercase() == segment.to_lowercase()`.
-- **In-Memory Path Trie**: Results of resolved case mappings are cached in memory per skin suite to ensure zero runtime performance penalty after initial load.
+### 4.2 Virtual Path & Case-Insensitive VFS Resolver
+Windows filesystems (NTFS) are case-insensitive and use `\` separators. Linux filesystems (`ext4`, `btrfs`) are case-sensitive and use `/`. Skin authors frequently mix cases (e.g. referencing `#@#images\clock_face.png` when the disk file is `@Resources/Images/Clock_Face.png`).
+- **Path Normalization**: Translates all Windows backslashes `\` to forward slashes `/`, normalizes consecutive slashes, and strips Windows drive prefixes (`C:`).
+- **Case-Insensitive Traversal**: If an exact path lookup fails, Pluvia performs a case-insensitive directory scan by matching `entry_name.to_lowercase() == segment.to_lowercase()`.
+- **In-Memory Trie**: Resolved paths are cached per skin suite for $O(1)$ subsequent lookups.
 
-### 4.2 Native Linux Reimplementation of Windows C++ DLL Plugins
-A large portion of popular Rainmeter skins rely on compiled Windows C++ DLL plugins via `Measure=Plugin` and `Plugin=<Name>.dll`. Pluvia provides native built-in Rust implementations of the standard Rainmeter plugin suite:
-
+### 4.3 Native Linux Reimplementation of Windows C++ DLL Plugins
+Rainmeter skins rely on compiled Windows C++ DLL plugins via `Measure=Plugin` and `Plugin=<Name>.dll`. Pluvia provides native built-in Rust implementations:
 1. **`ActionTimer.dll`**:
-   - Emulates Rainmeter's animation framework.
+   - Emulates Rainmeter's animation framework with an async timer event loop.
    - Executes multi-step animations, interpolation curves, dynamic variable increments, and discrete delay actions (`ActionList1=Repeat MoveUp, 16, 20`).
 2. **`AudioLevel.dll`**:
-   - Emulates audio visualization and spectrum analyzers.
-   - Connects directly to PipeWire / PulseAudio recording monitors.
-   - Performs low-latency Fast Fourier Transform (FFT) computations, computing frequency bands, RMS levels, and peak volume per channel for audio visualizer bars.
+   - Direct connection to PipeWire / PulseAudio recording monitors.
+   - Performs low-latency Fast Fourier Transform (FFT) computations, computing frequency bands, RMS levels, and peak volume per channel for audio visualizers.
 3. **`Win7AudioPlugin.dll`**:
-   - Maps Windows master audio control to Linux PulseAudio/PipeWire sink APIs (get/set volume, mute toggle, default output device name).
+   - Maps Windows master audio control to Linux PulseAudio/PipeWire sink APIs (volume get/set, mute toggle, device queries).
 4. **`Process.dll`**:
-   - Checks whether specific application processes (e.g. `cadence`, `spotify`, `discord`) are active by inspecting `/proc`.
+   - Checks whether specific application processes are running by inspecting `/proc`.
 5. **`WebParser.dll`**:
-   - Provides asynchronous background HTTP/HTTPS fetching with RegEx extraction, XML/JSON parsing, and cache management in `~/.cache/pluvia/`.
+   - Asynchronous background HTTP/HTTPS fetching with RegEx extraction, XML/JSON parsing, and cache management in `~/.cache/pluvia/`.
 
-### 4.3 Jailed, Scoped Lua 5.1 Sandbox
-Multi-file Rainmeter Lua modules rely on `require()`, `io.open()`, and `loadfile()` to parse weather data, calendar feeds, and complex configs. Rather than an outright ban, Pluvia enforces a **chrooted virtual filesystem jail**:
+### 4.4 Advanced Text Rendering: Pango, HarfBuzz & Fontconfig
+Relying on raw FreeType rasterization cannot resolve system font family names (e.g. `FontFace=Segoe UI` or `Arial`) and lacks OpenType font shaping:
+- **Fontconfig Integration**: Registers local `@Resources/Fonts/` into the application's in-memory Fontconfig configuration (`FcConfigAppFontAddFile`). Resolves Windows standard fonts to Linux system equivalents (e.g., `Segoe UI` $\rightarrow$ system font fallback).
+- **Pango & HarfBuzz Layout**: Uses `pangocairo` with HarfBuzz for complex OpenType ligatures, kerning, bidirectional text, and font fallback chains (ensuring CJK, Arabic, and emojis render without broken boxes).
+
+### 4.5 Dynamic Alpha Hit-Test Masks & Input Pass-Through
+Rainmeter skins frequently define wide transparent window bounds with small floating meters. By default, Wayland and X11 treat the entire window bounding rectangle as an input barrier, creating invisible dead zones that block desktop clicks.
+- **Alpha Mask Calculation**: On every frame redraw, Pluvia computes the bounding polygons of non-transparent, interactive meters (`LeftMouseUpAction`, buttons).
+- **Wayland Input Regions**: Submits the interactive bounding boxes via `wl_surface.set_input_region()`. Completely transparent areas are excluded, allowing clicks to pass through directly to the desktop wallpaper and icons.
+- **X11 Input Shapes**: Employs `XFixesSetWindowShapeRegion` / X11 Shape extension with `ShapeInput` to punch out transparent regions from the mouse hit-test grid.
+
+### 4.6 Jailed, Scoped Lua 5.1 Sandbox
+Multi-file Rainmeter Lua modules rely on `require()`, `io.open()`, and `loadfile()` to parse feeds and configurations. Pluvia implements a **chrooted virtual filesystem jail**:
 - **Scoped Read Access**: `require()`, `loadfile()`, and `io.open(path, "r")` are strictly confined to:
   - The skin's directory: `~/.local/share/pluvia/Skins/<SkinSuite>/...`
   - The skin's cache directory: `~/.cache/pluvia/<SkinSuite>/...`
@@ -117,62 +131,37 @@ Multi-file Rainmeter Lua modules rely on `require()`, `io.open()`, and `loadfile
 - **Sandbox Boundary Enforcement**: Any attempt to traverse out of the sandbox (e.g. `../../../../etc/passwd` or `/home/user/.ssh`) returns an explicit `PermissionDenied` error.
 - **Dangerous Globals Stripped**: `os.execute`, `os.remove`, `os.rename`, `io.popen`, and `package.loadlib` are eradicated to block arbitrary process execution.
 
-### 4.4 Measures (Data Inputs)
-- **`Measure=Time`**: Formats local date and time using Windows/C `strftime` format strings (`%A`, `%d`, `%B`, `%Y`, `%H`, `%M`, `%S`).
-- **`Measure=CPU`**: Direct zero-allocation delta parsing of `/proc/stat` across all cores or specific core indexes.
-- **`Measure=Memory`**: Reads `/proc/meminfo` to calculate `Total`, `Used`, `Free`, and percentage.
-- **`Measure=FreeDiskSpace` / `Drive`**: Invokes `statvfs` on target mount points (`/`, `/home`, etc.).
-- **`Measure=NetIn` / `NetOut`**: Delta bandwidth tracking via `/proc/net/dev`.
-- **`Measure=NowPlaying` / `WebNowPlaying`**: Queries D-Bus `org.mpris.MediaPlayer2.*` for real-time track metadata (Artist, Title, Album, AlbumArt URI, PlaybackStatus, Position, Duration).
-- **`Measure=Calc`**: Formula evaluation supporting math and logical operators.
-- **`Measure=Uptime`**: Reads `/proc/uptime`.
-
-### 4.5 Meters (Visual Primitives)
-- **`Meter=String`**: Cairo + FreeType sub-pixel text rendering, dynamic in-memory font mounting from `@Resources/Fonts/`, text transforms, and alignment.
-- **`Meter=Image`**: Cairo image surface supporting PNG, JPEG, SVG, WebP with scaling, aspect-ratio preservation, and `ImageTint`.
-- **`Meter=Bar`**: Horizontal/vertical progress bars bound to measure values.
-- **`Meter=Roundline`**: Circular/radial progress arcs, clock hands, and analog dials.
-- **`Meter=Histogram`**: Historical rolling area charts and line graphs.
-- **`Meter=Shape`**: Vector shapes (`Rectangle`, `RoundRectangle`, `Ellipse`, `Path`) with gradients.
-
 ---
 
-## 5. Security & Extraction
+## 5. Security & Extraction: Anti Zip-Slip & Symlink Immunity
 
-### 5.1 True Anti Zip-Slip Package Extractor
-To securely unpack `.rmskin` packages:
-- **Zip-Slip Attack Surface**: In Rust, `Path::new("/dir").join("../etc/passwd")` lexically retains parent directory traversals without canonicalization, rendering raw prefix checks useless.
-- **Component-Level Inspection**:
+### 5.1 Absolute Symlink & Zip-Slip Protection
+In zip archives, Unix file permissions can encode symlinks. If a malicious `.rmskin` extracts a symlink targeting `~/.ssh` or `/etc`, subsequent entries written through that symlink bypass component validation:
+- **Symlink Prohibition**: Any archive entry possessing Unix symlink attributes (`entry.unix_mode() & 0o170000 == 0o120000`) or hardlink attributes is rejected with `SecurityError::SymlinkForbidden`.
+- **Component Validation**:
   ```rust
-  // Safe extraction verification
-  for entry in archive.entries() {
-      let enclosed = match entry.enclosed_name() {
-          Some(path) => path,
-          None => return Err(SecurityError::ZipSlipDetected),
-      };
-      if enclosed.components().any(|c| matches!(c, Component::ParentDir | Component::Prefix(_) | Component::RootDir)) {
-          return Err(SecurityError::ZipSlipDetected);
-      }
-      let target_path = destination_root.join(enclosed);
-      // Ensure target path is cleanly within destination_root
+  let enclosed = entry.enclosed_name().ok_or(SecurityError::ZipSlipDetected)?;
+  if enclosed.components().any(|c| matches!(c, Component::ParentDir | Component::Prefix(_) | Component::RootDir)) {
+      return Err(SecurityError::ZipSlipDetected);
   }
+  let target_path = destination_root.join(enclosed);
   ```
-- Unpacking runs in an isolated asynchronous thread, reporting progress notifications over JSON-RPC.
+- **Target Verification**: Prior to writing, verifies `target_path` is strictly prefixed by `canonicalize(destination_root)`.
 
 ---
 
-## 6. Tri-Mode Display Layer (Including GNOME Wayland)
+## 6. Multi-Backend Display Layer (Including GNOME Wayland)
 
-Upstream GNOME Mutter intentionally does not support `wlr-layer-shell`. Pluvia implements a tri-mode compositor abstraction to ensure seamless operation on all Linux desktop environments:
+Mutter (GNOME) does not implement `wlr-layer-shell` and treats XWayland surfaces as standard client windows, causing focus stealing and workspace breakage. Pluvia implements a strict multi-backend architecture:
 
 1. **Wayland wlroots & KDE Plasma (`wlr-layer-shell`)**:
    - Targets `ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM` or `BACKGROUND`.
    - Uses layer-shell anchors (Top, Bottom, Left, Right) and margins for resolution-independent positioning.
-2. **GNOME Wayland Support**:
-   - **Primary Engine**: XWayland desktop-layer window configured with `_NET_WM_WINDOW_TYPE_DESKTOP`, `_NET_WM_STATE_BELOW`, `_NET_WM_STATE_STICKY`, and `_NET_WM_DESKTOP = 0xFFFFFFFF`.
-   - **Optional Native Extension (`pluvia-gnome-bridge`)**: A companion GNOME Shell extension that allows native Wayland surfaces to attach directly to GNOME's `global.window_group` behind all application windows without XWayland scaling artifacts.
+2. **GNOME Wayland: Dedicated Shell Extension (`pluvia-shell@pluvia.org`)**:
+   - A required, lightweight GNOME Shell extension for GNOME Wayland sessions.
+   - Attaches Pluvia surface actors directly to `global.window_group` beneath all normal application windows, guaranteeing they never steal focus, remain pinned during workspace transitions, and survive "Show Desktop" interactions.
 3. **Pure X11**:
-   - Uses native XCB connections with `_NET_WM_WINDOW_TYPE_DESKTOP` and `_NET_WM_STATE_BELOW`.
+   - Direct XCB/X11 desktop window (`_NET_WM_WINDOW_TYPE_DESKTOP`, `_NET_WM_STATE_BELOW`, `_NET_WM_STATE_STICKY`).
 
 ---
 
@@ -195,19 +184,19 @@ Communication over `/run/user/<uid>/pluvia.sock` follows strict JSON-RPC 2.0:
 
 ### Phase 1: Core Engine & Parser (`pluvia-daemon`)
 - Rust workspace setup (`pluvia-core`, `pluvia-daemon`, `pluvia-cli`).
-- Case-insensitive VFS resolver & `.ini` lexer/parser.
-- FreeType in-memory font loader.
+- Charset transcoder (UTF-16 LE, CP1252) & case-insensitive VFS resolver.
+- PangoCairo + HarfBuzz + Fontconfig text rendering pipeline.
 - System measures (`Time`, `CPU`, `Memory`, `Disk`, `NowPlaying`).
 - Native plugin emulators (`ActionTimer`, `AudioLevel`, `Win7Audio`, `Process`, `WebParser`).
-- Scoped Lua 5.1 sandbox.
-- Cairo 2D renderer for all core meters.
-- Tri-mode display backend (wlr-layer-shell, GNOME XWayland/extension, X11).
+- Jailed Lua 5.1 VFS sandbox.
+- Cairo 2D renderer for all core meters with alpha hit-test masks.
+- Display backend abstraction (`wlr-layer-shell`, `pluvia-shell` extension, X11).
 
 ### Phase 2: Package Management & IPC
-- Hardened Anti Zip-Slip `.rmskin` extractor.
+- Hardened Anti Zip-Slip & symlink-immune `.rmskin` extractor.
 - JSON-RPC 2.0 UNIX domain socket server with event streaming.
 - `pluvia-cli` terminal client.
-- Built-in default skins (Mond Clock, System Telemetry, Media Player).
+- Bundled default skins: Mond Clock, System Telemetry, Media Player.
 
 ### Phase 3: Pluvia Studio (Full GUI Manager)
 - Desktop management application.
