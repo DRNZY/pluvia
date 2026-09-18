@@ -4,5 +4,6 @@ pub mod formulas;
 pub mod ini;
 pub mod measures;
 pub mod plugins;
+pub mod render;
 pub mod variables;
 pub mod vfs;
