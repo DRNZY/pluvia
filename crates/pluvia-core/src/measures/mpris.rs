@@ -39,6 +39,7 @@ pub struct NowPlayingMeasure {
     player_name: Option<String>,
     current_value: MeasureValue,
     mock_data: Option<NowPlayingData>,
+    connection: Option<Connection>,
 }
 
 impl NowPlayingMeasure {
@@ -54,6 +55,7 @@ impl NowPlayingMeasure {
                 _ => MeasureValue::Number(0.0),
             },
             mock_data: None,
+            connection: None,
         }
     }
 
@@ -113,11 +115,15 @@ impl NowPlayingMeasure {
                 _ => MeasureValue::Number(0.0),
             },
             mock_data: None,
+            connection: None,
         }
     }
 
-    fn query_mpris_data(&self) -> Option<NowPlayingData> {
-        let conn = Connection::session().ok()?;
+    fn query_mpris_data(&mut self) -> Option<NowPlayingData> {
+        if self.connection.is_none() {
+            self.connection = Connection::session().ok();
+        }
+        let conn = self.connection.as_ref()?;
 
         let destination = if let Some(ref target) = self.player_name {
             if target.starts_with("org.mpris.MediaPlayer2.") {

@@ -111,12 +111,22 @@ pub fn create_measure(config: &MeasureConfig) -> Option<Box<dyn Measure>> {
             Some(Box::new(system::NetMeasure::from_config(config)))
         }
         "nowplaying" => Some(Box::new(mpris::NowPlayingMeasure::from_config(config))),
+        "actiontimer" => Some(Box::new(crate::plugins::action_timer::ActionTimerPlugin::from_config(config))),
+        "audiolevel" => Some(Box::new(crate::plugins::audio_level::AudioLevelPlugin::from_config(config))),
+        "win7audio" => Some(Box::new(crate::plugins::win7_audio::Win7AudioPlugin::from_config(config))),
+        "process" => Some(Box::new(crate::plugins::process::ProcessPlugin::from_config(config))),
+        "webparser" => Some(Box::new(crate::plugins::web_parser::WebParserPlugin::from_config(config))),
         "plugin" => {
-            let plugin = config.plugin.as_deref().unwrap_or("").to_ascii_lowercase();
-            if plugin == "nowplaying" || plugin == "nowplaying.dll" {
-                Some(Box::new(mpris::NowPlayingMeasure::from_config(config)))
-            } else {
-                None
+            let plugin_raw = config.plugin.as_deref().unwrap_or("").to_ascii_lowercase();
+            let plugin = plugin_raw.strip_suffix(".dll").unwrap_or(&plugin_raw);
+            match plugin {
+                "nowplaying" => Some(Box::new(mpris::NowPlayingMeasure::from_config(config))),
+                "actiontimer" => Some(Box::new(crate::plugins::action_timer::ActionTimerPlugin::from_config(config))),
+                "audiolevel" => Some(Box::new(crate::plugins::audio_level::AudioLevelPlugin::from_config(config))),
+                "win7audio" => Some(Box::new(crate::plugins::win7_audio::Win7AudioPlugin::from_config(config))),
+                "process" => Some(Box::new(crate::plugins::process::ProcessPlugin::from_config(config))),
+                "webparser" => Some(Box::new(crate::plugins::web_parser::WebParserPlugin::from_config(config))),
+                _ => None,
             }
         }
         _ => None,

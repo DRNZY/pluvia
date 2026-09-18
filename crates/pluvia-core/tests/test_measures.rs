@@ -198,6 +198,52 @@ fn test_net_measure() {
 }
 
 #[test]
+fn test_net_measure_filters_loopback_on_all_and_zero() {
+    let mut file = NamedTempFile::new().unwrap();
+    writeln!(file, "Inter-|   Receive                                                |  Transmit").unwrap();
+    writeln!(file, " face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed").unwrap();
+    writeln!(file, "    lo: 1000000     100    0    0    0     0          0         0  1000000     100    0    0    0     0       0          0").unwrap();
+    writeln!(file, "  eth0:     500      10    0    0    0     0          0         0      200      10    0    0    0     0       0          0").unwrap();
+
+    // Interface="0"
+    let mut net_zero = NetMeasure::with_path(
+        file.path().to_path_buf(),
+        NetMeasureType::In,
+        Some("0".to_string()),
+    );
+    // Initial update caches base bytes
+    net_zero.update();
+
+    // Second tick with updated bytes
+    let mut file2 = NamedTempFile::new().unwrap();
+    writeln!(file2, "Inter-|   Receive                                                |  Transmit").unwrap();
+    writeln!(file2, " face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed").unwrap();
+    writeln!(file2, "    lo: 2000000     100    0    0    0     0          0         0  2000000     100    0    0    0     0       0          0").unwrap();
+    writeln!(file2, "  eth0:     600      10    0    0    0     0          0         0      300      10    0    0    0     0       0          0").unwrap();
+
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    net_zero.set_dev_path(file2.path().to_path_buf());
+    let rate_zero = net_zero.update().to_number_val();
+    // lo changed by 1,000,000, eth0 changed by 100.
+    // Over 50ms (0.05s), 100 bytes / 0.05s ≈ 2000 B/s.
+    // If lo were not excluded: 1,000,100 / 0.05s ≈ 20,000,000 B/s.
+    assert!(rate_zero < 50_000.0, "Rate was {}, lo was not filtered!", rate_zero);
+
+    // Interface="all"
+    let mut net_all = NetMeasure::with_path(
+        file.path().to_path_buf(),
+        NetMeasureType::In,
+        Some("all".to_string()),
+    );
+    net_all.update();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    net_all.set_dev_path(file2.path().to_path_buf());
+    let rate_all = net_all.update().to_number_val();
+    assert!(rate_all < 50_000.0, "Rate was {}, lo was not filtered on 'all'!", rate_all);
+}
+
+
+#[test]
 fn test_mpris_now_playing_measure_real_and_mock() {
     // Real system query (falls back gracefully if no player running)
     let mut np = NowPlayingMeasure::new(PlayerType::Title);

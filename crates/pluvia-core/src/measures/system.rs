@@ -644,12 +644,13 @@ impl Measure for NetMeasure {
             if let Some((iface, stats)) = line.split_once(':') {
                 let iface_name = iface.trim();
 
-                // If specific interface requested, filter on it
+                // If specific interface requested, filter on it (exclude 'lo' for 0 or all)
                 if let Some(ref target) = self.interface {
-                    if !target.eq_ignore_ascii_case("all")
-                        && !target.eq_ignore_ascii_case("0")
-                        && !iface_name.eq_ignore_ascii_case(target)
-                    {
+                    if target.eq_ignore_ascii_case("all") || target.eq_ignore_ascii_case("0") {
+                        if iface_name == "lo" {
+                            continue;
+                        }
+                    } else if !iface_name.eq_ignore_ascii_case(target) {
                         continue;
                     }
                 } else if iface_name == "lo" {
