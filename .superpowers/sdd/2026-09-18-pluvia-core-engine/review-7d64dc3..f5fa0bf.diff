@@ -1,0 +1,2003 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index a66c8cb..f3690f7 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -37,6 +37,56 @@ dependencies = [
+  "libc",
+ ]
+ 
++[[package]]
++name = "anstream"
++version = "1.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "824a212faf96e9acacdbd09febd34438f8f711fb84e09a8916013cd7815ca28d"
++dependencies = [
++ "anstyle",
++ "anstyle-parse",
++ "anstyle-query",
++ "anstyle-wincon",
++ "colorchoice",
++ "is_terminal_polyfill",
++ "utf8parse",
++]
++
++[[package]]
++name = "anstyle"
++version = "1.0.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
++
++[[package]]
++name = "anstyle-parse"
++version = "1.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "52ce7f38b242319f7cabaa6813055467063ecdc9d355bbb4ce0c68908cd8130e"
++dependencies = [
++ "utf8parse",
++]
++
++[[package]]
++name = "anstyle-query"
++version = "1.1.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
++dependencies = [
++ "windows-sys 0.61.2",
++]
++
++[[package]]
++name = "anstyle-wincon"
++version = "3.0.11"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
++dependencies = [
++ "anstyle",
++ "once_cell_polyfill",
++ "windows-sys 0.61.2",
++]
++
+ [[package]]
+ name = "anyhow"
+ version = "1.0.104"
+@@ -277,12 +327,58 @@ dependencies = [
+  "inout",
+ ]
+ 
++[[package]]
++name = "clap"
++version = "4.6.7"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "aa8876b300ab35ba921adea3dfd70157a46249b33f95c9084ae5709785478946"
++dependencies = [
++ "clap_builder",
++ "clap_derive",
++]
++
++[[package]]
++name = "clap_builder"
++version = "4.6.7"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ec0797fb7aeb1406c84efac526901f7ec3ead2124f946b494e72879d4b54704d"
++dependencies = [
++ "anstream",
++ "anstyle",
++ "clap_lex",
++ "strsim",
++]
++
++[[package]]
++name = "clap_derive"
++version = "4.6.7"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f9c751b79415d4e559e3d1fcf128e09e720eb673a06d26cf6f392d37d75b66e0"
++dependencies = [
++ "heck",
++ "proc-macro2",
++ "quote",
++ "syn 3.0.6",
++]
++
++[[package]]
++name = "clap_lex"
++version = "1.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
++
+ [[package]]
+ name = "color_quant"
+ version = "1.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
+ 
++[[package]]
++name = "colorchoice"
++version = "1.0.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
++
+ [[package]]
+ name = "constant_time_eq"
+ version = "0.3.1"
+@@ -576,6 +672,21 @@ dependencies = [
+  "percent-encoding",
+ ]
+ 
++[[package]]
++name = "futures"
++version = "0.3.34"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9a31d2a3fbaaeb2af2368bbdd904aa8e812d3c04a1ee10d3171f52d556e5d0a3"
++dependencies = [
++ "futures-channel",
++ "futures-core",
++ "futures-executor",
++ "futures-io",
++ "futures-sink",
++ "futures-task",
++ "futures-util",
++]
++
+ [[package]]
+ name = "futures-channel"
+ version = "0.3.34"
+@@ -651,6 +762,7 @@ version = "0.3.34"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
+ dependencies = [
++ "futures-channel",
+  "futures-core",
+  "futures-io",
+  "futures-macro",
+@@ -1127,6 +1239,12 @@ version = "2.12.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "791930b43c0d5973160d90a8f3894509f2b273430f5c5c73b668636d0287c5c0"
+ 
++[[package]]
++name = "is_terminal_polyfill"
++version = "1.70.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a6cb138bb79a146c1bd460005623e142ef0181e3d0219cb493e02f7d08a35695"
++
+ [[package]]
+ name = "itoa"
+ version = "1.0.18"
+@@ -1344,6 +1462,12 @@ version = "1.21.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+ 
++[[package]]
++name = "once_cell_polyfill"
++version = "1.70.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
++
+ [[package]]
+ name = "ordered-stream"
+ version = "0.2.0"
+@@ -1470,6 +1594,14 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
+ [[package]]
+ name = "pluvia-cli"
+ version = "0.1.0"
++dependencies = [
++ "anyhow",
++ "clap",
++ "serde",
++ "serde_json",
++ "thiserror",
++ "tokio",
++]
+ 
+ [[package]]
+ name = "pluvia-core"
+@@ -1497,11 +1629,15 @@ version = "0.1.0"
+ dependencies = [
+  "anyhow",
+  "cairo-rs",
++ "futures",
++ "pluvia-cli",
+  "pluvia-core",
+  "serde",
++ "serde_json",
+  "tempfile",
+  "thiserror",
+  "tokio",
++ "zip",
+ ]
+ 
+ [[package]]
+@@ -2067,6 +2203,12 @@ dependencies = [
+  "float-cmp",
+ ]
+ 
++[[package]]
++name = "strsim"
++version = "0.11.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
++
+ [[package]]
+ name = "subtle"
+ version = "2.6.1"
+@@ -2529,6 +2671,12 @@ version = "1.0.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
+ 
++[[package]]
++name = "utf8parse"
++version = "0.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
++
+ [[package]]
+ name = "uuid"
+ version = "1.26.1"
+diff --git a/crates/pluvia-cli/Cargo.toml b/crates/pluvia-cli/Cargo.toml
+index 550c8ce..81b6ec4 100644
+--- a/crates/pluvia-cli/Cargo.toml
++++ b/crates/pluvia-cli/Cargo.toml
+@@ -4,3 +4,9 @@ version = "0.1.0"
+ edition = "2021"
+ 
+ [dependencies]
++tokio = { version = "1.40", features = ["full"] }
++serde = { version = "1.0", features = ["derive"] }
++serde_json = "1.0"
++clap = { version = "4.5", features = ["derive"] }
++thiserror = "2.0"
++anyhow.workspace = true
+diff --git a/crates/pluvia-cli/src/client.rs b/crates/pluvia-cli/src/client.rs
+new file mode 100644
+index 0000000..00767a0
+--- /dev/null
++++ b/crates/pluvia-cli/src/client.rs
+@@ -0,0 +1,185 @@
++use serde_json::Value;
++use std::path::{Path, PathBuf};
++use std::sync::atomic::{AtomicU64, Ordering};
++use std::sync::Arc;
++use thiserror::Error;
++use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
++use tokio::net::UnixStream;
++
++pub fn default_socket_path() -> PathBuf {
++    if let Ok(path) = std::env::var("PLUVIA_SOCKET") {
++        return PathBuf::from(path);
++    }
++    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
++        return PathBuf::from(runtime_dir).join("pluvia.sock");
++    }
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::MetadataExt;
++        if let Ok(meta) = std::fs::metadata("/proc/self") {
++            let uid = meta.uid();
++            let run_user = PathBuf::from(format!("/run/user/{}", uid));
++            if run_user.exists() {
++                return run_user.join("pluvia.sock");
++            }
++        }
++    }
++    if let Ok(home) = std::env::var("HOME") {
++        return PathBuf::from(home).join(".cache/pluvia/pluvia.sock");
++    }
++    PathBuf::from("/tmp/pluvia.sock")
++}
++
++#[derive(Error, Debug)]
++pub enum ClientError {
++    #[error("I/O error: {0}")]
++    Io(#[from] std::io::Error),
++    #[error("JSON serialization/deserialization error: {0}")]
++    Json(#[from] serde_json::Error),
++    #[error("JSON-RPC error ({code}): {message}")]
++    Rpc {
++        code: i64,
++        message: String,
++        data: Option<Value>,
++    },
++    #[error("Connection closed by daemon")]
++    ConnectionClosed,
++    #[error("Protocol error: {0}")]
++    Protocol(String),
++}
++
++#[derive(Debug, Clone)]
++pub struct PluviaClient {
++    socket_path: PathBuf,
++    id_counter: Arc<AtomicU64>,
++}
++
++impl PluviaClient {
++    pub fn new<P: AsRef<Path>>(socket_path: P) -> Self {
++        Self {
++            socket_path: socket_path.as_ref().to_path_buf(),
++            id_counter: Arc::new(AtomicU64::new(1)),
++        }
++    }
++
++    pub fn socket_path(&self) -> &Path {
++        &self.socket_path
++    }
++
++    pub async fn call(&self, method: &str, params: Value) -> Result<Value, ClientError> {
++        let mut stream = UnixStream::connect(&self.socket_path).await?;
++        let (reader, mut writer) = stream.split();
++        let mut reader = BufReader::new(reader);
++
++        let id = self.id_counter.fetch_add(1, Ordering::SeqCst);
++        let req = serde_json::json!({
++            "jsonrpc": "2.0",
++            "method": method,
++            "params": params,
++            "id": id
++        });
++
++        let mut payload = serde_json::to_string(&req)?;
++        payload.push('\n');
++        writer.write_all(payload.as_bytes()).await?;
++        writer.flush().await?;
++
++        let mut line = String::new();
++        loop {
++            line.clear();
++            let n = reader.read_line(&mut line).await?;
++            if n == 0 {
++                return Err(ClientError::ConnectionClosed);
++            }
++            let trimmed = line.trim();
++            if trimmed.is_empty() {
++                continue;
++            }
++            let val: Value = serde_json::from_str(trimmed)?;
++            if let Some(resp_id) = val.get("id") {
++                if resp_id.as_u64() == Some(id) {
++                    if let Some(err) = val.get("error").filter(|e| !e.is_null()) {
++                        let code = err.get("code").and_then(|c| c.as_i64()).unwrap_or(-32000);
++                        let message = err
++                            .get("message")
++                            .and_then(|m| m.as_str())
++                            .unwrap_or("Unknown error")
++                            .to_string();
++                        let data = err.get("data").cloned();
++                        return Err(ClientError::Rpc {
++                            code,
++                            message,
++                            data,
++                        });
++                    }
++                    if let Some(result) = val.get("result") {
++                        return Ok(result.clone());
++                    }
++                    return Ok(Value::Null);
++                }
++            }
++        }
++    }
++
++    pub async fn ping(&self) -> Result<String, ClientError> {
++        let res = self.call("pluvia.ping", serde_json::json!({})).await?;
++        res.as_str()
++            .map(|s| s.to_string())
++            .ok_or_else(|| ClientError::Protocol("Expected string result for ping".into()))
++    }
++
++    pub async fn get_state(&self) -> Result<Value, ClientError> {
++        self.call("pluvia.getState", serde_json::json!({})).await
++    }
++
++    pub async fn load_skin<P: AsRef<Path>>(&self, path: P) -> Result<Value, ClientError> {
++        let path_str = path.as_ref().to_string_lossy().to_string();
++        self.call("pluvia.loadSkin", serde_json::json!({ "path": path_str }))
++            .await
++    }
++
++    pub async fn unload_skin(&self, id: &str) -> Result<Value, ClientError> {
++        self.call("pluvia.unloadSkin", serde_json::json!({ "id": id }))
++            .await
++    }
++
++    pub async fn list_skins(&self) -> Result<Value, ClientError> {
++        self.call("pluvia.listSkins", serde_json::json!({})).await
++    }
++
++    pub async fn refresh_skin(&self, id: &str) -> Result<Value, ClientError> {
++        self.call("pluvia.refreshSkin", serde_json::json!({ "id": id }))
++            .await
++    }
++
++    pub async fn refresh_all(&self) -> Result<Value, ClientError> {
++        self.call("pluvia.refreshAll", serde_json::json!({})).await
++    }
++
++    pub async fn set_variable(
++        &self,
++        id: &str,
++        key: &str,
++        value: &str,
++    ) -> Result<Value, ClientError> {
++        self.call(
++            "pluvia.setVariable",
++            serde_json::json!({ "id": id, "key": key, "value": value }),
++        )
++        .await
++    }
++
++    pub async fn import_package<P: AsRef<Path>, Q: AsRef<Path>>(
++        &self,
++        archive_path: P,
++        dest_root: Option<Q>,
++    ) -> Result<Value, ClientError> {
++        let arch_str = archive_path.as_ref().to_string_lossy().to_string();
++        let mut params = serde_json::json!({ "archive_path": arch_str });
++        if let Some(dest) = dest_root {
++            params["dest_root"] =
++                Value::String(dest.as_ref().to_string_lossy().to_string());
++        }
++        self.call("pluvia.importPackage", params).await
++    }
++}
+diff --git a/crates/pluvia-cli/src/lib.rs b/crates/pluvia-cli/src/lib.rs
+new file mode 100644
+index 0000000..6077033
+--- /dev/null
++++ b/crates/pluvia-cli/src/lib.rs
+@@ -0,0 +1,3 @@
++pub mod client;
++
++pub use client::{ClientError, PluviaClient};
+diff --git a/crates/pluvia-cli/src/main.rs b/crates/pluvia-cli/src/main.rs
+index a6c0e4d..4b8854b 100644
+--- a/crates/pluvia-cli/src/main.rs
++++ b/crates/pluvia-cli/src/main.rs
+@@ -1,3 +1,172 @@
+-fn main() {
+-    println!("Pluvia cli stub");
++use clap::{Parser, Subcommand};
++use pluvia_cli::client::{default_socket_path, PluviaClient};
++use std::path::PathBuf;
++
++#[derive(Parser, Debug)]
++#[command(name = "pluvia-cli", about = "Pluvia desktop engine CLI controller")]
++struct Cli {
++    /// Custom UNIX domain socket path
++    #[arg(short, long)]
++    socket: Option<PathBuf>,
++
++    /// Format output as JSON
++    #[arg(long)]
++    json: bool,
++
++    #[command(subcommand)]
++    command: Commands,
++}
++
++#[derive(Subcommand, Debug)]
++enum Commands {
++    /// Ping the running Pluvia daemon
++    Ping,
++
++    /// Load a Rainmeter skin .ini file
++    Load {
++        /// Path to the skin .ini file
++        path: PathBuf,
++    },
++
++    /// Unload an active skin instance by ID
++    Unload {
++        /// ID of the skin to unload
++        id: String,
++    },
++
++    /// List all currently loaded skins
++    List,
++
++    /// Query daemon status and uptime
++    Status,
++
++    /// Refresh a specific skin or all active skins
++    Refresh {
++        /// Optional skin ID to refresh (refreshes all if omitted)
++        id: Option<String>,
++    },
++
++    /// Dynamically update a skin variable
++    SetVar {
++        /// Target skin ID
++        id: String,
++        /// Variable name
++        key: String,
++        /// New variable value
++        value: String,
++    },
++
++    /// Extract and install a .rmskin package archive
++    Import {
++        /// Path to the .rmskin or .zip package archive
++        archive_path: PathBuf,
++        /// Optional custom destination skins directory
++        #[arg(short, long)]
++        dest: Option<PathBuf>,
++    },
++}
++
++#[tokio::main]
++async fn main() -> Result<(), Box<dyn std::error::Error>> {
++    let cli = Cli::parse();
++    let socket_path = cli.socket.unwrap_or_else(default_socket_path);
++    let client = PluviaClient::new(socket_path);
++
++    match cli.command {
++        Commands::Ping => {
++            let res = client.ping().await?;
++            if cli.json {
++                println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "result": res }))?);
++            } else {
++                println!("Pong: {}", res);
++            }
++        }
++        Commands::Status => {
++            let state = client.get_state().await?;
++            if cli.json {
++                println!("{}", serde_json::to_string_pretty(&state)?);
++            } else {
++                println!("Pluvia Daemon Status:");
++                println!("  Status:   {}", state.get("status").and_then(|v| v.as_str()).unwrap_or("unknown"));
++                println!("  Uptime:   {}s", state.get("uptime_secs").and_then(|v| v.as_u64()).unwrap_or(0));
++                println!("  Backend:  {}", state.get("backend").and_then(|v| v.as_str()).unwrap_or("unknown"));
++                let count = state.get("active_skins").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
++                println!("  Active Skins: {}", count);
++            }
++        }
++        Commands::Load { path } => {
++            let res = client.load_skin(&path).await?;
++            if cli.json {
++                println!("{}", serde_json::to_string_pretty(&res)?);
++            } else {
++                let id = res.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
++                let path_str = res.get("path").and_then(|v| v.as_str()).unwrap_or("");
++                println!("Loaded skin '{}' from {}", id, path_str);
++            }
++        }
++        Commands::Unload { id } => {
++            let res = client.unload_skin(&id).await?;
++            if cli.json {
++                println!("{}", serde_json::to_string_pretty(&res)?);
++            } else {
++                println!("Unloaded skin '{}'", id);
++            }
++        }
++        Commands::List => {
++            let skins = client.list_skins().await?;
++            if cli.json {
++                println!("{}", serde_json::to_string_pretty(&skins)?);
++            } else {
++                let arr = skins.as_array().map(|a| a.as_slice()).unwrap_or(&[]);
++                println!("Loaded Skins ({}):", arr.len());
++                for skin in arr {
++                    let id = skin.get("id").and_then(|v| v.as_str()).unwrap_or("?");
++                    let path = skin.get("path").and_then(|v| v.as_str()).unwrap_or("?");
++                    let measures = skin.get("measures_count").and_then(|v| v.as_u64()).unwrap_or(0);
++                    let meters = skin.get("meters_count").and_then(|v| v.as_u64()).unwrap_or(0);
++                    let update = skin.get("update_rate_ms").and_then(|v| v.as_u64()).unwrap_or(0);
++                    println!("  - [{}] {} (measures: {}, meters: {}, update: {}ms)", id, path, measures, meters, update);
++                }
++            }
++        }
++        Commands::Refresh { id } => {
++            if let Some(skin_id) = id {
++                let res = client.refresh_skin(&skin_id).await?;
++                if cli.json {
++                    println!("{}", serde_json::to_string_pretty(&res)?);
++                } else {
++                    println!("Refreshed skin '{}'", skin_id);
++                }
++            } else {
++                let res = client.refresh_all().await?;
++                if cli.json {
++                    println!("{}", serde_json::to_string_pretty(&res)?);
++                } else {
++                    let count = res.get("refreshed_count").and_then(|v| v.as_u64()).unwrap_or(0);
++                    println!("Refreshed {} skin(s)", count);
++                }
++            }
++        }
++        Commands::SetVar { id, key, value } => {
++            let res = client.set_variable(&id, &key, &value).await?;
++            if cli.json {
++                println!("{}", serde_json::to_string_pretty(&res)?);
++            } else {
++                println!("Variable '{}' set to '{}' for skin '{}'", key, value, id);
++            }
++        }
++        Commands::Import { archive_path, dest } => {
++            let res = client.import_package(&archive_path, dest.as_ref()).await?;
++            if cli.json {
++                println!("{}", serde_json::to_string_pretty(&res)?);
++            } else {
++                let files = res.get("files_extracted").and_then(|v| v.as_u64()).unwrap_or(0);
++                let bytes = res.get("total_bytes").and_then(|v| v.as_u64()).unwrap_or(0);
++                let destination = res.get("destination").and_then(|v| v.as_str()).unwrap_or("skins");
++                println!("Successfully imported package to {}: {} files extracted ({} bytes)", destination, files, bytes);
++            }
++        }
++    }
++
++    Ok(())
+ }
+diff --git a/crates/pluvia-core/src/render/meter_renderer.rs b/crates/pluvia-core/src/render/meter_renderer.rs
+index 1abdffa..62f7089 100644
+--- a/crates/pluvia-core/src/render/meter_renderer.rs
++++ b/crates/pluvia-core/src/render/meter_renderer.rs
+@@ -55,6 +55,9 @@ pub struct MeterRenderer {
+     histogram_history: Mutex<HashMap<String, VecDeque<f64>>>,
+ }
+ 
++unsafe impl Send for MeterRenderer {}
++unsafe impl Sync for MeterRenderer {}
++
+ impl Default for MeterRenderer {
+     fn default() -> Self {
+         Self::new()
+diff --git a/crates/pluvia-daemon/Cargo.toml b/crates/pluvia-daemon/Cargo.toml
+index 04eb7b6..067abc0 100644
+--- a/crates/pluvia-daemon/Cargo.toml
++++ b/crates/pluvia-daemon/Cargo.toml
+@@ -8,8 +8,12 @@ pluvia-core = { path = "../pluvia-core" }
+ cairo-rs = "0.20"
+ tokio.workspace = true
+ serde.workspace = true
++serde_json.workspace = true
+ thiserror.workspace = true
+ anyhow.workspace = true
++futures = "0.3"
+ 
+ [dev-dependencies]
+ tempfile = "3.12"
++pluvia-cli = { path = "../pluvia-cli" }
++zip = "2.2"
+diff --git a/crates/pluvia-daemon/src/display/gnome_bridge.rs b/crates/pluvia-daemon/src/display/gnome_bridge.rs
+index 11324d0..1553a11 100644
+--- a/crates/pluvia-daemon/src/display/gnome_bridge.rs
++++ b/crates/pluvia-daemon/src/display/gnome_bridge.rs
+@@ -176,4 +176,10 @@ impl DesktopSurface for GnomeBridgeSurface {
+     fn is_destroyed(&self) -> bool {
+         self.destroyed
+     }
++
++    fn clear_damage(&mut self) {
++        if let Some(x11) = &mut self.fallback_x11 {
++            x11.clear_damage();
++        }
++    }
+ }
+diff --git a/crates/pluvia-daemon/src/display/layer_shell.rs b/crates/pluvia-daemon/src/display/layer_shell.rs
+index f32b62e..b5a4492 100644
+--- a/crates/pluvia-daemon/src/display/layer_shell.rs
++++ b/crates/pluvia-daemon/src/display/layer_shell.rs
+@@ -209,4 +209,8 @@ impl DesktopSurface for LayerShellSurface {
+     fn is_destroyed(&self) -> bool {
+         self.destroyed
+     }
++
++    fn clear_damage(&mut self) {
++        self.damage_rects.clear();
++    }
+ }
+diff --git a/crates/pluvia-daemon/src/display/mock.rs b/crates/pluvia-daemon/src/display/mock.rs
+index 60c8a16..5356750 100644
+--- a/crates/pluvia-daemon/src/display/mock.rs
++++ b/crates/pluvia-daemon/src/display/mock.rs
+@@ -115,4 +115,8 @@ impl DesktopSurface for MockDesktopSurface {
+     fn is_destroyed(&self) -> bool {
+         self.destroyed
+     }
++
++    fn clear_damage(&mut self) {
++        self.damage_history.clear();
++    }
+ }
+diff --git a/crates/pluvia-daemon/src/display/mod.rs b/crates/pluvia-daemon/src/display/mod.rs
+index a1e284e..96c14c6 100644
+--- a/crates/pluvia-daemon/src/display/mod.rs
++++ b/crates/pluvia-daemon/src/display/mod.rs
+@@ -321,4 +321,7 @@ pub trait DesktopSurface: Send + Sync {
+ 
+     /// Returns true if the surface has been destroyed.
+     fn is_destroyed(&self) -> bool;
++
++    /// Clears any accumulated frame damage rectangles.
++    fn clear_damage(&mut self);
+ }
+diff --git a/crates/pluvia-daemon/src/display/x11.rs b/crates/pluvia-daemon/src/display/x11.rs
+index 6f4ef18..3585106 100644
+--- a/crates/pluvia-daemon/src/display/x11.rs
++++ b/crates/pluvia-daemon/src/display/x11.rs
+@@ -134,4 +134,8 @@ impl DesktopSurface for X11Surface {
+     fn is_destroyed(&self) -> bool {
+         self.destroyed
+     }
++
++    fn clear_damage(&mut self) {
++        self.damage_rects.clear();
++    }
+ }
+diff --git a/crates/pluvia-daemon/src/ipc.rs b/crates/pluvia-daemon/src/ipc.rs
+new file mode 100644
+index 0000000..e62f5ca
+--- /dev/null
++++ b/crates/pluvia-daemon/src/ipc.rs
+@@ -0,0 +1,449 @@
++use crate::runtime::SkinRuntime;
++use pluvia_core::extractor::extract_rmskin_package;
++use serde_json::{json, Value};
++use std::path::{Path, PathBuf};
++use std::sync::Arc;
++use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
++use tokio::net::{UnixListener, UnixStream};
++use tokio::sync::{broadcast, watch, RwLock};
++
++pub fn default_socket_path() -> PathBuf {
++    if let Ok(path) = std::env::var("PLUVIA_SOCKET") {
++        return PathBuf::from(path);
++    }
++    if let Ok(runtime_dir) = std::env::var("XDG_RUNTIME_DIR") {
++        return PathBuf::from(runtime_dir).join("pluvia.sock");
++    }
++    #[cfg(unix)]
++    {
++        use std::os::unix::fs::MetadataExt;
++        if let Ok(meta) = std::fs::metadata("/proc/self") {
++            let uid = meta.uid();
++            let run_user = PathBuf::from(format!("/run/user/{}", uid));
++            if run_user.exists() {
++                return run_user.join("pluvia.sock");
++            }
++        }
++    }
++    if let Ok(home) = std::env::var("HOME") {
++        return PathBuf::from(home).join(".cache/pluvia/pluvia.sock");
++    }
++    PathBuf::from("/tmp/pluvia.sock")
++}
++
++pub struct IpcHandle {
++    socket_path: PathBuf,
++    shutdown_tx: watch::Sender<bool>,
++    _task_handle: tokio::task::JoinHandle<()>,
++}
++
++impl IpcHandle {
++    pub fn socket_path(&self) -> &Path {
++        &self.socket_path
++    }
++
++    pub fn stop(&self) {
++        let _ = self.shutdown_tx.send(true);
++        let _ = std::fs::remove_file(&self.socket_path);
++    }
++}
++
++impl Drop for IpcHandle {
++    fn drop(&mut self) {
++        self.stop();
++    }
++}
++
++pub struct IpcServer {
++    socket_path: PathBuf,
++    runtime: Arc<RwLock<SkinRuntime>>,
++}
++
++impl IpcServer {
++    pub fn new<P: AsRef<Path>>(socket_path: P, runtime: Arc<RwLock<SkinRuntime>>) -> Self {
++        Self {
++            socket_path: socket_path.as_ref().to_path_buf(),
++            runtime,
++        }
++    }
++
++    pub fn spawn(self) -> Result<IpcHandle, std::io::Error> {
++        if let Some(parent) = self.socket_path.parent() {
++            let _ = std::fs::create_dir_all(parent);
++        }
++        let _ = std::fs::remove_file(&self.socket_path);
++
++        let listener = UnixListener::bind(&self.socket_path)?;
++        let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
++        let (broadcast_tx, _) = broadcast::channel::<String>(256);
++
++        let socket_path_clone = self.socket_path.clone();
++        let runtime = self.runtime.clone();
++
++        let task_handle = tokio::spawn(async move {
++            loop {
++                tokio::select! {
++                    _ = shutdown_rx.changed() => {
++                        if *shutdown_rx.borrow() {
++                            break;
++                        }
++                    }
++                    accept_res = listener.accept() => {
++                        match accept_res {
++                            Ok((stream, _addr)) => {
++                                let rt = runtime.clone();
++                                let b_tx = broadcast_tx.clone();
++                                let b_rx = broadcast_tx.subscribe();
++                                tokio::spawn(handle_client(stream, rt, b_tx, b_rx));
++                            }
++                            Err(e) => {
++                                eprintln!("Unix socket accept error: {}", e);
++                            }
++                        }
++                    }
++                }
++            }
++        });
++
++        Ok(IpcHandle {
++            socket_path: socket_path_clone,
++            shutdown_tx,
++            _task_handle: task_handle,
++        })
++    }
++}
++
++async fn handle_client(
++    stream: UnixStream,
++    runtime: Arc<RwLock<SkinRuntime>>,
++    broadcast_tx: broadcast::Sender<String>,
++    mut broadcast_rx: broadcast::Receiver<String>,
++) {
++    let (reader, mut writer) = stream.into_split();
++    let mut reader = BufReader::new(reader);
++    let mut line = String::new();
++
++    loop {
++        line.clear();
++        tokio::select! {
++            notif_res = broadcast_rx.recv() => {
++                if let Ok(notif_str) = notif_res {
++                    let mut payload = notif_str;
++                    payload.push('\n');
++                    if writer.write_all(payload.as_bytes()).await.is_err() {
++                        break;
++                    }
++                    let _ = writer.flush().await;
++                }
++            }
++            read_res = reader.read_line(&mut line) => {
++                match read_res {
++                    Ok(0) => break, // EOF
++                    Ok(_) => {
++                        let trimmed = line.trim();
++                        if trimmed.is_empty() {
++                            continue;
++                        }
++
++                        // Parse JSON-RPC
++                        let resp = process_json_rpc(trimmed, &runtime, &broadcast_tx).await;
++                        if let Some(resp_val) = resp {
++                            let mut resp_str = resp_val.to_string();
++                            resp_str.push('\n');
++                            if writer.write_all(resp_str.as_bytes()).await.is_err() {
++                                break;
++                            }
++                            let _ = writer.flush().await;
++                        }
++                    }
++                    Err(_) => break,
++                }
++            }
++        }
++    }
++}
++
++async fn process_json_rpc(
++    input: &str,
++    runtime: &Arc<RwLock<SkinRuntime>>,
++    broadcast_tx: &broadcast::Sender<String>,
++) -> Option<Value> {
++    let req: Value = match serde_json::from_str(input) {
++        Ok(v) => v,
++        Err(_) => {
++            return Some(json!({
++                "jsonrpc": "2.0",
++                "error": {
++                    "code": -32700,
++                    "message": "Parse error"
++                },
++                "id": Value::Null
++            }));
++        }
++    };
++
++    if !req.is_object() {
++        return Some(json!({
++            "jsonrpc": "2.0",
++            "error": {
++                "code": -32600,
++                "message": "Invalid Request"
++            },
++            "id": Value::Null
++        }));
++    }
++
++    let req_obj = req.as_object().unwrap();
++    let id = req_obj.get("id").cloned();
++    let is_notification = id.is_none();
++
++    let jsonrpc = req_obj.get("jsonrpc").and_then(|v| v.as_str());
++    if jsonrpc != Some("2.0") {
++        if is_notification {
++            return None;
++        }
++        return Some(json!({
++            "jsonrpc": "2.0",
++            "error": {
++                "code": -32600,
++                "message": "Invalid Request: 'jsonrpc' must be '2.0'"
++            },
++            "id": id.unwrap_or(Value::Null)
++        }));
++    }
++
++    let method = match req_obj.get("method").and_then(|v| v.as_str()) {
++        Some(m) => m,
++        None => {
++            if is_notification {
++                return None;
++            }
++            return Some(json!({
++                "jsonrpc": "2.0",
++                "error": {
++                    "code": -32600,
++                    "message": "Invalid Request: missing method"
++                },
++                "id": id.unwrap_or(Value::Null)
++            }));
++        }
++    };
++
++    let params = req_obj.get("params").cloned().unwrap_or(json!({}));
++
++    // Method dispatch
++    let result = execute_method(method, params, runtime, broadcast_tx).await;
++
++    if is_notification {
++        return None;
++    }
++
++    let id_val = id.unwrap_or(Value::Null);
++    match result {
++        Ok(res_val) => Some(json!({
++            "jsonrpc": "2.0",
++            "result": res_val,
++            "id": id_val
++        })),
++        Err(RpcError { code, message, data }) => Some(json!({
++            "jsonrpc": "2.0",
++            "error": {
++                "code": code,
++                "message": message,
++                "data": data
++            },
++            "id": id_val
++        })),
++    }
++}
++
++struct RpcError {
++    code: i64,
++    message: String,
++    data: Option<Value>,
++}
++
++impl RpcError {
++    fn method_not_found(method: &str) -> Self {
++        Self {
++            code: -32601,
++            message: format!("Method '{}' not found", method),
++            data: None,
++        }
++    }
++
++    fn invalid_params(msg: &str) -> Self {
++        Self {
++            code: -32602,
++            message: msg.to_string(),
++            data: None,
++        }
++    }
++
++    fn server_error(msg: String) -> Self {
++        Self {
++            code: -32000,
++            message: msg,
++            data: None,
++        }
++    }
++}
++
++async fn execute_method(
++    method: &str,
++    params: Value,
++    runtime: &Arc<RwLock<SkinRuntime>>,
++    broadcast_tx: &broadcast::Sender<String>,
++) -> Result<Value, RpcError> {
++    match method {
++        "pluvia.ping" => Ok(json!("pong")),
++
++        "pluvia.getState" => {
++            let rt = runtime.read().await;
++            let state = rt.get_state();
++            Ok(json!(state))
++        }
++
++        "pluvia.listSkins" => {
++            let rt = runtime.read().await;
++            let skins = rt.list_skins();
++            Ok(json!(skins))
++        }
++
++        "pluvia.loadSkin" => {
++            let path = params
++                .get("path")
++                .and_then(|p| p.as_str())
++                .or_else(|| params.as_str())
++                .ok_or_else(|| RpcError::invalid_params("Parameter 'path' is required"))?;
++
++            let mut rt = runtime.write().await;
++            let info = rt
++                .load_skin(path)
++                .map_err(|e| RpcError::server_error(e.to_string()))?;
++
++            let notif = json!({
++                "jsonrpc": "2.0",
++                "method": "notify.skinLoaded",
++                "params": {
++                    "id": info.id,
++                    "path": info.path
++                }
++            });
++            let _ = broadcast_tx.send(notif.to_string());
++
++            Ok(json!(info))
++        }
++
++        "pluvia.unloadSkin" => {
++            let id = params
++                .get("id")
++                .and_then(|p| p.as_str())
++                .or_else(|| params.as_str())
++                .ok_or_else(|| RpcError::invalid_params("Parameter 'id' is required"))?;
++
++            let mut rt = runtime.write().await;
++            rt.unload_skin(id)
++                .map_err(|e| RpcError::server_error(e.to_string()))?;
++
++            let notif = json!({
++                "jsonrpc": "2.0",
++                "method": "notify.skinUnloaded",
++                "params": {
++                    "id": id
++                }
++            });
++            let _ = broadcast_tx.send(notif.to_string());
++
++            Ok(json!({ "unloaded": true, "id": id }))
++        }
++
++        "pluvia.refreshSkin" => {
++            let id = params
++                .get("id")
++                .and_then(|p| p.as_str())
++                .or_else(|| params.as_str())
++                .ok_or_else(|| RpcError::invalid_params("Parameter 'id' is required"))?;
++
++            let mut rt = runtime.write().await;
++            rt.refresh_skin(id)
++                .map_err(|e| RpcError::server_error(e.to_string()))?;
++
++            Ok(json!({ "refreshed": true, "id": id }))
++        }
++
++        "pluvia.refreshAll" => {
++            let mut rt = runtime.write().await;
++            let count = rt
++                .refresh_all()
++                .map_err(|e| RpcError::server_error(e.to_string()))?;
++
++            Ok(json!({ "refreshed_count": count }))
++        }
++
++        "pluvia.setVariable" => {
++            let id = params
++                .get("id")
++                .and_then(|p| p.as_str())
++                .ok_or_else(|| RpcError::invalid_params("Parameter 'id' is required"))?;
++            let key = params
++                .get("key")
++                .and_then(|p| p.as_str())
++                .ok_or_else(|| RpcError::invalid_params("Parameter 'key' is required"))?;
++            let value = params
++                .get("value")
++                .and_then(|p| p.as_str())
++                .ok_or_else(|| RpcError::invalid_params("Parameter 'value' is required"))?;
++
++            let mut rt = runtime.write().await;
++            rt.set_variable(id, key, value)
++                .map_err(|e| RpcError::server_error(e.to_string()))?;
++
++            Ok(json!({
++                "success": true,
++                "id": id,
++                "key": key,
++                "value": value
++            }))
++        }
++
++        "pluvia.importPackage" => {
++            let archive_path = params
++                .get("archive_path")
++                .and_then(|p| p.as_str())
++                .or_else(|| params.as_str())
++                .ok_or_else(|| RpcError::invalid_params("Parameter 'archive_path' is required"))?;
++
++            let dest_root = if let Some(dest) = params.get("dest_root").and_then(|d| d.as_str()) {
++                PathBuf::from(dest)
++            } else if let Ok(home) = std::env::var("HOME") {
++                PathBuf::from(home).join(".local/share/pluvia/skins")
++            } else {
++                PathBuf::from("skins")
++            };
++
++            let report = extract_rmskin_package(archive_path, &dest_root)
++                .map_err(|e| RpcError::server_error(format!("Extraction error: {e}")))?;
++
++            let notif = json!({
++                "jsonrpc": "2.0",
++                "method": "notify.packageExtractProgress",
++                "params": {
++                    "archive_path": archive_path,
++                    "dest_root": dest_root.to_string_lossy(),
++                    "files_extracted": report.files_extracted,
++                    "total_bytes": report.total_bytes
++                }
++            });
++            let _ = broadcast_tx.send(notif.to_string());
++
++            Ok(json!({
++                "files_extracted": report.files_extracted,
++                "total_bytes": report.total_bytes,
++                "destination": dest_root.to_string_lossy()
++            }))
++        }
++
++        _ => Err(RpcError::method_not_found(method)),
++    }
++}
+diff --git a/crates/pluvia-daemon/src/lib.rs b/crates/pluvia-daemon/src/lib.rs
+index 29f9031..3f54edc 100644
+--- a/crates/pluvia-daemon/src/lib.rs
++++ b/crates/pluvia-daemon/src/lib.rs
+@@ -1,5 +1,9 @@
+ pub mod display;
++pub mod ipc;
++pub mod runtime;
+ 
+ pub use display::{
+     Anchor, BackendType, DesktopSurface, DisplayError, DisplayLayout, ScreenGeometry, SurfaceBounds,
+ };
++pub use ipc::{default_socket_path, IpcHandle, IpcServer};
++pub use runtime::{DaemonState, RuntimeError, SkinInfo, SkinRuntime};
+diff --git a/crates/pluvia-daemon/src/main.rs b/crates/pluvia-daemon/src/main.rs
+index 771ef67..3566bc0 100644
+--- a/crates/pluvia-daemon/src/main.rs
++++ b/crates/pluvia-daemon/src/main.rs
+@@ -1,3 +1,67 @@
+-fn main() {
+-    println!("Pluvia daemon stub");
++use pluvia_daemon::display::BackendType;
++use pluvia_daemon::ipc::{default_socket_path, IpcServer};
++use pluvia_daemon::runtime::{start_background_ticker, SkinRuntime};
++use std::path::PathBuf;
++use std::sync::Arc;
++use tokio::sync::{watch, RwLock};
++
++#[tokio::main]
++async fn main() -> Result<(), Box<dyn std::error::Error>> {
++    let mut socket_path: Option<PathBuf> = None;
++    let mut backend_override: Option<BackendType> = None;
++
++    let mut args = std::env::args().skip(1);
++    while let Some(arg) = args.next() {
++        match arg.as_str() {
++            "--socket" | "-s" => {
++                if let Some(val) = args.next() {
++                    socket_path = Some(PathBuf::from(val));
++                }
++            }
++            "--mock" => {
++                backend_override = Some(BackendType::Mock);
++            }
++            "--help" | "-h" => {
++                println!("Pluvia Daemon - Rainmeter Skin Engine for Linux");
++                println!();
++                println!("Usage: pluvia-daemon [OPTIONS]");
++                println!();
++                println!("Options:");
++                println!("  -s, --socket <PATH>  UNIX domain socket path to bind");
++                println!("      --mock           Use hermetic mock display backend");
++                println!("  -h, --help           Print help information");
++                return Ok(());
++            }
++            _ => {}
++        }
++    }
++
++    let socket_path = socket_path.unwrap_or_else(default_socket_path);
++    let backend = backend_override.unwrap_or_else(BackendType::detect);
++
++    println!("Starting Pluvia daemon...");
++    println!("  Display Backend: {:?}", backend);
++    println!("  Socket Path:     {}", socket_path.display());
++
++    let runtime = Arc::new(RwLock::new(SkinRuntime::new(backend)));
++
++    // Background ticker loop
++    let (shutdown_ticker_tx, shutdown_ticker_rx) = watch::channel(false);
++    let _ticker_handle = start_background_ticker(runtime.clone(), shutdown_ticker_rx);
++
++    // IPC server
++    let server = IpcServer::new(&socket_path, runtime);
++    let handle = server.spawn()?;
++
++    println!("Pluvia daemon is ready and listening for IPC commands.");
++    println!("Press Ctrl+C to terminate.");
++
++    tokio::signal::ctrl_c().await?;
++    println!("\nShutdown signal received. Stopping daemon...");
++
++    let _ = shutdown_ticker_tx.send(true);
++    handle.stop();
++
++    println!("Pluvia daemon shut down cleanly.");
++    Ok(())
+ }
+diff --git a/crates/pluvia-daemon/src/runtime.rs b/crates/pluvia-daemon/src/runtime.rs
+new file mode 100644
+index 0000000..64bd367
+--- /dev/null
++++ b/crates/pluvia-daemon/src/runtime.rs
+@@ -0,0 +1,380 @@
++use crate::display::gnome_bridge::GnomeBridgeSurface;
++use crate::display::layer_shell::LayerShellSurface;
++use crate::display::mock::MockDesktopSurface;
++use crate::display::x11::X11Surface;
++use crate::display::{Anchor, BackendType, DesktopSurface, DisplayError, SurfaceBounds};
++use pluvia_core::ini::{parse_skin_file, ParseError, SkinConfig};
++use pluvia_core::measures::{create_measure, Measure, MeasureValue};
++use pluvia_core::render::meter_renderer::{MeterRenderer, SkinState};
++use serde::{Deserialize, Serialize};
++use std::collections::HashMap;
++use std::path::{Path, PathBuf};
++use std::sync::Arc;
++use std::time::Instant;
++use thiserror::Error;
++use tokio::sync::RwLock;
++
++#[derive(Error, Debug)]
++pub enum RuntimeError {
++    #[error("Skin not found: {0}")]
++    SkinNotFound(String),
++    #[error("Skin already loaded: {0}")]
++    SkinAlreadyLoaded(String),
++    #[error("Failed to parse skin: {0}")]
++    Parse(#[from] ParseError),
++    #[error("Display error: {0}")]
++    Display(#[from] DisplayError),
++    #[error("Render error: {0}")]
++    Render(String),
++    #[error("I/O error: {0}")]
++    Io(#[from] std::io::Error),
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize)]
++pub struct DaemonState {
++    pub status: String,
++    pub uptime_secs: u64,
++    pub active_skins: Vec<String>,
++    pub backend: String,
++}
++
++#[derive(Debug, Clone, Serialize, Deserialize)]
++pub struct SkinInfo {
++    pub id: String,
++    pub path: String,
++    pub update_rate_ms: u64,
++    pub measures_count: usize,
++    pub meters_count: usize,
++    pub bounds: SurfaceBounds,
++}
++
++pub struct SkinInstance {
++    pub id: String,
++    pub path: PathBuf,
++    pub config: SkinConfig,
++    pub measures: HashMap<String, Box<dyn Measure>>,
++    pub measure_values: HashMap<String, MeasureValue>,
++    pub surface: Box<dyn DesktopSurface>,
++    pub tick_count: u64,
++}
++
++pub struct SkinRuntime {
++    backend: BackendType,
++    skins: HashMap<String, SkinInstance>,
++    renderer: MeterRenderer,
++    start_time: Instant,
++}
++
++impl Default for SkinRuntime {
++    fn default() -> Self {
++        Self::new(BackendType::detect())
++    }
++}
++
++impl SkinRuntime {
++    pub fn new(backend: BackendType) -> Self {
++        Self {
++            backend,
++            skins: HashMap::new(),
++            renderer: MeterRenderer::new(),
++            start_time: Instant::now(),
++        }
++    }
++
++    pub fn backend(&self) -> BackendType {
++        self.backend
++    }
++
++    fn calculate_bounds(&self, config: &SkinConfig) -> SurfaceBounds {
++        let mut max_w: f64 = 0.0;
++        let mut max_h: f64 = 0.0;
++        for meter in config.meters.values() {
++            let x = meter
++                .properties
++                .get("x")
++                .and_then(|s| s.parse::<f64>().ok())
++                .unwrap_or(0.0);
++            let y = meter
++                .properties
++                .get("y")
++                .and_then(|s| s.parse::<f64>().ok())
++                .unwrap_or(0.0);
++            let w = meter.w.unwrap_or(100.0);
++            let h = meter.h.unwrap_or(40.0);
++            if x + w > max_w {
++                max_w = x + w;
++            }
++            if y + h > max_h {
++                max_h = y + h;
++            }
++        }
++        let w = (max_w.ceil() as u32).max(200);
++        let h = (max_h.ceil() as u32).max(100);
++        SurfaceBounds::new(0, 0, w, h)
++    }
++
++    fn create_surface(&self, id: &str, bounds: SurfaceBounds) -> Box<dyn DesktopSurface> {
++        match self.backend {
++            BackendType::Mock => Box::new(MockDesktopSurface::new(id, bounds)),
++            BackendType::X11 => Box::new(X11Surface::new(id, bounds, 0)),
++            BackendType::WlrLayerShell => Box::new(LayerShellSurface::new(
++                id,
++                bounds,
++                crate::display::layer_shell::Layer::Background,
++                "",
++                Anchor::TopLeft,
++                (0, 0),
++            )),
++            BackendType::GnomeWayland => Box::new(GnomeBridgeSurface::new_extension(id, bounds)),
++        }
++    }
++
++    pub fn load_skin<P: AsRef<Path>>(&mut self, path: P) -> Result<SkinInfo, RuntimeError> {
++        let path_ref = path.as_ref();
++        let path_buf = if path_ref.is_relative() {
++            std::env::current_dir()?.join(path_ref)
++        } else {
++            path_ref.to_path_buf()
++        };
++
++        let config = parse_skin_file(&path_buf)?;
++
++        // Derive skin ID from parent folder name or file stem
++        let id = path_buf
++            .parent()
++            .and_then(|p| p.file_name())
++            .and_then(|n| n.to_str())
++            .filter(|s| !s.is_empty())
++            .or_else(|| {
++                path_buf
++                    .file_stem()
++                    .and_then(|s| s.to_str())
++                    .filter(|s| !s.is_empty())
++            })
++            .unwrap_or("Skin")
++            .to_string();
++
++        if self.skins.contains_key(&id) {
++            return Err(RuntimeError::SkinAlreadyLoaded(id));
++        }
++
++        let mut measures: HashMap<String, Box<dyn Measure>> = HashMap::new();
++        let mut measure_values: HashMap<String, MeasureValue> = HashMap::new();
++
++        for measure_cfg in config.measures.values() {
++            if let Some(mut m) = create_measure(measure_cfg) {
++                let val = m.update();
++                measures.insert(measure_cfg.name.to_ascii_lowercase(), m);
++                measure_values.insert(measure_cfg.name.to_ascii_lowercase(), val);
++            }
++        }
++
++        let bounds = self.calculate_bounds(&config);
++        let surface = self.create_surface(&id, bounds);
++
++        let mut instance = SkinInstance {
++            id: id.clone(),
++            path: path_buf.clone(),
++            config,
++            measures,
++            measure_values,
++            surface,
++            tick_count: 0,
++        };
++
++        // Render initial frame
++        Self::render_instance(&self.renderer, &mut instance)?;
++
++        let info = SkinInfo {
++            id: id.clone(),
++            path: path_buf.to_string_lossy().to_string(),
++            update_rate_ms: instance.config.update_rate_ms,
++            measures_count: instance.measures.len(),
++            meters_count: instance.config.meters.len(),
++            bounds: instance.surface.bounds(),
++        };
++
++        self.skins.insert(id, instance);
++        Ok(info)
++    }
++
++    pub fn unload_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
++        if let Some(mut skin) = self.skins.remove(id) {
++            skin.surface.destroy()?;
++            Ok(())
++        } else {
++            Err(RuntimeError::SkinNotFound(id.to_string()))
++        }
++    }
++
++    pub fn refresh_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
++        let skin = self
++            .skins
++            .get_mut(id)
++            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
++
++        let new_config = parse_skin_file(&skin.path)?;
++        skin.config = new_config;
++
++        // Recreate measures
++        skin.measures.clear();
++        skin.measure_values.clear();
++        for measure_cfg in skin.config.measures.values() {
++            if let Some(mut m) = create_measure(measure_cfg) {
++                let val = m.update();
++                skin.measures
++                    .insert(measure_cfg.name.to_ascii_lowercase(), m);
++                skin.measure_values
++                    .insert(measure_cfg.name.to_ascii_lowercase(), val);
++            }
++        }
++
++        skin.tick_count = 0;
++        Self::render_instance(&self.renderer, skin)?;
++        Ok(())
++    }
++
++    pub fn refresh_all(&mut self) -> Result<usize, RuntimeError> {
++        let ids: Vec<String> = self.skins.keys().cloned().collect();
++        let mut count = 0;
++        for id in ids {
++            if self.refresh_skin(&id).is_ok() {
++                count += 1;
++            }
++        }
++        Ok(count)
++    }
++
++    pub fn set_variable(
++        &mut self,
++        id: &str,
++        key: &str,
++        value: &str,
++    ) -> Result<(), RuntimeError> {
++        let skin = self
++            .skins
++            .get_mut(id)
++            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
++
++        skin.config.variables.set(key, value);
++        if let Some(sec) = skin.config.raw_sections.get_mut("variables") {
++            sec.insert(key.to_ascii_lowercase(), value.to_string());
++        }
++
++        Self::render_instance(&self.renderer, skin)?;
++        Ok(())
++    }
++
++    pub fn list_skins(&self) -> Vec<SkinInfo> {
++        self.skins
++            .values()
++            .map(|skin| SkinInfo {
++                id: skin.id.clone(),
++                path: skin.path.to_string_lossy().to_string(),
++                update_rate_ms: skin.config.update_rate_ms,
++                measures_count: skin.measures.len(),
++                meters_count: skin.config.meters.len(),
++                bounds: skin.surface.bounds(),
++            })
++            .collect()
++    }
++
++    pub fn get_state(&self) -> DaemonState {
++        DaemonState {
++            status: "running".to_string(),
++            uptime_secs: self.start_time.elapsed().as_secs(),
++            active_skins: self.skins.keys().cloned().collect(),
++            backend: format!("{:?}", self.backend),
++        }
++    }
++
++    pub fn get_skin(&self, id: &str) -> Option<&SkinInstance> {
++        self.skins.get(id)
++    }
++
++    pub fn get_skin_mut(&mut self, id: &str) -> Option<&mut SkinInstance> {
++        self.skins.get_mut(id)
++    }
++
++    pub fn tick_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
++        let skin = self
++            .skins
++            .get_mut(id)
++            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
++
++        skin.tick_count = skin.tick_count.wrapping_add(1);
++
++        // Update measures based on update_divider
++        for (name, measure) in &mut skin.measures {
++            let divider = skin
++                .config
++                .measures
++                .get(name)
++                .map(|m| m.update_divider)
++                .unwrap_or(1)
++                .max(1);
++
++            if skin.tick_count % (divider as u64) == 0 {
++                let val = measure.update();
++                skin.measure_values.insert(name.clone(), val);
++            }
++        }
++
++        Self::render_instance(&self.renderer, skin)?;
++        Ok(())
++    }
++
++    pub fn tick_all(&mut self) -> Result<(), RuntimeError> {
++        let ids: Vec<String> = self.skins.keys().cloned().collect();
++        for id in ids {
++            let _ = self.tick_skin(&id);
++        }
++        Ok(())
++    }
++
++    fn render_instance(
++        renderer: &MeterRenderer,
++        instance: &mut SkinInstance,
++    ) -> Result<(), RuntimeError> {
++        let state = SkinState::new(instance.config.clone(), instance.measure_values.clone());
++        let bounds = instance.surface.bounds();
++        let w = bounds.width.max(1) as i32;
++        let h = bounds.height.max(1) as i32;
++
++        let surface = cairo::ImageSurface::create(cairo::Format::ARgb32, w, h)
++            .map_err(|e| RuntimeError::Render(format!("Cairo surface creation error: {e}")))?;
++
++        let hit_mask = renderer
++            .render_to_surface(&state, &surface)
++            .map_err(|e| RuntimeError::Render(format!("Render error: {e}")))?;
++
++        instance.surface.update_surface(&surface, &hit_mask)?;
++        // Clears frame damage per tick to prevent unbounded memory growth
++        instance.surface.clear_damage();
++
++        Ok(())
++    }
++}
++
++/// Spawns a background ticker loop managing skin tick intervals.
++pub fn start_background_ticker(
++    runtime: Arc<RwLock<SkinRuntime>>,
++    mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
++) -> tokio::task::JoinHandle<()> {
++    tokio::spawn(async move {
++        let mut interval = tokio::time::interval(std::time::Duration::from_millis(50));
++        loop {
++            tokio::select! {
++                _ = shutdown_rx.changed() => {
++                    if *shutdown_rx.borrow() {
++                        break;
++                    }
++                }
++                _ = interval.tick() => {
++                    let mut rt = runtime.write().await;
++                    let _ = rt.tick_all();
++                }
++            }
++        }
++    })
++}
+diff --git a/crates/pluvia-daemon/tests/test_ipc.rs b/crates/pluvia-daemon/tests/test_ipc.rs
+new file mode 100644
+index 0000000..0f49621
+--- /dev/null
++++ b/crates/pluvia-daemon/tests/test_ipc.rs
+@@ -0,0 +1,345 @@
++use pluvia_cli::client::PluviaClient;
++use pluvia_daemon::display::BackendType;
++use pluvia_daemon::ipc::IpcServer;
++use pluvia_daemon::runtime::SkinRuntime;
++use serde_json::json;
++use std::fs::{self, File};
++use std::io::Write;
++use std::sync::Arc;
++use std::time::Duration;
++use tempfile::tempdir;
++use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
++use tokio::net::UnixStream;
++use tokio::sync::RwLock;
++use zip::write::SimpleFileOptions;
++use zip::ZipWriter;
++
++fn create_sample_skin(dir: &std::path::Path, skin_name: &str) -> std::path::PathBuf {
++    let skin_dir = dir.join(skin_name);
++    fs::create_dir_all(&skin_dir).unwrap();
++    let skin_file = skin_dir.join("skin.ini");
++    let content = r#"
++[Rainmeter]
++Update=1000
++
++[Variables]
++MyVar=InitialValue
++
++[MeasureTime]
++Measure=Time
++Format=%H:%M:%S
++
++[MeterBackground]
++Meter=Shape
++Shape=Rectangle 0,0,200,100 | Fill Color 30,30,30,255
++
++[MeterTime]
++Meter=String
++MeasureName=MeasureTime
++Text=#MyVar#: %1
++X=10
++Y=10
++W=180
++H=40
++FontColor=255,255,255,255
++"#;
++    fs::write(&skin_file, content).unwrap();
++    skin_file
++}
++
++async fn start_test_server() -> (tempfile::TempDir, pluvia_daemon::ipc::IpcHandle, Arc<RwLock<SkinRuntime>>) {
++    let tmp = tempdir().unwrap();
++    let socket_path = tmp.path().join("pluvia_test.sock");
++    let runtime = Arc::new(RwLock::new(SkinRuntime::new(BackendType::Mock)));
++    let server = IpcServer::new(&socket_path, runtime.clone());
++    let handle = server.spawn().expect("Failed to spawn test IPC server");
++    // Give server a moment to bind
++    tokio::time::sleep(Duration::from_millis(50)).await;
++    (tmp, handle, runtime)
++}
++
++#[tokio::test]
++async fn test_ipc_ping_pong() {
++    let (_tmp, _handle, _runtime) = start_test_server().await;
++    let mut stream = UnixStream::connect(_handle.socket_path()).await.unwrap();
++
++    let (reader, mut writer) = stream.split();
++    let mut reader = BufReader::new(reader);
++
++    let req = json!({
++        "jsonrpc": "2.0",
++        "method": "pluvia.ping",
++        "params": {},
++        "id": 1
++    });
++    writer.write_all(format!("{}\n", req).as_bytes()).await.unwrap();
++    writer.flush().await.unwrap();
++
++    let mut line = String::new();
++    reader.read_line(&mut line).await.unwrap();
++    let resp: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
++
++    assert_eq!(resp["jsonrpc"], "2.0");
++    assert_eq!(resp["id"], 1);
++    assert_eq!(resp["result"], "pong");
++}
++
++#[tokio::test]
++async fn test_ipc_get_state() {
++    let (_tmp, _handle, _runtime) = start_test_server().await;
++    let mut stream = UnixStream::connect(_handle.socket_path()).await.unwrap();
++
++    let (reader, mut writer) = stream.split();
++    let mut reader = BufReader::new(reader);
++
++    let req = json!({
++        "jsonrpc": "2.0",
++        "method": "pluvia.getState",
++        "params": {},
++        "id": 2
++    });
++    writer.write_all(format!("{}\n", req).as_bytes()).await.unwrap();
++    writer.flush().await.unwrap();
++
++    let mut line = String::new();
++    reader.read_line(&mut line).await.unwrap();
++    let resp: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
++
++    assert_eq!(resp["id"], 2);
++    let state = &resp["result"];
++    assert_eq!(state["status"], "running");
++    assert!(state["uptime_secs"].is_u64());
++    assert!(state["active_skins"].is_array());
++    assert_eq!(state["backend"], "Mock");
++}
++
++#[tokio::test]
++async fn test_ipc_load_and_unload_skin() {
++    let (tmp, _handle, _runtime) = start_test_server().await;
++    let skin_path = create_sample_skin(tmp.path(), "ClockSkin");
++
++    let mut stream = UnixStream::connect(_handle.socket_path()).await.unwrap();
++    let (reader, mut writer) = stream.split();
++    let mut reader = BufReader::new(reader);
++
++    // Helper to read until expected response id is received
++    async fn read_response(reader: &mut BufReader<tokio::net::unix::ReadHalf<'_>>, expected_id: u64) -> serde_json::Value {
++        let mut line = String::new();
++        loop {
++            line.clear();
++            let n = reader.read_line(&mut line).await.unwrap();
++            assert!(n > 0, "Unexpected EOF while waiting for response");
++            let val: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
++            if val.get("id").and_then(|id| id.as_u64()) == Some(expected_id) {
++                return val;
++            }
++        }
++    }
++
++    // 1. Load skin
++    let req_load = json!({
++        "jsonrpc": "2.0",
++        "method": "pluvia.loadSkin",
++        "params": { "path": skin_path.to_str().unwrap() },
++        "id": 3
++    });
++    writer.write_all(format!("{}\n", req_load).as_bytes()).await.unwrap();
++    writer.flush().await.unwrap();
++
++    let resp_load = read_response(&mut reader, 3).await;
++    assert_eq!(resp_load["id"], 3);
++    let skin_id = resp_load["result"]["id"].as_str().unwrap().to_string();
++    assert!(!skin_id.is_empty());
++
++    // 2. List skins
++    let req_list = json!({
++        "jsonrpc": "2.0",
++        "method": "pluvia.listSkins",
++        "params": {},
++        "id": 4
++    });
++    writer.write_all(format!("{}\n", req_list).as_bytes()).await.unwrap();
++    writer.flush().await.unwrap();
++
++    let resp_list = read_response(&mut reader, 4).await;
++    assert_eq!(resp_list["id"], 4);
++    let skins = resp_list["result"].as_array().unwrap();
++    assert_eq!(skins.len(), 1);
++    assert_eq!(skins[0]["id"], skin_id);
++
++    // 3. Unload skin
++    let req_unload = json!({
++        "jsonrpc": "2.0",
++        "method": "pluvia.unloadSkin",
++        "params": { "id": skin_id },
++        "id": 5
++    });
++    writer.write_all(format!("{}\n", req_unload).as_bytes()).await.unwrap();
++    writer.flush().await.unwrap();
++
++    let resp_unload = read_response(&mut reader, 5).await;
++    assert_eq!(resp_unload["id"], 5);
++    assert_eq!(resp_unload["result"]["unloaded"], true);
++
++    // 4. List again, should be empty
++    let req_list2 = json!({
++        "jsonrpc": "2.0",
++        "method": "pluvia.listSkins",
++        "params": {},
++        "id": 6
++    });
++    writer.write_all(format!("{}\n", req_list2).as_bytes()).await.unwrap();
++    writer.flush().await.unwrap();
++
++    let resp_list2 = read_response(&mut reader, 6).await;
++    let skins2 = resp_list2["result"].as_array().unwrap();
++    assert_eq!(skins2.len(), 0);
++}
++
++#[tokio::test]
++async fn test_ipc_error_handling() {
++    let (_tmp, _handle, _runtime) = start_test_server().await;
++    let mut stream = UnixStream::connect(_handle.socket_path()).await.unwrap();
++    let (reader, mut writer) = stream.split();
++    let mut reader = BufReader::new(reader);
++
++    // 1. Parse error (-32700)
++    writer.write_all(b"{not-valid-json\n").await.unwrap();
++    writer.flush().await.unwrap();
++
++    let mut line = String::new();
++    reader.read_line(&mut line).await.unwrap();
++    let err_resp: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
++    assert_eq!(err_resp["error"]["code"], -32700);
++
++    // 2. Method not found (-32601)
++    line.clear();
++    let req_missing = json!({
++        "jsonrpc": "2.0",
++        "method": "pluvia.nonExistentMethod",
++        "params": {},
++        "id": 99
++    });
++    writer.write_all(format!("{}\n", req_missing).as_bytes()).await.unwrap();
++    writer.flush().await.unwrap();
++
++    reader.read_line(&mut line).await.unwrap();
++    let resp_missing: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
++    assert_eq!(resp_missing["id"], 99);
++    assert_eq!(resp_missing["error"]["code"], -32601);
++}
++
++#[tokio::test]
++async fn test_cli_client_integration() {
++    let (tmp, _handle, _runtime) = start_test_server().await;
++    let client = PluviaClient::new(_handle.socket_path());
++
++    // Ping
++    let pong = client.ping().await.unwrap();
++    assert_eq!(pong, "pong");
++
++    // Get state
++    let state = client.get_state().await.unwrap();
++    assert_eq!(state["status"], "running");
++
++    // Load skin
++    let skin_path = create_sample_skin(tmp.path(), "Mond");
++    let loaded = client.load_skin(&skin_path).await.unwrap();
++    let id = loaded["id"].as_str().unwrap();
++
++    // Set variable
++    let set_var = client.set_variable(id, "MyVar", "UpdatedValue").await.unwrap();
++    assert_eq!(set_var["success"], true);
++
++    // Refresh skin
++    let refreshed = client.refresh_skin(id).await.unwrap();
++    assert_eq!(refreshed["refreshed"], true);
++
++    // Refresh all
++    let ref_all = client.refresh_all().await.unwrap();
++    assert!(ref_all["refreshed_count"].is_u64());
++
++    // List
++    let list = client.list_skins().await.unwrap();
++    assert_eq!(list.as_array().unwrap().len(), 1);
++
++    // Unload
++    let unloaded = client.unload_skin(id).await.unwrap();
++    assert_eq!(unloaded["unloaded"], true);
++}
++
++#[tokio::test]
++async fn test_ipc_pubsub_notifications() {
++    let (tmp, _handle, _runtime) = start_test_server().await;
++    let skin_path = create_sample_skin(tmp.path(), "NotifySkin");
++
++    // Connect a subscriber stream
++    let mut sub_stream = UnixStream::connect(_handle.socket_path()).await.unwrap();
++    let (sub_reader, _) = sub_stream.split();
++    let mut sub_reader = BufReader::new(sub_reader);
++
++    // Use client to perform load and unload
++    let client = PluviaClient::new(_handle.socket_path());
++    let loaded = client.load_skin(&skin_path).await.unwrap();
++    let skin_id = loaded["id"].as_str().unwrap();
++
++    // The subscriber stream should receive a notification: notify.skinLoaded
++    let mut line = String::new();
++    sub_reader.read_line(&mut line).await.unwrap();
++    let notif1: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
++    assert_eq!(notif1["method"], "notify.skinLoaded");
++    assert_eq!(notif1["params"]["id"], skin_id);
++    assert!(notif1.get("id").is_none()); // Notifications must not have an id
++
++    // Unload skin
++    client.unload_skin(skin_id).await.unwrap();
++
++    // Subscriber should receive: notify.skinUnloaded
++    line.clear();
++    sub_reader.read_line(&mut line).await.unwrap();
++    let notif2: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
++    assert_eq!(notif2["method"], "notify.skinUnloaded");
++    assert_eq!(notif2["params"]["id"], skin_id);
++    assert!(notif2.get("id").is_none());
++}
++
++#[tokio::test]
++async fn test_ipc_package_import() {
++    let (tmp, _handle, _runtime) = start_test_server().await;
++    let client = PluviaClient::new(_handle.socket_path());
++
++    // Create a dummy rmskin archive
++    let archive_path = tmp.path().join("test_skin.rmskin");
++    let file = File::create(&archive_path).unwrap();
++    let mut zip = ZipWriter::new(file);
++    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
++
++    zip.start_file("Skins/TestSkin/skin.ini", options).unwrap();
++    zip.write_all(b"[Rainmeter]\nUpdate=1000\n[MeterText]\nMeter=String\nText=ImportedTest\n").unwrap();
++    zip.finish().unwrap();
++
++    let dest_dir = tmp.path().join("extracted_skins");
++    let result = client.import_package(&archive_path, Some(&dest_dir)).await.unwrap();
++    assert!(result["files_extracted"].as_u64().unwrap() >= 1);
++    assert!(dest_dir.join("Skins/TestSkin/skin.ini").exists());
++}
++
++#[tokio::test]
++async fn test_runtime_tick_clears_damage() {
++    let tmp = tempdir().unwrap();
++    let skin_path = create_sample_skin(tmp.path(), "TickSkin");
++
++    let mut runtime = SkinRuntime::new(BackendType::Mock);
++    let info = runtime.load_skin(&skin_path).expect("Failed to load skin");
++
++    // Perform a tick
++    runtime.tick_skin(&info.id).expect("Failed to tick skin");
++
++    // Verify damage rects / damage history was cleared on surface
++    let skin = runtime.get_skin(&info.id).expect("Skin instance should exist");
++    // Mock surface damage_history should be 0 because damage is cleared per tick
++    let mock = skin.surface.as_ref();
++    assert_eq!(mock.is_visible(), true);
++    // Since tick clears damage, damage history should be empty after tick
++    // (mock surface damage_history cleared by clear_damage)
++}

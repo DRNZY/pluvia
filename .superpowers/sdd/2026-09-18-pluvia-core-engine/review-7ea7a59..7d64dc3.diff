@@ -1,0 +1,1482 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index e78f710..a66c8cb 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -37,6 +37,12 @@ dependencies = [
+  "libc",
+ ]
+ 
++[[package]]
++name = "anyhow"
++version = "1.0.104"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
++
+ [[package]]
+ name = "arbitrary"
+ version = "1.4.2"
+@@ -1183,6 +1189,15 @@ version = "0.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
+ 
++[[package]]
++name = "lock_api"
++version = "0.4.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "224399e74b87b5f3557511d98dff8b14089b3dadafcab6bb93eab67d3aace965"
++dependencies = [
++ "scopeguard",
++]
++
+ [[package]]
+ name = "log"
+ version = "0.4.34"
+@@ -1395,6 +1410,29 @@ version = "2.2.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
+ 
++[[package]]
++name = "parking_lot"
++version = "0.12.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "93857453250e3077bd71ff98b6a65ea6621a19bb0f559a85248955ac12c45a1a"
++dependencies = [
++ "lock_api",
++ "parking_lot_core",
++]
++
++[[package]]
++name = "parking_lot_core"
++version = "0.9.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2621685985a2ebf1c516881c026032ac7deafcda1a2c9b7850dc81e3dfcb64c1"
++dependencies = [
++ "cfg-if",
++ "libc",
++ "redox_syscall",
++ "smallvec",
++ "windows-link",
++]
++
+ [[package]]
+ name = "pbkdf2"
+ version = "0.12.2"
+@@ -1456,6 +1494,15 @@ dependencies = [
+ [[package]]
+ name = "pluvia-daemon"
+ version = "0.1.0"
++dependencies = [
++ "anyhow",
++ "cairo-rs",
++ "pluvia-core",
++ "serde",
++ "tempfile",
++ "thiserror",
++ "tokio",
++]
+ 
+ [[package]]
+ name = "png"
+@@ -1631,6 +1678,15 @@ dependencies = [
+  "rand_core",
+ ]
+ 
++[[package]]
++name = "redox_syscall"
++version = "0.5.18"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ed2bf2547551a7053d6fdfafda3f938979645c44812fbfcda098faae3f1a362d"
++dependencies = [
++ "bitflags 2.13.2",
++]
++
+ [[package]]
+ name = "regex"
+ version = "1.13.1"
+@@ -2191,13 +2247,26 @@ dependencies = [
+  "bytes",
+  "libc",
+  "mio",
++ "parking_lot",
+  "pin-project-lite",
+  "signal-hook-registry",
+  "socket2",
++ "tokio-macros",
+  "tracing",
+  "windows-sys 0.61.2",
+ ]
+ 
++[[package]]
++name = "tokio-macros"
++version = "2.7.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "78773a2a397f451582ce068015985c33193cf6dea8b74d2a639fe457b2f07b0e"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 3.0.6",
++]
++
+ [[package]]
+ name = "tokio-rustls"
+ version = "0.26.5"
+diff --git a/crates/pluvia-daemon/Cargo.toml b/crates/pluvia-daemon/Cargo.toml
+index c40235b..04eb7b6 100644
+--- a/crates/pluvia-daemon/Cargo.toml
++++ b/crates/pluvia-daemon/Cargo.toml
+@@ -4,3 +4,12 @@ version = "0.1.0"
+ edition = "2021"
+ 
+ [dependencies]
++pluvia-core = { path = "../pluvia-core" }
++cairo-rs = "0.20"
++tokio.workspace = true
++serde.workspace = true
++thiserror.workspace = true
++anyhow.workspace = true
++
++[dev-dependencies]
++tempfile = "3.12"
+diff --git a/crates/pluvia-daemon/src/display/gnome_bridge.rs b/crates/pluvia-daemon/src/display/gnome_bridge.rs
+new file mode 100644
+index 0000000..11324d0
+--- /dev/null
++++ b/crates/pluvia-daemon/src/display/gnome_bridge.rs
+@@ -0,0 +1,179 @@
++use super::x11::X11Surface;
++use super::{BackendType, DesktopSurface, DisplayError, SurfaceBounds};
++use pluvia_core::render::{AlphaHitMask, Rect};
++use serde::{Deserialize, Serialize};
++
++/// Operating mode for GNOME Wayland desktop integration.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
++pub enum GnomeBridgeMode {
++    /// Dedicated D-Bus bridge to `pluvia-shell@pluvia.org` GNOME Shell extension.
++    Extension,
++    /// Fallback desktop surface via XWayland desktop-layer window hints.
++    XWaylandFallback,
++}
++
++/// Desktop surface bridge for GNOME Shell on Wayland.
++#[derive(Debug, Clone)]
++pub struct GnomeBridgeSurface {
++    id: String,
++    bounds: SurfaceBounds,
++    mode: GnomeBridgeMode,
++    extension_uuid: String,
++    dbus_interface: String,
++    fallback_x11: Option<X11Surface>,
++    visible: bool,
++    destroyed: bool,
++    active_rects: Vec<Rect>,
++}
++
++impl GnomeBridgeSurface {
++    /// Creates a surface using the native `pluvia-shell@pluvia.org` GNOME Shell extension D-Bus bridge.
++    pub fn new_extension(id: impl Into<String>, bounds: SurfaceBounds) -> Self {
++        Self {
++            id: id.into(),
++            bounds,
++            mode: GnomeBridgeMode::Extension,
++            extension_uuid: "pluvia-shell@pluvia.org".to_string(),
++            dbus_interface: "org.pluvia.Shell".to_string(),
++            fallback_x11: None,
++            visible: true,
++            destroyed: false,
++            active_rects: Vec::new(),
++        }
++    }
++
++    /// Creates a surface in fallback mode backed by an XWayland desktop window.
++    pub fn new_xwayland_fallback(
++        id: impl Into<String>,
++        bounds: SurfaceBounds,
++        fallback_window_id: u32,
++    ) -> Self {
++        let id_str = id.into();
++        let fallback = X11Surface::new(&id_str, bounds, fallback_window_id);
++        Self {
++            id: id_str,
++            bounds,
++            mode: GnomeBridgeMode::XWaylandFallback,
++            extension_uuid: "pluvia-shell@pluvia.org".to_string(),
++            dbus_interface: "org.pluvia.Shell".to_string(),
++            fallback_x11: Some(fallback),
++            visible: true,
++            destroyed: false,
++            active_rects: Vec::new(),
++        }
++    }
++
++    pub fn mode(&self) -> GnomeBridgeMode {
++        self.mode
++    }
++
++    pub fn extension_uuid(&self) -> &str {
++        &self.extension_uuid
++    }
++
++    pub fn dbus_interface(&self) -> &str {
++        &self.dbus_interface
++    }
++
++    pub fn fallback_x11(&self) -> Option<&X11Surface> {
++        self.fallback_x11.as_ref()
++    }
++
++    pub fn fallback_x11_mut(&mut self) -> Option<&mut X11Surface> {
++        self.fallback_x11.as_mut()
++    }
++
++    pub fn active_rects(&self) -> &[Rect] {
++        &self.active_rects
++    }
++}
++
++impl DesktopSurface for GnomeBridgeSurface {
++    fn id(&self) -> &str {
++        &self.id
++    }
++
++    fn backend_type(&self) -> BackendType {
++        BackendType::GnomeWayland
++    }
++
++    fn bounds(&self) -> SurfaceBounds {
++        if let Some(x11) = &self.fallback_x11 {
++            x11.bounds()
++        } else {
++            self.bounds
++        }
++    }
++
++    fn set_bounds(&mut self, bounds: SurfaceBounds) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.bounds = bounds;
++        if let Some(x11) = &mut self.fallback_x11 {
++            x11.set_bounds(bounds)?;
++        }
++        Ok(())
++    }
++
++    fn is_visible(&self) -> bool {
++        if let Some(x11) = &self.fallback_x11 {
++            x11.is_visible()
++        } else {
++            self.visible && !self.destroyed
++        }
++    }
++
++    fn set_visible(&mut self, visible: bool) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.visible = visible;
++        if let Some(x11) = &mut self.fallback_x11 {
++            x11.set_visible(visible)?;
++        }
++        Ok(())
++    }
++
++    fn update_surface(
++        &mut self,
++        surface: &cairo::ImageSurface,
++        hit_mask: &AlphaHitMask,
++    ) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.active_rects = hit_mask.to_rectangles();
++        self.bounds.width = surface.width() as u32;
++        self.bounds.height = surface.height() as u32;
++
++        if let Some(x11) = &mut self.fallback_x11 {
++            x11.update_surface(surface, hit_mask)?;
++        }
++        Ok(())
++    }
++
++    fn update_hit_mask(&mut self, hit_mask: &AlphaHitMask) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.active_rects = hit_mask.to_rectangles();
++        if let Some(x11) = &mut self.fallback_x11 {
++            x11.update_hit_mask(hit_mask)?;
++        }
++        Ok(())
++    }
++
++    fn destroy(&mut self) -> Result<(), DisplayError> {
++        self.destroyed = true;
++        self.active_rects.clear();
++        if let Some(x11) = &mut self.fallback_x11 {
++            x11.destroy()?;
++        }
++        Ok(())
++    }
++
++    fn is_destroyed(&self) -> bool {
++        self.destroyed
++    }
++}
+diff --git a/crates/pluvia-daemon/src/display/layer_shell.rs b/crates/pluvia-daemon/src/display/layer_shell.rs
+new file mode 100644
+index 0000000..f32b62e
+--- /dev/null
++++ b/crates/pluvia-daemon/src/display/layer_shell.rs
+@@ -0,0 +1,212 @@
++use super::{Anchor, BackendType, DesktopSurface, DisplayError, SurfaceBounds};
++use pluvia_core::render::{AlphaHitMask, Rect};
++use serde::{Deserialize, Serialize};
++
++/// Wayland wlr-layer-shell surface layers.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
++pub enum Layer {
++    Background = 0,
++    Bottom = 1,
++    Top = 2,
++    Overlay = 3,
++}
++
++/// Bitflags representing zwlr_layer_surface_v1 edge anchors.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
++pub struct LayerShellAnchor(u32);
++
++impl LayerShellAnchor {
++    pub const TOP: Self = Self(1);
++    pub const BOTTOM: Self = Self(2);
++    pub const LEFT: Self = Self(4);
++    pub const RIGHT: Self = Self(8);
++
++    pub const fn empty() -> Self {
++        Self(0)
++    }
++
++    pub const fn contains(&self, other: Self) -> bool {
++        (self.0 & other.0) == other.0
++    }
++
++    pub const fn bits(&self) -> u32 {
++        self.0
++    }
++
++    pub const fn from_bits_truncate(bits: u32) -> Self {
++        Self(bits)
++    }
++}
++
++impl std::ops::BitOr for LayerShellAnchor {
++    type Output = Self;
++    fn bitor(self, rhs: Self) -> Self {
++        Self(self.0 | rhs.0)
++    }
++}
++
++/// Desktop surface backed by Wayland `wlr-layer-shell`.
++#[derive(Debug, Clone)]
++pub struct LayerShellSurface {
++    id: String,
++    bounds: SurfaceBounds,
++    layer: Layer,
++    output: String,
++    anchor: Anchor,
++    margin: (i32, i32),
++    namespace: String,
++    visible: bool,
++    destroyed: bool,
++    input_region_rects: Vec<Rect>,
++    damage_rects: Vec<Rect>,
++}
++
++impl LayerShellSurface {
++    pub fn new(
++        id: impl Into<String>,
++        bounds: SurfaceBounds,
++        layer: Layer,
++        output: impl Into<String>,
++        anchor: Anchor,
++        margin: (i32, i32),
++    ) -> Self {
++        Self {
++            id: id.into(),
++            bounds,
++            layer,
++            output: output.into(),
++            anchor,
++            margin,
++            namespace: "pluvia".to_string(),
++            visible: true,
++            destroyed: false,
++            input_region_rects: Vec::new(),
++            damage_rects: Vec::new(),
++        }
++    }
++
++    pub fn layer(&self) -> Layer {
++        self.layer
++    }
++
++    pub fn output(&self) -> &str {
++        &self.output
++    }
++
++    pub fn namespace(&self) -> &str {
++        &self.namespace
++    }
++
++    pub fn set_namespace(&mut self, namespace: impl Into<String>) {
++        self.namespace = namespace.into();
++    }
++
++    /// Converts the configured `Anchor` to `LayerShellAnchor` flags.
++    pub fn layer_shell_anchors(&self) -> LayerShellAnchor {
++        match self.anchor {
++            Anchor::TopLeft => LayerShellAnchor::TOP | LayerShellAnchor::LEFT,
++            Anchor::TopCenter => LayerShellAnchor::TOP,
++            Anchor::TopRight => LayerShellAnchor::TOP | LayerShellAnchor::RIGHT,
++            Anchor::Center => LayerShellAnchor::empty(),
++            Anchor::BottomLeft => LayerShellAnchor::BOTTOM | LayerShellAnchor::LEFT,
++            Anchor::BottomCenter => LayerShellAnchor::BOTTOM,
++            Anchor::BottomRight => LayerShellAnchor::BOTTOM | LayerShellAnchor::RIGHT,
++            Anchor::Absolute => LayerShellAnchor::TOP | LayerShellAnchor::LEFT,
++        }
++    }
++
++    /// Returns the pixel margins (top, right, bottom, left) calculated from the anchor and margin offsets.
++    pub fn margins(&self) -> (i32, i32, i32, i32) {
++        let (mx, my) = self.margin;
++        match self.anchor {
++            Anchor::TopLeft => (my, 0, 0, mx),
++            Anchor::TopCenter => (my, 0, 0, mx),
++            Anchor::TopRight => (my, mx, 0, 0),
++            Anchor::Center => (my, 0, 0, mx),
++            Anchor::BottomLeft => (0, 0, my, mx),
++            Anchor::BottomCenter => (0, 0, my, mx),
++            Anchor::BottomRight => (0, mx, my, 0),
++            Anchor::Absolute => (my, 0, 0, mx),
++        }
++    }
++
++    pub fn input_region_rects(&self) -> &[Rect] {
++        &self.input_region_rects
++    }
++
++    pub fn damage_rects(&self) -> &[Rect] {
++        &self.damage_rects
++    }
++}
++
++impl DesktopSurface for LayerShellSurface {
++    fn id(&self) -> &str {
++        &self.id
++    }
++
++    fn backend_type(&self) -> BackendType {
++        BackendType::WlrLayerShell
++    }
++
++    fn bounds(&self) -> SurfaceBounds {
++        self.bounds
++    }
++
++    fn set_bounds(&mut self, bounds: SurfaceBounds) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.bounds = bounds;
++        Ok(())
++    }
++
++    fn is_visible(&self) -> bool {
++        self.visible && !self.destroyed
++    }
++
++    fn set_visible(&mut self, visible: bool) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.visible = visible;
++        Ok(())
++    }
++
++    fn update_surface(
++        &mut self,
++        surface: &cairo::ImageSurface,
++        hit_mask: &AlphaHitMask,
++    ) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.input_region_rects = hit_mask.to_rectangles();
++        self.bounds.width = surface.width() as u32;
++        self.bounds.height = surface.height() as u32;
++        self.damage_rects.push(Rect::new(
++            0.0,
++            0.0,
++            surface.width() as f64,
++            surface.height() as f64,
++        ));
++        Ok(())
++    }
++
++    fn update_hit_mask(&mut self, hit_mask: &AlphaHitMask) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.input_region_rects = hit_mask.to_rectangles();
++        Ok(())
++    }
++
++    fn destroy(&mut self) -> Result<(), DisplayError> {
++        self.destroyed = true;
++        self.input_region_rects.clear();
++        Ok(())
++    }
++
++    fn is_destroyed(&self) -> bool {
++        self.destroyed
++    }
++}
+diff --git a/crates/pluvia-daemon/src/display/mock.rs b/crates/pluvia-daemon/src/display/mock.rs
+new file mode 100644
+index 0000000..60c8a16
+--- /dev/null
++++ b/crates/pluvia-daemon/src/display/mock.rs
+@@ -0,0 +1,118 @@
++use super::{BackendType, DesktopSurface, DisplayError, SurfaceBounds};
++use pluvia_core::render::{AlphaHitMask, Rect};
++
++/// Hermetic mock desktop surface for headless testing and verification.
++#[derive(Debug, Clone)]
++pub struct MockDesktopSurface {
++    id: String,
++    bounds: SurfaceBounds,
++    visible: bool,
++    destroyed: bool,
++    update_count: usize,
++    last_surface_size: Option<(u32, u32)>,
++    damage_history: Vec<Rect>,
++    hit_mask_rects: Vec<Rect>,
++}
++
++impl MockDesktopSurface {
++    pub fn new(id: impl Into<String>, bounds: SurfaceBounds) -> Self {
++        Self {
++            id: id.into(),
++            bounds,
++            visible: true,
++            destroyed: false,
++            update_count: 0,
++            last_surface_size: None,
++            damage_history: Vec::new(),
++            hit_mask_rects: Vec::new(),
++        }
++    }
++
++    pub fn update_count(&self) -> usize {
++        self.update_count
++    }
++
++    pub fn last_surface_size(&self) -> Option<(u32, u32)> {
++        self.last_surface_size
++    }
++
++    pub fn damage_history(&self) -> &[Rect] {
++        &self.damage_history
++    }
++
++    pub fn hit_mask_rectangles(&self) -> &[Rect] {
++        &self.hit_mask_rects
++    }
++}
++
++impl DesktopSurface for MockDesktopSurface {
++    fn id(&self) -> &str {
++        &self.id
++    }
++
++    fn backend_type(&self) -> BackendType {
++        BackendType::Mock
++    }
++
++    fn bounds(&self) -> SurfaceBounds {
++        self.bounds
++    }
++
++    fn set_bounds(&mut self, bounds: SurfaceBounds) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.bounds = bounds;
++        Ok(())
++    }
++
++    fn is_visible(&self) -> bool {
++        self.visible && !self.destroyed
++    }
++
++    fn set_visible(&mut self, visible: bool) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.visible = visible;
++        Ok(())
++    }
++
++    fn update_surface(
++        &mut self,
++        surface: &cairo::ImageSurface,
++        hit_mask: &AlphaHitMask,
++    ) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        let w = surface.width() as u32;
++        let h = surface.height() as u32;
++        self.last_surface_size = Some((w, h));
++        self.bounds.width = w;
++        self.bounds.height = h;
++        self.hit_mask_rects = hit_mask.to_rectangles();
++        self.damage_history
++            .push(Rect::new(0.0, 0.0, w as f64, h as f64));
++        self.update_count += 1;
++        Ok(())
++    }
++
++    fn update_hit_mask(&mut self, hit_mask: &AlphaHitMask) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.hit_mask_rects = hit_mask.to_rectangles();
++        Ok(())
++    }
++
++    fn destroy(&mut self) -> Result<(), DisplayError> {
++        self.destroyed = true;
++        self.hit_mask_rects.clear();
++        Ok(())
++    }
++
++    fn is_destroyed(&self) -> bool {
++        self.destroyed
++    }
++}
+diff --git a/crates/pluvia-daemon/src/display/mod.rs b/crates/pluvia-daemon/src/display/mod.rs
+new file mode 100644
+index 0000000..a1e284e
+--- /dev/null
++++ b/crates/pluvia-daemon/src/display/mod.rs
+@@ -0,0 +1,324 @@
++pub mod gnome_bridge;
++pub mod layer_shell;
++pub mod mock;
++pub mod x11;
++
++use pluvia_core::render::{AlphaHitMask, Rect};
++use serde::{Deserialize, Serialize};
++use std::collections::HashMap;
++
++/// Display and window backend errors.
++#[derive(Debug, thiserror::Error)]
++pub enum DisplayError {
++    #[error("Surface has been destroyed")]
++    SurfaceDestroyed,
++    #[error("Display backend error: {0}")]
++    Backend(String),
++    #[error("Protocol error: {0}")]
++    Protocol(String),
++    #[error("Invalid geometry: {0}")]
++    InvalidGeometry(String),
++    #[error("D-Bus communication error: {0}")]
++    DBus(String),
++    #[error("IO error: {0}")]
++    Io(#[from] std::io::Error),
++}
++
++/// 2D bounding box for desktop surfaces.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
++pub struct SurfaceBounds {
++    pub x: i32,
++    pub y: i32,
++    pub width: u32,
++    pub height: u32,
++}
++
++impl SurfaceBounds {
++    pub const fn new(x: i32, y: i32, width: u32, height: u32) -> Self {
++        Self {
++            x,
++            y,
++            width,
++            height,
++        }
++    }
++
++    pub fn contains(&self, px: i32, py: i32) -> bool {
++        px >= self.x
++            && px < self.x + self.width as i32
++            && py >= self.y
++            && py < self.y + self.height as i32
++    }
++
++    pub fn to_rect(&self) -> Rect {
++        Rect::new(
++            self.x as f64,
++            self.y as f64,
++            self.width as f64,
++            self.height as f64,
++        )
++    }
++}
++
++/// Physical or virtual monitor screen geometry.
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
++pub struct ScreenGeometry {
++    pub name: String,
++    pub x: i32,
++    pub y: i32,
++    pub width: u32,
++    pub height: u32,
++    pub scale_factor: f64,
++}
++
++impl ScreenGeometry {
++    pub fn new(
++        name: impl Into<String>,
++        x: i32,
++        y: i32,
++        width: u32,
++        height: u32,
++        scale_factor: f64,
++    ) -> Self {
++        Self {
++            name: name.into(),
++            x,
++            y,
++            width,
++            height,
++            scale_factor,
++        }
++    }
++
++    pub fn contains(&self, px: i32, py: i32) -> bool {
++        px >= self.x
++            && px < self.x + self.width as i32
++            && py >= self.y
++            && py < self.y + self.height as i32
++    }
++}
++
++/// Multi-monitor layout and coordinate translation engine.
++#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
++pub struct DisplayLayout {
++    pub screens: Vec<ScreenGeometry>,
++}
++
++impl DisplayLayout {
++    pub fn new(screens: Vec<ScreenGeometry>) -> Self {
++        Self { screens }
++    }
++
++    pub fn primary_monitor(&self) -> Option<&ScreenGeometry> {
++        self.screens.first()
++    }
++
++    pub fn find_monitor_at(&self, x: i32, y: i32) -> Option<&ScreenGeometry> {
++        self.screens.iter().find(|s| s.contains(x, y))
++    }
++
++    pub fn find_monitor_by_name(&self, name: &str) -> Option<&ScreenGeometry> {
++        self.screens.iter().find(|s| s.name == name)
++    }
++
++    /// Translates a relative coordinate offset (e.g. from monitor top-left) onto a target monitor.
++    pub fn translate_relative(
++        &self,
++        relative_offset: (i32, i32),
++        _source: &ScreenGeometry,
++        target: &ScreenGeometry,
++    ) -> (i32, i32) {
++        (target.x + relative_offset.0, target.y + relative_offset.1)
++    }
++
++    /// Translates absolute global canvas coordinates from source monitor coordinates to target monitor coordinates.
++    pub fn translate_point(
++        &self,
++        point: (i32, i32),
++        source: &ScreenGeometry,
++        target: &ScreenGeometry,
++    ) -> (i32, i32) {
++        let rel_x = point.0 - source.x;
++        let rel_y = point.1 - source.y;
++        (target.x + rel_x, target.y + rel_y)
++    }
++}
++
++/// Anchor positioning type for desktop skin windows.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
++pub enum Anchor {
++    TopLeft,
++    TopCenter,
++    TopRight,
++    Center,
++    BottomLeft,
++    BottomCenter,
++    BottomRight,
++    Absolute,
++}
++
++impl Anchor {
++    /// Resolves top-left screen coordinates (x, y) given screen geometry, widget size, and margins.
++    ///
++    /// Margins represent the inward offset from the respective anchored edges:
++    /// - `TopLeft`: `(screen.x + margin_x, screen.y + margin_y)`
++    /// - `TopCenter`: `(screen.x + (screen.width - w) / 2 + margin_x, screen.y + margin_y)`
++    /// - `TopRight`: `(screen.x + screen.width - w - margin_x, screen.y + margin_y)`
++    /// - `Center`: `(screen.x + (screen.width - w) / 2 + margin_x, screen.y + (screen.height - h) / 2 + margin_y)`
++    /// - `BottomLeft`: `(screen.x + margin_x, screen.y + screen.height - h - margin_y)`
++    /// - `BottomCenter`: `(screen.x + (screen.width - w) / 2 + margin_x, screen.y + screen.height - h - margin_y)`
++    /// - `BottomRight`: `(screen.x + screen.width - w - margin_x, screen.y + screen.height - h - margin_y)`
++    /// - `Absolute`: `(screen.x + margin_x, screen.y + margin_y)`
++    pub fn resolve_position(
++        &self,
++        screen: &ScreenGeometry,
++        widget_w: u32,
++        widget_h: u32,
++        margin_x: i32,
++        margin_y: i32,
++    ) -> (i32, i32) {
++        let sw = screen.width as i32;
++        let sh = screen.height as i32;
++        let w = widget_w as i32;
++        let h = widget_h as i32;
++
++        match self {
++            Anchor::TopLeft => (screen.x + margin_x, screen.y + margin_y),
++            Anchor::TopCenter => (screen.x + ((sw - w) / 2) + margin_x, screen.y + margin_y),
++            Anchor::TopRight => (screen.x + sw - w - margin_x, screen.y + margin_y),
++            Anchor::Center => (
++                screen.x + ((sw - w) / 2) + margin_x,
++                screen.y + ((sh - h) / 2) + margin_y,
++            ),
++            Anchor::BottomLeft => (screen.x + margin_x, screen.y + sh - h - margin_y),
++            Anchor::BottomCenter => {
++                (screen.x + ((sw - w) / 2) + margin_x, screen.y + sh - h - margin_y)
++            }
++            Anchor::BottomRight => (
++                screen.x + sw - w - margin_x,
++                screen.y + sh - h - margin_y,
++            ),
++            Anchor::Absolute => (screen.x + margin_x, screen.y + margin_y),
++        }
++    }
++
++    /// Resolves full `SurfaceBounds` given screen geometry, widget size, and margins.
++    pub fn resolve_bounds(
++        &self,
++        screen: &ScreenGeometry,
++        widget_w: u32,
++        widget_h: u32,
++        margin_x: i32,
++        margin_y: i32,
++    ) -> SurfaceBounds {
++        let (x, y) = self.resolve_position(screen, widget_w, widget_h, margin_x, margin_y);
++        SurfaceBounds::new(x, y, widget_w, widget_h)
++    }
++}
++
++/// Supported desktop window backend types.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
++pub enum BackendType {
++    WlrLayerShell,
++    GnomeWayland,
++    X11,
++    Mock,
++}
++
++impl BackendType {
++    /// Detects the active desktop window backend from runtime environment variables.
++    pub fn detect() -> Self {
++        Self::detect_from_env(|k| std::env::var(k).ok())
++    }
++
++    /// Detects the backend using a provided map of environment variables (for testing).
++    pub fn detect_from_map(map: &HashMap<String, String>) -> Self {
++        Self::detect_from_env(|k| map.get(k).cloned())
++    }
++
++    /// Detects the backend using a custom variable resolver function.
++    pub fn detect_from_env<F: Fn(&str) -> Option<String>>(lookup: F) -> Self {
++        // 1. Explicit override check
++        if let Some(explicit) = lookup("PLUVIA_BACKEND").or_else(|| lookup("BACKEND")) {
++            let lower = explicit.trim().to_lowercase();
++            match lower.as_str() {
++                "mock" | "test" | "headless" => return BackendType::Mock,
++                "layer-shell" | "layershell" | "wlr" | "wlr-layer-shell" | "wayland" => {
++                    return BackendType::WlrLayerShell;
++                }
++                "gnome" | "gnome-wayland" | "gnome-shell" => return BackendType::GnomeWayland,
++                "x11" | "xorg" | "x" => return BackendType::X11,
++                _ => {}
++            }
++        }
++
++        // 2. Wayland session check
++        let wayland_display = lookup("WAYLAND_DISPLAY").filter(|s| !s.trim().is_empty());
++        let xdg_session_type = lookup("XDG_SESSION_TYPE")
++            .unwrap_or_default()
++            .to_lowercase();
++        let is_wayland = wayland_display.is_some() || xdg_session_type == "wayland";
++
++        if is_wayland {
++            let desktop = lookup("XDG_CURRENT_DESKTOP")
++                .unwrap_or_default()
++                .to_uppercase();
++            let session_desktop = lookup("XDG_SESSION_DESKTOP")
++                .unwrap_or_default()
++                .to_uppercase();
++            let gnome_session = lookup("GNOME_DESKTOP_SESSION_ID").is_some();
++
++            if desktop.contains("GNOME") || session_desktop.contains("GNOME") || gnome_session {
++                BackendType::GnomeWayland
++            } else {
++                BackendType::WlrLayerShell
++            }
++        } else if lookup("DISPLAY").filter(|s| !s.trim().is_empty()).is_some()
++            || xdg_session_type == "x11"
++        {
++            BackendType::X11
++        } else {
++            // Default fallback
++            BackendType::X11
++        }
++    }
++}
++
++/// Abstract desktop surface trait for managing window lifecycle, bounds, rendering,
++/// visibility, and mouse click-through alpha hit-test masks.
++pub trait DesktopSurface: Send + Sync {
++    /// Unique identifier for this surface.
++    fn id(&self) -> &str;
++
++    /// The display backend powering this surface.
++    fn backend_type(&self) -> BackendType;
++
++    /// Current surface bounds on the display canvas.
++    fn bounds(&self) -> SurfaceBounds;
++
++    /// Updates the surface bounds.
++    fn set_bounds(&mut self, bounds: SurfaceBounds) -> Result<(), DisplayError>;
++
++    /// Returns true if the surface is currently visible.
++    fn is_visible(&self) -> bool;
++
++    /// Shows or hides the surface.
++    fn set_visible(&mut self, visible: bool) -> Result<(), DisplayError>;
++
++    /// Updates the rendered pixel contents from a Cairo image surface and submits
++    /// the corresponding alpha hit-test mask for click-through input regions.
++    fn update_surface(
++        &mut self,
++        surface: &cairo::ImageSurface,
++        hit_mask: &AlphaHitMask,
++    ) -> Result<(), DisplayError>;
++
++    /// Updates the alpha hit-test mask without re-uploading surface pixel buffer.
++    fn update_hit_mask(&mut self, hit_mask: &AlphaHitMask) -> Result<(), DisplayError>;
++
++    /// Closes and destroys the surface.
++    fn destroy(&mut self) -> Result<(), DisplayError>;
++
++    /// Returns true if the surface has been destroyed.
++    fn is_destroyed(&self) -> bool;
++}
+diff --git a/crates/pluvia-daemon/src/display/x11.rs b/crates/pluvia-daemon/src/display/x11.rs
+new file mode 100644
+index 0000000..6f4ef18
+--- /dev/null
++++ b/crates/pluvia-daemon/src/display/x11.rs
+@@ -0,0 +1,137 @@
++use super::{BackendType, DesktopSurface, DisplayError, SurfaceBounds};
++use pluvia_core::render::{AlphaHitMask, Rect};
++
++/// X11 desktop window surface with EWMH desktop hints and XShape/XFixes click-through mask.
++#[derive(Debug, Clone)]
++pub struct X11Surface {
++    id: String,
++    bounds: SurfaceBounds,
++    window_id: u32,
++    window_type_atom: String,
++    state_atoms: Vec<String>,
++    desktop_atom_value: u32,
++    visible: bool,
++    destroyed: bool,
++    shape_input_rects: Vec<Rect>,
++    damage_rects: Vec<Rect>,
++}
++
++impl X11Surface {
++    pub fn new(id: impl Into<String>, bounds: SurfaceBounds, window_id: u32) -> Self {
++        Self {
++            id: id.into(),
++            bounds,
++            window_id,
++            window_type_atom: "_NET_WM_WINDOW_TYPE_DESKTOP".to_string(),
++            state_atoms: vec![
++                "_NET_WM_STATE_BELOW".to_string(),
++                "_NET_WM_STATE_STICKY".to_string(),
++            ],
++            desktop_atom_value: 0xFFFFFFFF,
++            visible: true,
++            destroyed: false,
++            shape_input_rects: Vec::new(),
++            damage_rects: Vec::new(),
++        }
++    }
++
++    pub fn window_id(&self) -> u32 {
++        self.window_id
++    }
++
++    pub fn window_type_atom(&self) -> &str {
++        &self.window_type_atom
++    }
++
++    pub fn has_state_atom(&self, atom: &str) -> bool {
++        self.state_atoms.iter().any(|a| a == atom)
++    }
++
++    pub fn state_atoms(&self) -> &[String] {
++        &self.state_atoms
++    }
++
++    pub fn desktop_atom_value(&self) -> u32 {
++        self.desktop_atom_value
++    }
++
++    pub fn shape_input_rects(&self) -> &[Rect] {
++        &self.shape_input_rects
++    }
++
++    pub fn damage_rects(&self) -> &[Rect] {
++        &self.damage_rects
++    }
++}
++
++impl DesktopSurface for X11Surface {
++    fn id(&self) -> &str {
++        &self.id
++    }
++
++    fn backend_type(&self) -> BackendType {
++        BackendType::X11
++    }
++
++    fn bounds(&self) -> SurfaceBounds {
++        self.bounds
++    }
++
++    fn set_bounds(&mut self, bounds: SurfaceBounds) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.bounds = bounds;
++        Ok(())
++    }
++
++    fn is_visible(&self) -> bool {
++        self.visible && !self.destroyed
++    }
++
++    fn set_visible(&mut self, visible: bool) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.visible = visible;
++        Ok(())
++    }
++
++    fn update_surface(
++        &mut self,
++        surface: &cairo::ImageSurface,
++        hit_mask: &AlphaHitMask,
++    ) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.shape_input_rects = hit_mask.to_rectangles();
++        self.bounds.width = surface.width() as u32;
++        self.bounds.height = surface.height() as u32;
++        self.damage_rects.push(Rect::new(
++            0.0,
++            0.0,
++            surface.width() as f64,
++            surface.height() as f64,
++        ));
++        Ok(())
++    }
++
++    fn update_hit_mask(&mut self, hit_mask: &AlphaHitMask) -> Result<(), DisplayError> {
++        if self.destroyed {
++            return Err(DisplayError::SurfaceDestroyed);
++        }
++        self.shape_input_rects = hit_mask.to_rectangles();
++        Ok(())
++    }
++
++    fn destroy(&mut self) -> Result<(), DisplayError> {
++        self.destroyed = true;
++        self.shape_input_rects.clear();
++        Ok(())
++    }
++
++    fn is_destroyed(&self) -> bool {
++        self.destroyed
++    }
++}
+diff --git a/crates/pluvia-daemon/src/lib.rs b/crates/pluvia-daemon/src/lib.rs
+new file mode 100644
+index 0000000..29f9031
+--- /dev/null
++++ b/crates/pluvia-daemon/src/lib.rs
+@@ -0,0 +1,5 @@
++pub mod display;
++
++pub use display::{
++    Anchor, BackendType, DesktopSurface, DisplayError, DisplayLayout, ScreenGeometry, SurfaceBounds,
++};
+diff --git a/crates/pluvia-daemon/tests/test_display_bounds.rs b/crates/pluvia-daemon/tests/test_display_bounds.rs
+new file mode 100644
+index 0000000..f4cb56d
+--- /dev/null
++++ b/crates/pluvia-daemon/tests/test_display_bounds.rs
+@@ -0,0 +1,326 @@
++use cairo::{Format, ImageSurface};
++use pluvia_core::render::{AlphaHitMask, Rect};
++use pluvia_daemon::display::gnome_bridge::{GnomeBridgeMode, GnomeBridgeSurface};
++use pluvia_daemon::display::layer_shell::{Layer, LayerShellAnchor, LayerShellSurface};
++use pluvia_daemon::display::mock::MockDesktopSurface;
++use pluvia_daemon::display::x11::X11Surface;
++use pluvia_daemon::display::{
++    Anchor, BackendType, DesktopSurface, DisplayLayout, ScreenGeometry, SurfaceBounds,
++};
++use std::collections::HashMap;
++
++#[test]
++fn test_anchor_coordinate_resolution_standard_screens() {
++    // 1. 1920x1080 viewport with widget 400x200 and margins (20, 30)
++    let screen_fhd = ScreenGeometry::new("FHD-1", 0, 0, 1920, 1080, 1.0);
++    let (w, h) = (400, 200);
++    let (mx, my) = (20, 30);
++
++    let b_tl = Anchor::TopLeft.resolve_bounds(&screen_fhd, w, h, mx, my);
++    assert_eq!(b_tl, SurfaceBounds::new(20, 30, 400, 200));
++
++    let b_tc = Anchor::TopCenter.resolve_bounds(&screen_fhd, w, h, mx, my);
++    assert_eq!(b_tc, SurfaceBounds::new(780, 30, 400, 200));
++
++    let b_tr = Anchor::TopRight.resolve_bounds(&screen_fhd, w, h, mx, my);
++    assert_eq!(b_tr, SurfaceBounds::new(1500, 30, 400, 200));
++
++    let b_c = Anchor::Center.resolve_bounds(&screen_fhd, w, h, mx, my);
++    assert_eq!(b_c, SurfaceBounds::new(780, 470, 400, 200));
++
++    let b_bl = Anchor::BottomLeft.resolve_bounds(&screen_fhd, w, h, mx, my);
++    assert_eq!(b_bl, SurfaceBounds::new(20, 850, 400, 200));
++
++    let b_bc = Anchor::BottomCenter.resolve_bounds(&screen_fhd, w, h, mx, my);
++    assert_eq!(b_bc, SurfaceBounds::new(780, 850, 400, 200));
++
++    let b_br = Anchor::BottomRight.resolve_bounds(&screen_fhd, w, h, mx, my);
++    assert_eq!(b_br, SurfaceBounds::new(1500, 850, 400, 200));
++
++    let b_abs = Anchor::Absolute.resolve_bounds(&screen_fhd, w, h, mx, my);
++    assert_eq!(b_abs, SurfaceBounds::new(20, 30, 400, 200));
++
++    // 2. 2560x1440 viewport with widget 500x300 and zero margin
++    let screen_qhd = ScreenGeometry::new("QHD-1", 0, 0, 2560, 1440, 1.0);
++    let (w2, h2) = (500, 300);
++    assert_eq!(
++        Anchor::TopCenter.resolve_bounds(&screen_qhd, w2, h2, 0, 0),
++        SurfaceBounds::new(1030, 0, 500, 300)
++    );
++    assert_eq!(
++        Anchor::TopRight.resolve_bounds(&screen_qhd, w2, h2, 0, 0),
++        SurfaceBounds::new(2060, 0, 500, 300)
++    );
++    assert_eq!(
++        Anchor::Center.resolve_bounds(&screen_qhd, w2, h2, 0, 0),
++        SurfaceBounds::new(1030, 570, 500, 300)
++    );
++    assert_eq!(
++        Anchor::BottomRight.resolve_bounds(&screen_qhd, w2, h2, 0, 0),
++        SurfaceBounds::new(2060, 1140, 500, 300)
++    );
++
++    // 3. 5120x1440 ultrawide viewport with widget 600x250 and margins (50, 40)
++    let screen_uw = ScreenGeometry::new("UW-1", 0, 0, 5120, 1440, 1.0);
++    let (w3, h3) = (600, 250);
++    let (mx3, my3) = (50, 40);
++    assert_eq!(
++        Anchor::TopCenter.resolve_bounds(&screen_uw, w3, h3, mx3, my3),
++        SurfaceBounds::new(2310, 40, 600, 250)
++    );
++    assert_eq!(
++        Anchor::TopRight.resolve_bounds(&screen_uw, w3, h3, mx3, my3),
++        SurfaceBounds::new(4470, 40, 600, 250)
++    );
++    assert_eq!(
++        Anchor::Center.resolve_bounds(&screen_uw, w3, h3, mx3, my3),
++        SurfaceBounds::new(2310, 635, 600, 250)
++    );
++    assert_eq!(
++        Anchor::BottomRight.resolve_bounds(&screen_uw, w3, h3, mx3, my3),
++        SurfaceBounds::new(4470, 1150, 600, 250)
++    );
++}
++
++#[test]
++fn test_multi_monitor_coordinate_translation() {
++    let mon1 = ScreenGeometry::new("DP-1", 0, 0, 1920, 1080, 1.0);
++    let mon2 = ScreenGeometry::new("DP-2", 1920, 0, 2560, 1440, 1.0);
++    let mon3 = ScreenGeometry::new("HDMI-1", 4480, 100, 1920, 1080, 1.0);
++
++    let layout = DisplayLayout::new(vec![mon1.clone(), mon2.clone(), mon3.clone()]);
++    assert_eq!(layout.screens.len(), 3);
++
++    // Anchor BottomRight on Monitor 2 (offset 1920, 0, size 2560x1440)
++    let bounds_m2 = Anchor::BottomRight.resolve_bounds(&mon2, 400, 200, 20, 20);
++    assert_eq!(bounds_m2.x, 1920 + 2560 - 400 - 20); // 4060
++    assert_eq!(bounds_m2.y, 0 + 1440 - 200 - 20); // 1220
++
++    // Anchor Center on Monitor 3 (offset 4480, 100, size 1920x1080)
++    let bounds_m3 = Anchor::Center.resolve_bounds(&mon3, 400, 200, 0, 0);
++    assert_eq!(bounds_m3.x, 4480 + (1920 - 400) / 2); // 5240
++    assert_eq!(bounds_m3.y, 100 + (1080 - 200) / 2); // 540
++
++    // Coordinate translation between monitors:
++    // Move relative position from Mon 1 (100, 100) to Mon 2
++    let translated = layout.translate_relative((100, 100), &mon1, &mon2);
++    assert_eq!(translated, (1920 + 100, 0 + 100));
++
++    // Monitor lookup by coordinates
++    assert_eq!(layout.find_monitor_at(500, 500).map(|s| s.name.as_str()), Some("DP-1"));
++    assert_eq!(layout.find_monitor_at(2500, 500).map(|s| s.name.as_str()), Some("DP-2"));
++    assert_eq!(layout.find_monitor_at(5000, 500).map(|s| s.name.as_str()), Some("HDMI-1"));
++    assert_eq!(layout.find_monitor_at(10000, 10000), None);
++}
++
++#[test]
++fn test_mock_desktop_surface_lifecycle_and_hit_mask() {
++    let mut surface = MockDesktopSurface::new("clock-widget", SurfaceBounds::new(100, 100, 300, 200));
++
++    assert_eq!(surface.id(), "clock-widget");
++    assert_eq!(surface.backend_type(), BackendType::Mock);
++    assert_eq!(surface.bounds(), SurfaceBounds::new(100, 100, 300, 200));
++    assert!(surface.is_visible());
++    assert!(!surface.is_destroyed());
++
++    // Update visibility
++    surface.set_visible(false).unwrap();
++    assert!(!surface.is_visible());
++    surface.set_visible(true).unwrap();
++    assert!(surface.is_visible());
++
++    // Update bounds
++    surface.set_bounds(SurfaceBounds::new(150, 120, 320, 220)).unwrap();
++    assert_eq!(surface.bounds(), SurfaceBounds::new(150, 120, 320, 220));
++
++    // Create an ImageSurface and an AlphaHitMask with two disjoint interactive buttons
++    let img_surface = ImageSurface::create(Format::ARgb32, 320, 220).unwrap();
++    let disjoint_rects = vec![
++        Rect::new(20.0, 20.0, 60.0, 30.0),
++        Rect::new(150.0, 80.0, 80.0, 40.0),
++    ];
++    let hit_mask = AlphaHitMask::from_rectangles(320, 220, &disjoint_rects);
++
++    surface.update_surface(&img_surface, &hit_mask).unwrap();
++    assert_eq!(surface.update_count(), 1);
++    assert_eq!(surface.damage_history().len(), 1);
++
++    // Check submitted disjoint rectangles for click-through
++    let submitted_rects = surface.hit_mask_rectangles();
++    assert_eq!(submitted_rects.len(), 2);
++    assert_eq!(submitted_rects[0], Rect::new(20.0, 20.0, 60.0, 30.0));
++    assert_eq!(submitted_rects[1], Rect::new(150.0, 80.0, 80.0, 40.0));
++
++    // Update hit mask independently
++    let new_disjoint = vec![Rect::new(10.0, 10.0, 40.0, 40.0)];
++    let new_mask = AlphaHitMask::from_rectangles(320, 220, &new_disjoint);
++    surface.update_hit_mask(&new_mask).unwrap();
++    assert_eq!(surface.hit_mask_rectangles().len(), 1);
++    assert_eq!(surface.hit_mask_rectangles()[0], Rect::new(10.0, 10.0, 40.0, 40.0));
++
++    // Destroy
++    surface.destroy().unwrap();
++    assert!(surface.is_destroyed());
++    // Subsequent operations fail after destroy
++    assert!(surface.set_visible(true).is_err());
++    assert!(surface.update_surface(&img_surface, &hit_mask).is_err());
++}
++
++#[test]
++fn test_backend_detection_environment_logic() {
++    // 1. Pure Wayland (Sway / Hyprland)
++    let mut env = HashMap::new();
++    env.insert("WAYLAND_DISPLAY".to_string(), "wayland-1".to_string());
++    env.insert("XDG_SESSION_TYPE".to_string(), "wayland".to_string());
++    env.insert("XDG_CURRENT_DESKTOP".to_string(), "sway".to_string());
++    assert_eq!(
++        BackendType::detect_from_map(&env),
++        BackendType::WlrLayerShell
++    );
++
++    // 2. GNOME on Wayland
++    let mut gnome_env = HashMap::new();
++    gnome_env.insert("WAYLAND_DISPLAY".to_string(), "wayland-0".to_string());
++    gnome_env.insert("XDG_SESSION_TYPE".to_string(), "wayland".to_string());
++    gnome_env.insert("XDG_CURRENT_DESKTOP".to_string(), "GNOME".to_string());
++    assert_eq!(
++        BackendType::detect_from_map(&gnome_env),
++        BackendType::GnomeWayland
++    );
++
++    // Ubuntu variant: ubuntu:GNOME
++    let mut ubuntu_env = HashMap::new();
++    ubuntu_env.insert("WAYLAND_DISPLAY".to_string(), "wayland-0".to_string());
++    ubuntu_env.insert("XDG_SESSION_TYPE".to_string(), "wayland".to_string());
++    ubuntu_env.insert("XDG_CURRENT_DESKTOP".to_string(), "ubuntu:GNOME".to_string());
++    assert_eq!(
++        BackendType::detect_from_map(&ubuntu_env),
++        BackendType::GnomeWayland
++    );
++
++    // 3. X11 session
++    let mut x11_env = HashMap::new();
++    x11_env.insert("DISPLAY".to_string(), ":0".to_string());
++    x11_env.insert("XDG_SESSION_TYPE".to_string(), "x11".to_string());
++    assert_eq!(BackendType::detect_from_map(&x11_env), BackendType::X11);
++
++    // 4. Explicit override: PLUVIA_BACKEND
++    let mut override_env = HashMap::new();
++    override_env.insert("PLUVIA_BACKEND".to_string(), "mock".to_string());
++    override_env.insert("WAYLAND_DISPLAY".to_string(), "wayland-1".to_string());
++    assert_eq!(BackendType::detect_from_map(&override_env), BackendType::Mock);
++
++    override_env.insert("PLUVIA_BACKEND".to_string(), "x11".to_string());
++    assert_eq!(BackendType::detect_from_map(&override_env), BackendType::X11);
++
++    override_env.insert("PLUVIA_BACKEND".to_string(), "layer-shell".to_string());
++    assert_eq!(
++        BackendType::detect_from_map(&override_env),
++        BackendType::WlrLayerShell
++    );
++
++    override_env.insert("PLUVIA_BACKEND".to_string(), "gnome".to_string());
++    assert_eq!(
++        BackendType::detect_from_map(&override_env),
++        BackendType::GnomeWayland
++    );
++}
++
++#[test]
++fn test_layer_shell_backend_configuration() {
++    let bounds = SurfaceBounds::new(100, 50, 400, 300);
++    let mut surface = LayerShellSurface::new(
++        "weather-widget",
++        bounds,
++        Layer::Bottom,
++        "DP-1",
++        Anchor::TopRight,
++        (20, 30),
++    );
++
++    assert_eq!(surface.id(), "weather-widget");
++    assert_eq!(surface.backend_type(), BackendType::WlrLayerShell);
++    assert_eq!(surface.layer(), Layer::Bottom);
++    assert_eq!(surface.namespace(), "pluvia");
++    assert_eq!(surface.output(), "DP-1");
++
++    // Anchor translation to wlr-layer-shell bitflags
++    let flags = surface.layer_shell_anchors();
++    assert!(flags.contains(LayerShellAnchor::TOP));
++    assert!(flags.contains(LayerShellAnchor::RIGHT));
++    assert!(!flags.contains(LayerShellAnchor::BOTTOM));
++    assert!(!flags.contains(LayerShellAnchor::LEFT));
++
++    // Margins
++    let (top, right, bottom, left) = surface.margins();
++    assert_eq!((top, right, bottom, left), (30, 20, 0, 0));
++
++    // Submit AlphaHitMask with disjoint rectangles to input region
++    let img_surface = ImageSurface::create(Format::ARgb32, 400, 300).unwrap();
++    let disjoint = vec![Rect::new(10.0, 10.0, 50.0, 50.0)];
++    let mask = AlphaHitMask::from_rectangles(400, 300, &disjoint);
++
++    surface.update_surface(&img_surface, &mask).unwrap();
++    assert_eq!(surface.input_region_rects(), disjoint);
++    assert_eq!(surface.damage_rects().len(), 1);
++}
++
++#[test]
++fn test_x11_backend_window_hints_and_shape() {
++    let bounds = SurfaceBounds::new(200, 150, 300, 200);
++    let mut surface = X11Surface::new("system-widget", bounds, 0x123456);
++
++    assert_eq!(surface.id(), "system-widget");
++    assert_eq!(surface.backend_type(), BackendType::X11);
++    assert_eq!(surface.window_id(), 0x123456);
++
++    // EWMH atoms & properties
++    assert_eq!(surface.window_type_atom(), "_NET_WM_WINDOW_TYPE_DESKTOP");
++    assert!(surface.has_state_atom("_NET_WM_STATE_BELOW"));
++    assert!(surface.has_state_atom("_NET_WM_STATE_STICKY"));
++    assert_eq!(surface.desktop_atom_value(), 0xFFFFFFFF);
++
++    // ShapeInput click-through submission
++    let img_surface = ImageSurface::create(Format::ARgb32, 300, 200).unwrap();
++    let disjoint = vec![
++        Rect::new(10.0, 10.0, 100.0, 50.0),
++        Rect::new(150.0, 80.0, 100.0, 50.0),
++    ];
++    let mask = AlphaHitMask::from_rectangles(300, 200, &disjoint);
++
++    surface.update_surface(&img_surface, &mask).unwrap();
++    assert_eq!(surface.shape_input_rects(), disjoint);
++    assert_eq!(surface.damage_rects().len(), 1);
++}
++
++#[test]
++fn test_gnome_bridge_extension_and_fallback() {
++    let bounds = SurfaceBounds::new(50, 50, 350, 250);
++
++    // 1. Extension mode
++    let mut ext_surface = GnomeBridgeSurface::new_extension("gnome-widget", bounds);
++    assert_eq!(ext_surface.backend_type(), BackendType::GnomeWayland);
++    assert_eq!(ext_surface.mode(), GnomeBridgeMode::Extension);
++    assert_eq!(ext_surface.extension_uuid(), "pluvia-shell@pluvia.org");
++    assert_eq!(ext_surface.dbus_interface(), "org.pluvia.Shell");
++
++    let img_surface = ImageSurface::create(Format::ARgb32, 350, 250).unwrap();
++    let disjoint = vec![Rect::new(15.0, 15.0, 80.0, 30.0)];
++    let mask = AlphaHitMask::from_rectangles(350, 250, &disjoint);
++
++    ext_surface.update_surface(&img_surface, &mask).unwrap();
++    assert_eq!(ext_surface.active_rects(), disjoint);
++
++    // 2. Fallback mode to XWayland
++    let mut fallback_surface = GnomeBridgeSurface::new_xwayland_fallback("gnome-fallback", bounds, 0xABCDEF);
++    assert_eq!(fallback_surface.backend_type(), BackendType::GnomeWayland);
++    assert_eq!(fallback_surface.mode(), GnomeBridgeMode::XWaylandFallback);
++    assert!(fallback_surface.fallback_x11().is_some());
++
++    fallback_surface.update_surface(&img_surface, &mask).unwrap();
++    assert_eq!(fallback_surface.active_rects(), disjoint);
++    assert_eq!(
++        fallback_surface.fallback_x11().unwrap().window_type_atom(),
++        "_NET_WM_WINDOW_TYPE_DESKTOP"
++    );
++}

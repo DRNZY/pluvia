@@ -1,0 +1,3578 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 72f122a..e78f710 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -46,6 +46,18 @@ dependencies = [
+  "derive_arbitrary",
+ ]
+ 
++[[package]]
++name = "arrayref"
++version = "0.3.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
++
++[[package]]
++name = "arrayvec"
++version = "0.7.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
++
+ [[package]]
+ name = "async-broadcast"
+ version = "0.7.2"
+@@ -98,6 +110,12 @@ version = "0.22.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+ 
++[[package]]
++name = "bitflags"
++version = "1.3.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
++
+ [[package]]
+ name = "bitflags"
+ version = "2.13.2"
+@@ -119,12 +137,24 @@ version = "3.20.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+ 
++[[package]]
++name = "bytemuck"
++version = "1.25.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
++
+ [[package]]
+ name = "byteorder"
+ version = "1.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+ 
++[[package]]
++name = "byteorder-lite"
++version = "0.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8f1fe948ff07f4bd06c30984e69f5b4899c516a3ef74f34df92a2df2ab535495"
++
+ [[package]]
+ name = "bytes"
+ version = "1.12.1"
+@@ -150,6 +180,29 @@ dependencies = [
+  "pkg-config",
+ ]
+ 
++[[package]]
++name = "cairo-rs"
++version = "0.20.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "91e3bd0f4e25afa9cabc157908d14eeef9067d6448c49414d17b3fb55f0eadd0"
++dependencies = [
++ "bitflags 2.13.2",
++ "cairo-sys-rs",
++ "glib",
++ "libc",
++]
++
++[[package]]
++name = "cairo-sys-rs"
++version = "0.20.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "059cc746549898cbfd9a47754288e5a958756650ef4652bbb6c5f71a6bda4f8b"
++dependencies = [
++ "glib-sys",
++ "libc",
++ "system-deps",
++]
++
+ [[package]]
+ name = "cc"
+ version = "1.4.7"
+@@ -162,6 +215,16 @@ dependencies = [
+  "shlex",
+ ]
+ 
++[[package]]
++name = "cfg-expr"
++version = "0.20.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fe4ece8474b5f766c63426647e7b4b316b67431ade1036a8313cee24a03ae917"
++dependencies = [
++ "smallvec",
++ "target-lexicon",
++]
++
+ [[package]]
+ name = "cfg-if"
+ version = "1.0.5"
+@@ -208,6 +271,12 @@ dependencies = [
+  "inout",
+ ]
+ 
++[[package]]
++name = "color_quant"
++version = "1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3d7b894f5411737b7867f4827955924d7c254fc9f4d91a6aad6b097804b1018b"
++
+ [[package]]
+ name = "constant_time_eq"
+ version = "0.3.1"
+@@ -226,6 +295,15 @@ version = "1.0.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
+ 
++[[package]]
++name = "core_maths"
++version = "0.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "77745e017f5edba1a9c1d854f6f3a52dac8a12dd5af5d2f54aecf61e43d80d30"
++dependencies = [
++ "libm",
++]
++
+ [[package]]
+ name = "cpufeatures"
+ version = "0.2.17"
+@@ -284,6 +362,12 @@ dependencies = [
+  "typenum",
+ ]
+ 
++[[package]]
++name = "data-url"
++version = "0.3.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
++
+ [[package]]
+ name = "deflate64"
+ version = "0.1.12"
+@@ -387,6 +471,15 @@ dependencies = [
+  "windows-sys 0.61.2",
+ ]
+ 
++[[package]]
++name = "euclid"
++version = "0.22.14"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06"
++dependencies = [
++ "num-traits",
++]
++
+ [[package]]
+ name = "event-listener"
+ version = "5.4.2"
+@@ -413,6 +506,15 @@ version = "2.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+ 
++[[package]]
++name = "fdeflate"
++version = "0.3.7"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1e6853b52649d4ac5c0bd02320cddc5ba956bdb407c4b75a2c6b75bf51500f8c"
++dependencies = [
++ "simd-adler32",
++]
++
+ [[package]]
+ name = "find-msvc-tools"
+ version = "0.1.13"
+@@ -426,7 +528,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6e634e2e0ebac1ee034020da1ca582e17ffe4e0f5e985823721e168928136dcb"
+ dependencies = [
+  "crc32fast",
+- "miniz_oxide",
++ "miniz_oxide 0.9.1",
++ "zlib-rs",
++]
++
++[[package]]
++name = "float-cmp"
++version = "0.9.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
++
++[[package]]
++name = "fontconfig-parser"
++version = "0.5.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bbc773e24e02d4ddd8395fd30dc147524273a83e54e0f312d986ea30de5f5646"
++dependencies = [
++ "roxmltree",
++]
++
++[[package]]
++name = "fontdb"
++version = "0.21.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "37be9fc20d966be438cd57a45767f73349477fb0f85ce86e000557f787298afb"
++dependencies = [
++ "fontconfig-parser",
++ "log",
++ "memmap2",
++ "slotmap",
++ "tinyvec",
++ "ttf-parser",
+ ]
+ 
+ [[package]]
+@@ -454,6 +586,17 @@ version = "0.3.34"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
+ 
++[[package]]
++name = "futures-executor"
++version = "0.3.34"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "031b47cf1a3c6cc8bc2fc76cd437f521619387907d469316e7c0bc278f1f5432"
++dependencies = [
++ "futures-core",
++ "futures-task",
++ "futures-util",
++]
++
+ [[package]]
+ name = "futures-io"
+ version = "0.3.34"
+@@ -473,6 +616,17 @@ dependencies = [
+  "pin-project-lite",
+ ]
+ 
++[[package]]
++name = "futures-macro"
++version = "0.3.34"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9fb9654ba8355388abeb8dcb4fc62f511300867002afc858860463bdd9fe0c44"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 3.0.6",
++]
++
+ [[package]]
+ name = "futures-sink"
+ version = "0.3.34"
+@@ -493,6 +647,7 @@ checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
+ dependencies = [
+  "futures-core",
+  "futures-io",
++ "futures-macro",
+  "futures-sink",
+  "futures-task",
+  "memchr",
+@@ -551,12 +706,113 @@ dependencies = [
+  "wasm-bindgen",
+ ]
+ 
++[[package]]
++name = "gif"
++version = "0.13.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4ae047235e33e2829703574b54fdec96bfbad892062d97fed2f76022287de61b"
++dependencies = [
++ "color_quant",
++ "weezl",
++]
++
++[[package]]
++name = "gio"
++version = "0.20.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8e27e276e7b6b8d50f6376ee7769a71133e80d093bdc363bd0af71664228b831"
++dependencies = [
++ "futures-channel",
++ "futures-core",
++ "futures-io",
++ "futures-util",
++ "gio-sys",
++ "glib",
++ "libc",
++ "pin-project-lite",
++ "smallvec",
++]
++
++[[package]]
++name = "gio-sys"
++version = "0.20.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "521e93a7e56fc89e84aea9a52cfc9436816a4b363b030260b699950ff1336c83"
++dependencies = [
++ "glib-sys",
++ "gobject-sys",
++ "libc",
++ "system-deps",
++ "windows-sys 0.52.0",
++]
++
++[[package]]
++name = "glib"
++version = "0.20.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ffc4b6e352d4716d84d7dde562dd9aee2a7d48beb872dd9ece7f2d1515b2d683"
++dependencies = [
++ "bitflags 2.13.2",
++ "futures-channel",
++ "futures-core",
++ "futures-executor",
++ "futures-task",
++ "futures-util",
++ "gio-sys",
++ "glib-macros",
++ "glib-sys",
++ "gobject-sys",
++ "libc",
++ "memchr",
++ "smallvec",
++]
++
++[[package]]
++name = "glib-macros"
++version = "0.20.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e8084af62f09475a3f529b1629c10c429d7600ee1398ae12dd3bf175d74e7145"
++dependencies = [
++ "heck",
++ "proc-macro-crate",
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
++
++[[package]]
++name = "glib-sys"
++version = "0.20.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8ab79e1ed126803a8fb827e3de0e2ff95191912b8db65cee467edb56fc4cc215"
++dependencies = [
++ "libc",
++ "system-deps",
++]
++
++[[package]]
++name = "gobject-sys"
++version = "0.20.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ec9aca94bb73989e3cfdbf8f2e0f1f6da04db4d291c431f444838925c4c63eda"
++dependencies = [
++ "glib-sys",
++ "libc",
++ "system-deps",
++]
++
+ [[package]]
+ name = "hashbrown"
+ version = "0.17.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+ 
++[[package]]
++name = "heck"
++version = "0.5.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
++
+ [[package]]
+ name = "hex"
+ version = "0.4.3"
+@@ -798,6 +1054,48 @@ dependencies = [
+  "icu_properties",
+ ]
+ 
++[[package]]
++name = "image"
++version = "0.25.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "85ab80394333c02fe689eaf900ab500fbd0c2213da414687ebf995a65d5a6104"
++dependencies = [
++ "bytemuck",
++ "byteorder-lite",
++ "image-webp 0.2.4",
++ "moxcms",
++ "num-traits",
++ "png 0.18.1",
++ "zune-core 0.5.3",
++ "zune-jpeg 0.5.15",
++]
++
++[[package]]
++name = "image-webp"
++version = "0.1.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f79afb8cbee2ef20f59ccd477a218c12a93943d075b492015ecb1bb81f8ee904"
++dependencies = [
++ "byteorder-lite",
++ "quick-error",
++]
++
++[[package]]
++name = "image-webp"
++version = "0.2.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3"
++dependencies = [
++ "byteorder-lite",
++ "quick-error",
++]
++
++[[package]]
++name = "imagesize"
++version = "0.13.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "edcd27d72f2f071c64249075f42e205ff93c9a4c5f6c6da53e79ed9f9832c285"
++
+ [[package]]
+ name = "indexmap"
+ version = "2.14.2"
+@@ -850,12 +1148,29 @@ dependencies = [
+  "wasm-bindgen",
+ ]
+ 
++[[package]]
++name = "kurbo"
++version = "0.11.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c62026ae44756f8a599ba21140f350303d4f08dcdcc71b5ad9c9bb8128c13c62"
++dependencies = [
++ "arrayvec",
++ "euclid",
++ "smallvec",
++]
++
+ [[package]]
+ name = "libc"
+ version = "0.2.189"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+ 
++[[package]]
++name = "libm"
++version = "0.2.16"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
++
+ [[package]]
+ name = "linux-raw-sys"
+ version = "0.12.1"
+@@ -907,6 +1222,15 @@ version = "2.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+ 
++[[package]]
++name = "memmap2"
++version = "0.9.11"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d1219ed1b7f229ee7104d281dd01d6802fe28bb6e95d292942c4daacdeb798c0"
++dependencies = [
++ "libc",
++]
++
+ [[package]]
+ name = "memoffset"
+ version = "0.9.1"
+@@ -916,6 +1240,16 @@ dependencies = [
+  "autocfg",
+ ]
+ 
++[[package]]
++name = "miniz_oxide"
++version = "0.8.9"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
++dependencies = [
++ "adler2",
++ "simd-adler32",
++]
++
+ [[package]]
+ name = "miniz_oxide"
+ version = "0.9.1"
+@@ -937,6 +1271,16 @@ dependencies = [
+  "windows-sys 0.61.2",
+ ]
+ 
++[[package]]
++name = "moxcms"
++version = "0.8.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bb85c154ba489f01b25c0d36ae69a87e4a1c73a72631fc6c0eb6dde34a73e44b"
++dependencies = [
++ "num-traits",
++ "pxfm",
++]
++
+ [[package]]
+ name = "multiversion"
+ version = "0.9.0"
+@@ -995,6 +1339,56 @@ dependencies = [
+  "pin-project-lite",
+ ]
+ 
++[[package]]
++name = "pango"
++version = "0.20.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6576b311f6df659397043a5fa8a021da8f72e34af180b44f7d57348de691ab5c"
++dependencies = [
++ "gio",
++ "glib",
++ "libc",
++ "pango-sys",
++]
++
++[[package]]
++name = "pango-sys"
++version = "0.20.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "186909673fc09be354555c302c0b3dcf753cd9fa08dcb8077fa663c80fb243fa"
++dependencies = [
++ "glib-sys",
++ "gobject-sys",
++ "libc",
++ "system-deps",
++]
++
++[[package]]
++name = "pangocairo"
++version = "0.20.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "58890dc451db9964ac2d8874f903a4370a4b3932aa5281ff0c8d9810937ad84f"
++dependencies = [
++ "cairo-rs",
++ "glib",
++ "libc",
++ "pango",
++ "pangocairo-sys",
++]
++
++[[package]]
++name = "pangocairo-sys"
++version = "0.20.10"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b9952903f88aa93e2927e7bca2d1ebae64fc26545a9280b4ce6bddeda26b5c42"
++dependencies = [
++ "cairo-sys-rs",
++ "glib-sys",
++ "libc",
++ "pango-sys",
++ "system-deps",
++]
++
+ [[package]]
+ name = "parking"
+ version = "2.2.1"
+@@ -1017,6 +1411,12 @@ version = "2.3.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+ 
++[[package]]
++name = "pico-args"
++version = "0.5.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5be167a7af36ee22fe3115051bc51f6e6c7054c9348e28deb4f49bd6f705a315"
++
+ [[package]]
+ name = "pin-project-lite"
+ version = "0.2.17"
+@@ -1037,11 +1437,16 @@ version = "0.1.0"
+ name = "pluvia-core"
+ version = "0.1.0"
+ dependencies = [
++ "cairo-rs",
+  "chrono",
+  "encoding_rs",
++ "image",
+  "libc",
++ "pango",
++ "pangocairo",
+  "regex",
+  "reqwest",
++ "resvg",
+  "tempfile",
+  "thiserror",
+  "zbus",
+@@ -1052,6 +1457,32 @@ dependencies = [
+ name = "pluvia-daemon"
+ version = "0.1.0"
+ 
++[[package]]
++name = "png"
++version = "0.17.16"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "82151a2fc869e011c153adc57cf2789ccb8d9906ce52c0b39a6b5697749d7526"
++dependencies = [
++ "bitflags 1.3.2",
++ "crc32fast",
++ "fdeflate",
++ "flate2",
++ "miniz_oxide 0.8.9",
++]
++
++[[package]]
++name = "png"
++version = "0.18.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "60769b8b31b2a9f263dae2776c37b1b28ae246943cf719eb6946a1db05128a61"
++dependencies = [
++ "bitflags 2.13.2",
++ "crc32fast",
++ "fdeflate",
++ "flate2",
++ "miniz_oxide 0.8.9",
++]
++
+ [[package]]
+ name = "potential_utf"
+ version = "0.1.6"
+@@ -1085,6 +1516,18 @@ dependencies = [
+  "unicode-ident",
+ ]
+ 
++[[package]]
++name = "pxfm"
++version = "0.1.30"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
++
++[[package]]
++name = "quick-error"
++version = "2.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
++
+ [[package]]
+ name = "quinn"
+ version = "0.11.12"
+@@ -1257,6 +1700,32 @@ dependencies = [
+  "webpki-roots",
+ ]
+ 
++[[package]]
++name = "resvg"
++version = "0.43.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c7314563c59c7ce31c18e23ad3dd092c37b928a0fa4e1c0a1a6504351ab411d1"
++dependencies = [
++ "gif",
++ "image-webp 0.1.3",
++ "log",
++ "pico-args",
++ "rgb",
++ "svgtypes",
++ "tiny-skia",
++ "usvg",
++ "zune-jpeg 0.4.21",
++]
++
++[[package]]
++name = "rgb"
++version = "0.8.53"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "47b34b781b31e5d73e9fbc8689c70551fd1ade9a19e3e28cfec8580a79290cc4"
++dependencies = [
++ "bytemuck",
++]
++
+ [[package]]
+ name = "ring"
+ version = "0.17.14"
+@@ -1271,6 +1740,12 @@ dependencies = [
+  "windows-sys 0.52.0",
+ ]
+ 
++[[package]]
++name = "roxmltree"
++version = "0.20.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
++
+ [[package]]
+ name = "rustc-hash"
+ version = "2.1.3"
+@@ -1283,7 +1758,7 @@ version = "1.1.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+ dependencies = [
+- "bitflags",
++ "bitflags 2.13.2",
+  "errno",
+  "libc",
+  "linux-raw-sys",
+@@ -1331,6 +1806,24 @@ version = "1.0.23"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+ 
++[[package]]
++name = "rustybuzz"
++version = "0.18.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c85d1ccd519e61834798eb52c4e886e8c2d7d698dd3d6ce0b1b47eb8557f1181"
++dependencies = [
++ "bitflags 2.13.2",
++ "bytemuck",
++ "core_maths",
++ "log",
++ "smallvec",
++ "ttf-parser",
++ "unicode-bidi-mirroring",
++ "unicode-ccc",
++ "unicode-properties",
++ "unicode-script",
++]
++
+ [[package]]
+ name = "ryu"
+ version = "1.0.23"
+@@ -1397,6 +1890,15 @@ dependencies = [
+  "syn 3.0.6",
+ ]
+ 
++[[package]]
++name = "serde_spanned"
++version = "1.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6662b5879511e06e8999a8a235d848113e942c9124f211511b16466ee2995f26"
++dependencies = [
++ "serde_core",
++]
++
+ [[package]]
+ name = "serde_urlencoded"
+ version = "0.7.1"
+@@ -1448,12 +1950,36 @@ version = "0.1.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+ 
++[[package]]
++name = "simplecss"
++version = "0.2.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7a9c6883ca9c3c7c90e888de77b7a5c849c779d25d74a1269b0218b14e8b136c"
++dependencies = [
++ "log",
++]
++
++[[package]]
++name = "siphasher"
++version = "1.0.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8ee5873ec9cce0195efcb7a4e9507a04cd49aec9c83d0389df45b1ef7ba2e649"
++
+ [[package]]
+ name = "slab"
+ version = "0.4.12"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
+ 
++[[package]]
++name = "slotmap"
++version = "1.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bdd58c3c93c3d278ca835519292445cb4b0d4dc59ccfdf7ceadaab3f8aeb4038"
++dependencies = [
++ "version_check",
++]
++
+ [[package]]
+ name = "smallvec"
+ version = "1.16.1"
+@@ -1476,12 +2002,31 @@ version = "1.2.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+ 
++[[package]]
++name = "strict-num"
++version = "0.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
++dependencies = [
++ "float-cmp",
++]
++
+ [[package]]
+ name = "subtle"
+ version = "2.6.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+ 
++[[package]]
++name = "svgtypes"
++version = "0.15.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "68c7541fff44b35860c1a7a47a7cadf3e4a304c457b58f9870d9706ece028afc"
++dependencies = [
++ "kurbo",
++ "siphasher",
++]
++
+ [[package]]
+ name = "syn"
+ version = "2.0.119"
+@@ -1524,6 +2069,25 @@ dependencies = [
+  "syn 3.0.6",
+ ]
+ 
++[[package]]
++name = "system-deps"
++version = "7.0.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "396a35feb67335377e0251fcbc1092fc85c484bd4e3a7a54319399da127796e7"
++dependencies = [
++ "cfg-expr",
++ "heck",
++ "pkg-config",
++ "toml",
++ "version-compare",
++]
++
++[[package]]
++name = "target-lexicon"
++version = "0.13.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
++
+ [[package]]
+ name = "tempfile"
+ version = "3.27.0"
+@@ -1576,6 +2140,32 @@ version = "0.1.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
+ 
++[[package]]
++name = "tiny-skia"
++version = "0.11.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "83d13394d44dae3207b52a326c0c85a8bf87f1541f23b0d143811088497b09ab"
++dependencies = [
++ "arrayref",
++ "arrayvec",
++ "bytemuck",
++ "cfg-if",
++ "log",
++ "png 0.17.16",
++ "tiny-skia-path",
++]
++
++[[package]]
++name = "tiny-skia-path"
++version = "0.11.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9c9e7fc0c2e86a30b117d0462aa261b72b7a99b7ebd7deb3a14ceda95c5bdc93"
++dependencies = [
++ "arrayref",
++ "bytemuck",
++ "strict-num",
++]
++
+ [[package]]
+ name = "tinystr"
+ version = "0.8.4"
+@@ -1618,6 +2208,21 @@ dependencies = [
+  "tokio",
+ ]
+ 
++[[package]]
++name = "toml"
++version = "1.1.6+spec-1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "920602543f0911ab71da12c50d59701da54c196d1a2bf5cb4b75667f137a406a"
++dependencies = [
++ "indexmap",
++ "serde_core",
++ "serde_spanned",
++ "toml_datetime",
++ "toml_parser",
++ "toml_writer",
++ "winnow",
++]
++
+ [[package]]
+ name = "toml_datetime"
+ version = "1.1.1+spec-1.1.0"
+@@ -1648,6 +2253,12 @@ dependencies = [
+  "winnow",
+ ]
+ 
++[[package]]
++name = "toml_writer"
++version = "1.1.2+spec-1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
++
+ [[package]]
+ name = "tower"
+ version = "0.5.3"
+@@ -1669,7 +2280,7 @@ version = "0.6.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
+ dependencies = [
+- "bitflags",
++ "bitflags 2.13.2",
+  "bytes",
+  "futures-util",
+  "http",
+@@ -1730,6 +2341,15 @@ version = "0.2.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+ 
++[[package]]
++name = "ttf-parser"
++version = "0.24.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5be21190ff5d38e8b4a2d3b6a3ae57f612cc39c96e83cedeaf7abc338a8bac4a"
++dependencies = [
++ "core_maths",
++]
++
+ [[package]]
+ name = "typenum"
+ version = "1.20.1"
+@@ -1747,12 +2367,48 @@ dependencies = [
+  "windows-sys 0.61.2",
+ ]
+ 
++[[package]]
++name = "unicode-bidi"
++version = "0.3.18"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
++
++[[package]]
++name = "unicode-bidi-mirroring"
++version = "0.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "64af057ad7466495ca113126be61838d8af947f41d93a949980b2389a118082f"
++
++[[package]]
++name = "unicode-ccc"
++version = "0.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "260bc6647b3893a9a90668360803a15f96b85a5257b1c3a0c3daf6ae2496de42"
++
+ [[package]]
+ name = "unicode-ident"
+ version = "1.0.26"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
+ 
++[[package]]
++name = "unicode-properties"
++version = "0.1.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d"
++
++[[package]]
++name = "unicode-script"
++version = "0.5.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "383ad40bb927465ec0ce7720e033cb4ca06912855fc35db31b5755d0de75b1ee"
++
++[[package]]
++name = "unicode-vo"
++version = "0.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b1d386ff53b415b7fe27b50bb44679e2cc4660272694b7b6f3326d8480823a94"
++
+ [[package]]
+ name = "untrusted"
+ version = "0.9.0"
+@@ -1771,6 +2427,33 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "usvg"
++version = "0.43.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6803057b5cbb426e9fb8ce2216f3a9b4ca1dd2c705ba3cbebc13006e437735fd"
++dependencies = [
++ "base64",
++ "data-url",
++ "flate2",
++ "fontdb",
++ "imagesize",
++ "kurbo",
++ "log",
++ "pico-args",
++ "roxmltree",
++ "rustybuzz",
++ "simplecss",
++ "siphasher",
++ "strict-num",
++ "svgtypes",
++ "tiny-skia-path",
++ "unicode-bidi",
++ "unicode-script",
++ "unicode-vo",
++ "xmlwriter",
++]
++
+ [[package]]
+ name = "utf8_iter"
+ version = "1.0.4"
+@@ -1788,6 +2471,12 @@ dependencies = [
+  "wasm-bindgen",
+ ]
+ 
++[[package]]
++name = "version-compare"
++version = "0.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "03c2856837ef78f57382f06b2b8563a2f512f7185d732608fd9176cb3b8edf0e"
++
+ [[package]]
+ name = "version_check"
+ version = "0.9.5"
+@@ -1902,6 +2591,12 @@ dependencies = [
+  "rustls-pki-types",
+ ]
+ 
++[[package]]
++name = "weezl"
++version = "0.1.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
++
+ [[package]]
+ name = "windows-core"
+ version = "0.62.2"
+@@ -2064,6 +2759,12 @@ version = "0.6.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
+ 
++[[package]]
++name = "xmlwriter"
++version = "0.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
++
+ [[package]]
+ name = "xz2"
+ version = "0.1.7"
+@@ -2265,6 +2966,12 @@ dependencies = [
+  "zstd",
+ ]
+ 
++[[package]]
++name = "zlib-rs"
++version = "0.6.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b268e58e7c693d7c271f93ffc4ba3b380412554231c85bf61ca7af91042a4112"
++
+ [[package]]
+ name = "zmij"
+ version = "1.0.23"
+@@ -2311,6 +3018,36 @@ dependencies = [
+  "pkg-config",
+ ]
+ 
++[[package]]
++name = "zune-core"
++version = "0.4.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3f423a2c17029964870cfaabb1f13dfab7d092a62a29a89264f4d36990ca414a"
++
++[[package]]
++name = "zune-core"
++version = "0.5.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b"
++
++[[package]]
++name = "zune-jpeg"
++version = "0.4.21"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "29ce2c8a9384ad323cf564b67da86e21d3cfdff87908bc1223ed5c99bc792713"
++dependencies = [
++ "zune-core 0.4.12",
++]
++
++[[package]]
++name = "zune-jpeg"
++version = "0.5.15"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
++dependencies = [
++ "zune-core 0.5.3",
++]
++
+ [[package]]
+ name = "zvariant"
+ version = "5.15.0"
+diff --git a/crates/pluvia-core/Cargo.toml b/crates/pluvia-core/Cargo.toml
+index 85ea63e..d3967f4 100644
+--- a/crates/pluvia-core/Cargo.toml
++++ b/crates/pluvia-core/Cargo.toml
+@@ -12,6 +12,11 @@ zip = "2.2"
+ zbus = { version = "5.0", default-features = false, features = ["tokio", "blocking-api"] }
+ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "blocking"] }
+ regex = "1.10"
++cairo-rs = "0.20"
++pango = "0.20"
++pangocairo = "0.20"
++image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
++resvg = "0.43"
+ 
+ [dev-dependencies]
+ tempfile = "3.12"
+diff --git a/crates/pluvia-core/src/lib.rs b/crates/pluvia-core/src/lib.rs
+index badcece..2331e51 100644
+--- a/crates/pluvia-core/src/lib.rs
++++ b/crates/pluvia-core/src/lib.rs
+@@ -4,5 +4,6 @@ pub mod formulas;
+ pub mod ini;
+ pub mod measures;
+ pub mod plugins;
++pub mod render;
+ pub mod variables;
+ pub mod vfs;
+diff --git a/crates/pluvia-core/src/render/hit_mask.rs b/crates/pluvia-core/src/render/hit_mask.rs
+new file mode 100644
+index 0000000..b374c2c
+--- /dev/null
++++ b/crates/pluvia-core/src/render/hit_mask.rs
+@@ -0,0 +1,224 @@
++use crate::render::Rect;
++use cairo::{Format, ImageSurface};
++
++/// 1-bit alpha hit-test mask representing opaque and interactive regions.
++#[derive(Debug, Clone, PartialEq)]
++pub struct AlphaHitMask {
++    pub width: u32,
++    pub height: u32,
++    pub pixels: Vec<u8>,
++}
++
++impl AlphaHitMask {
++    /// Creates an empty (transparent) hit mask.
++    pub fn new(width: u32, height: u32) -> Self {
++        Self {
++            width,
++            height,
++            pixels: vec![0; (width * height) as usize],
++        }
++    }
++
++    /// Constructs an `AlphaHitMask` from a Cairo `ImageSurface` with alpha threshold >= 1.
++    pub fn from_surface(surface: &ImageSurface) -> Self {
++        Self::from_surface_with_threshold(surface, 1)
++    }
++
++    /// Constructs an `AlphaHitMask` from a Cairo `ImageSurface` with a custom alpha threshold.
++    pub fn from_surface_with_threshold(surface: &ImageSurface, threshold: u8) -> Self {
++        surface.flush();
++        let width = surface.width() as u32;
++        let height = surface.height() as u32;
++        let format = surface.format();
++        let stride = surface.stride() as usize;
++
++        let mut mask = Self::new(width, height);
++
++        if width == 0 || height == 0 {
++            return mask;
++        }
++
++        let raw_ptr = surface.to_raw_none();
++        let data_ptr = unsafe { cairo::ffi::cairo_image_surface_get_data(raw_ptr) };
++        if data_ptr.is_null() {
++            return mask;
++        }
++        let data = unsafe { std::slice::from_raw_parts(data_ptr, (height as usize) * stride) };
++
++        match format {
++            Format::ARgb32 => {
++                for y in 0..height {
++                    let row_start = y as usize * stride;
++                    let mask_row_start = (y * width) as usize;
++                    for x in 0..width {
++                        let px_offset = row_start + x as usize * 4;
++                        if px_offset + 3 < data.len() {
++                            // In Cairo ARgb32 (little-endian: [B, G, R, A])
++                            let alpha = data[px_offset + 3];
++                            if alpha >= threshold {
++                                mask.pixels[mask_row_start + x as usize] = 1;
++                            }
++                        }
++                    }
++                }
++            }
++            Format::A8 => {
++                for y in 0..height {
++                    let row_start = y as usize * stride;
++                    let mask_row_start = (y * width) as usize;
++                    for x in 0..width {
++                        let px_offset = row_start + x as usize;
++                        if px_offset < data.len() {
++                            let alpha = data[px_offset];
++                            if alpha >= threshold {
++                                mask.pixels[mask_row_start + x as usize] = 1;
++                            }
++                        }
++                    }
++                }
++            }
++            Format::Rgb24 => {
++                // Completely opaque surface
++                mask.pixels.fill(1);
++            }
++            _ => {
++                for y in 0..height {
++                    let row_start = y as usize * stride;
++                    let mask_row_start = (y * width) as usize;
++                    for x in 0..width {
++                        let px_offset = row_start + x as usize * 4;
++                        if px_offset + 3 < data.len() {
++                            let alpha = data[px_offset + 3];
++                            if alpha >= threshold {
++                                mask.pixels[mask_row_start + x as usize] = 1;
++                            }
++                        }
++                    }
++                }
++            }
++        }
++
++        mask
++    }
++
++    /// Constructs an `AlphaHitMask` covering given bounding rectangles.
++    pub fn from_rectangles(width: u32, height: u32, rects: &[Rect]) -> Self {
++        let mut mask = Self::new(width, height);
++        for r in rects {
++            mask.add_rect(r);
++        }
++        mask
++    }
++
++    /// Marks a rectangular region as solid in the hit mask.
++    pub fn add_rect(&mut self, rect: &Rect) {
++        let x0 = rect.x.max(0.0) as u32;
++        let y0 = rect.y.max(0.0) as u32;
++        let x1 = ((rect.x + rect.width).ceil() as u32).min(self.width);
++        let y1 = ((rect.y + rect.height).ceil() as u32).min(self.height);
++
++        for y in y0..y1 {
++            let row_start = (y * self.width) as usize;
++            for x in x0..x1 {
++                self.pixels[row_start + x as usize] = 1;
++            }
++        }
++    }
++
++    /// Tests if a point (x, y) hits an active/opaque pixel.
++    pub fn contains(&self, x: i32, y: i32) -> bool {
++        if x < 0 || y < 0 {
++            return false;
++        }
++        let ux = x as u32;
++        let uy = y as u32;
++        if ux >= self.width || uy >= self.height {
++            return false;
++        }
++        self.pixels[(uy * self.width + ux) as usize] != 0
++    }
++
++    /// Returns true if no pixels in the mask are solid.
++    pub fn is_empty(&self) -> bool {
++        self.pixels.iter().all(|&p| p == 0)
++    }
++
++    /// Decomposes the 1-bit alpha mask into an optimal list of disjoint rectangles.
++    /// Uses scanline run-length encoding coalesced vertically across consecutive rows.
++    /// This format is directly submittable to Wayland `wl_surface.set_input_region`
++    /// and X11 `XFixesSetWindowShapeRegion` so transparent areas are 100% click-through.
++    pub fn to_rectangles(&self) -> Vec<Rect> {
++        if self.width == 0 || self.height == 0 {
++            return Vec::new();
++        }
++
++        // 1. Compute horizontal solid spans per scanline
++        let mut row_spans: Vec<Vec<(u32, u32)>> = Vec::with_capacity(self.height as usize);
++        for y in 0..self.height {
++            let mut spans = Vec::new();
++            let mut in_span = false;
++            let mut start_x = 0;
++            let row_offset = (y * self.width) as usize;
++
++            for x in 0..self.width {
++                let is_solid = self.pixels[row_offset + x as usize] != 0;
++                if is_solid && !in_span {
++                    in_span = true;
++                    start_x = x;
++                } else if !is_solid && in_span {
++                    in_span = false;
++                    spans.push((start_x, x - start_x));
++                }
++            }
++            if in_span {
++                spans.push((start_x, self.width - start_x));
++            }
++            row_spans.push(spans);
++        }
++
++        // 2. Coalesce identical spans vertically across consecutive rows
++        let mut result = Vec::new();
++        // active: (x, width, y_start, height)
++        let mut active_rects: Vec<(u32, u32, u32, u32)> = Vec::new();
++
++        for (y, current_spans) in row_spans.into_iter().enumerate() {
++            let y = y as u32;
++            let mut next_active = Vec::new();
++            let mut unmatched_spans = current_spans;
++
++            for (rx, rw, ry_start, rheight) in active_rects {
++                if let Some(pos) = unmatched_spans
++                    .iter()
++                    .position(|&(sx, sw)| sx == rx && sw == rw)
++                {
++                    unmatched_spans.remove(pos);
++                    next_active.push((rx, rw, ry_start, rheight + 1));
++                } else {
++                    result.push(Rect {
++                        x: rx as f64,
++                        y: ry_start as f64,
++                        width: rw as f64,
++                        height: rheight as f64,
++                    });
++                }
++            }
++
++            for (sx, sw) in unmatched_spans {
++                next_active.push((sx, sw, y, 1));
++            }
++
++            active_rects = next_active;
++        }
++
++        for (rx, rw, ry_start, rheight) in active_rects {
++            result.push(Rect {
++                x: rx as f64,
++                y: ry_start as f64,
++                width: rw as f64,
++                height: rheight as f64,
++            });
++        }
++
++        result
++    }
++}
+diff --git a/crates/pluvia-core/src/render/meter_renderer.rs b/crates/pluvia-core/src/render/meter_renderer.rs
+new file mode 100644
+index 0000000..1abdffa
+--- /dev/null
++++ b/crates/pluvia-core/src/render/meter_renderer.rs
+@@ -0,0 +1,1140 @@
++use crate::formulas::eval_formula;
++use crate::ini::{MeterConfig, SkinConfig};
++use crate::measures::MeasureValue;
++use crate::render::hit_mask::AlphaHitMask;
++use crate::render::pango_text::{PangoTextRenderer, TextAlign, TextCase, TextStyle};
++use crate::render::{Color, Rect};
++use crate::variables::VariableMap;
++use crate::vfs::VfsResolver;
++use cairo::{Context, Format, ImageSurface};
++use std::collections::{HashMap, VecDeque};
++use std::path::{Path, PathBuf};
++use std::sync::Mutex;
++
++#[derive(thiserror::Error, Debug)]
++pub enum RenderError {
++    #[error("Cairo error: {0}")]
++    Cairo(#[from] cairo::Error),
++    #[error("Cairo borrow error: {0}")]
++    CairoBorrow(#[from] cairo::BorrowError),
++    #[error("Image error: {0}")]
++    Image(String),
++}
++
++/// Dynamic snapshot of skin configuration and current measure values.
++#[derive(Debug, Clone)]
++pub struct SkinState {
++    pub config: SkinConfig,
++    pub measure_values: HashMap<String, MeasureValue>,
++}
++
++impl SkinState {
++    pub fn new(config: SkinConfig, measure_values: HashMap<String, MeasureValue>) -> Self {
++        Self {
++            config,
++            measure_values,
++        }
++    }
++
++    pub fn get_measure_value(&self, name: &str) -> Option<&MeasureValue> {
++        self.measure_values.get(&name.to_ascii_lowercase())
++    }
++}
++
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
++pub struct ImageCacheKey {
++    pub path: PathBuf,
++    pub tint: Option<String>,
++}
++
++/// 2D Meter Renderer driven by Pango and Cairo.
++pub struct MeterRenderer {
++    text_renderer: PangoTextRenderer,
++    vfs: VfsResolver,
++    image_cache: Mutex<HashMap<ImageCacheKey, ImageSurface>>,
++    histogram_history: Mutex<HashMap<String, VecDeque<f64>>>,
++}
++
++impl Default for MeterRenderer {
++    fn default() -> Self {
++        Self::new()
++    }
++}
++
++impl MeterRenderer {
++    pub fn new() -> Self {
++        Self {
++            text_renderer: PangoTextRenderer::new(),
++            vfs: VfsResolver::new(),
++            image_cache: Mutex::new(HashMap::new()),
++            histogram_history: Mutex::new(HashMap::new()),
++        }
++    }
++
++    /// Renders all visible meters from `SkinState` onto the provided `ImageSurface`
++    /// and returns the dynamic `AlphaHitMask` of non-transparent interactive areas.
++    pub fn render_to_surface(
++        &self,
++        state: &SkinState,
++        surface: &ImageSurface,
++    ) -> Result<AlphaHitMask, RenderError> {
++        let cr = Context::new(surface)?;
++
++        let mut prev_x = 0.0;
++        let mut prev_y = 0.0;
++        let mut prev_w = 0.0;
++        let mut prev_h = 0.0;
++
++        for meter_name_lower in &state.config.meter_order {
++            if let Some(meter) = state.config.meters.get(meter_name_lower) {
++                if meter.hidden {
++                    continue;
++                }
++
++                let x = resolve_coordinate(
++                    meter.x.as_deref(),
++                    prev_x,
++                    prev_w,
++                    &state.config.variables,
++                );
++                let y = resolve_coordinate(
++                    meter.y.as_deref(),
++                    prev_y,
++                    prev_h,
++                    &state.config.variables,
++                );
++                let w = meter.w.unwrap_or(0.0);
++                let h = meter.h.unwrap_or(0.0);
++
++                // Optional SolidColor background for meter box
++                if let Some(sc) = meter.solid_color.as_deref().and_then(Color::parse) {
++                    if w > 0.0 && h > 0.0 {
++                        cr.set_source_rgba(sc.r, sc.g, sc.b, sc.a);
++                        cr.rectangle(x, y, w, h);
++                        cr.fill()?;
++                    }
++                }
++
++                let m_type = meter.meter_type.to_ascii_lowercase();
++                let rect = match m_type.as_str() {
++                    "string" => self.render_string(&cr, meter, x, y, w, h, state)?,
++                    "image" => self.render_image(&cr, meter, x, y, w, h, state)?,
++                    "bar" => self.render_bar(&cr, meter, x, y, w, h, state)?,
++                    "roundline" => self.render_roundline(&cr, meter, x, y, w, h, state)?,
++                    "shape" => self.render_shape(&cr, meter, x, y)?,
++                    "histogram" => self.render_histogram(&cr, meter, x, y, w, h, state)?,
++                    _ => Rect::new(x, y, w, h),
++                };
++
++                prev_x = rect.x;
++                prev_y = rect.y;
++                prev_w = if w > 0.0 { w } else { rect.width };
++                prev_h = if h > 0.0 { h } else { rect.height };
++            }
++        }
++
++        Ok(AlphaHitMask::from_surface(surface))
++    }
++
++    fn render_string(
++        &self,
++        cr: &Context,
++        meter: &MeterConfig,
++        x: f64,
++        y: f64,
++        _w: f64,
++        _h: f64,
++        state: &SkinState,
++    ) -> Result<Rect, RenderError> {
++        let raw_text = meter.text.as_deref().unwrap_or("%1");
++        let substituted = substitute_measures(raw_text, meter, state);
++
++        let font_face = meter.font_face.as_deref().unwrap_or("Sans");
++        let font_size = meter.font_size.unwrap_or(12.0);
++        let color = meter
++            .font_color
++            .as_deref()
++            .and_then(Color::parse)
++            .unwrap_or(Color::WHITE);
++
++        let align = meter
++            .get("stringalign")
++            .map(TextAlign::parse)
++            .unwrap_or(TextAlign::Left);
++
++        let style = meter
++            .get("stringstyle")
++            .map(TextStyle::parse)
++            .unwrap_or(TextStyle::Normal);
++
++        let case = meter
++            .get("stringcase")
++            .map(TextCase::parse)
++            .unwrap_or(TextCase::None);
++
++        let angle = meter
++            .get("angle")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(0.0);
++
++        let rect = self.text_renderer.render_text_to_context(
++            cr,
++            &substituted,
++            font_face,
++            font_size,
++            color,
++            x,
++            y,
++            align,
++            style,
++            case,
++            meter.anti_alias,
++            angle,
++        )?;
++
++        Ok(rect)
++    }
++
++    fn render_image(
++        &self,
++        cr: &Context,
++        meter: &MeterConfig,
++        x: f64,
++        y: f64,
++        w: f64,
++        h: f64,
++        state: &SkinState,
++    ) -> Result<Rect, RenderError> {
++        let raw_img_name = meter
++            .get("imagename")
++            .or_else(|| {
++                meter
++                    .measure_name
++                    .as_deref()
++                    .and_then(|m| state.get_measure_value(m))
++                    .and_then(|v| v.as_str())
++            })
++            .unwrap_or("");
++
++        if raw_img_name.is_empty() {
++            return Ok(Rect::new(x, y, w, h));
++        }
++
++        let resolved_path = self.resolve_image_path(raw_img_name, &state.config.skin_dir);
++        let img_surface = match resolved_path {
++            Some(ref path) => self.load_cairo_image(path, meter.get("imagetint"))?,
++            None => return Ok(Rect::new(x, y, w, h)),
++        };
++
++        let src_w = img_surface.width() as f64;
++        let src_h = img_surface.height() as f64;
++
++        let target_w = if w > 0.0 { w } else { src_w };
++        let target_h = if h > 0.0 { h } else { src_h };
++
++        let preserve_aspect = meter
++            .get("preserveaspectratio")
++            .and_then(|s| s.parse::<u32>().ok())
++            .unwrap_or(0);
++
++        let alpha = meter
++            .get("imagealpha")
++            .and_then(|s| s.parse::<f64>().ok())
++            .map(|a| if a > 1.0 { a / 255.0 } else { a })
++            .unwrap_or(1.0)
++            .clamp(0.0, 1.0);
++
++        cr.save()?;
++        cr.rectangle(x, y, target_w, target_h);
++        cr.clip();
++
++        let (scale_x, scale_y, off_x, off_y) = match preserve_aspect {
++            1 => {
++                let s = (target_w / src_w).min(target_h / src_h);
++                let ox = x + (target_w - src_w * s) / 2.0;
++                let oy = y + (target_h - src_h * s) / 2.0;
++                (s, s, ox, oy)
++            }
++            2 => {
++                let s = (target_w / src_w).max(target_h / src_h);
++                let ox = x + (target_w - src_w * s) / 2.0;
++                let oy = y + (target_h - src_h * s) / 2.0;
++                (s, s, ox, oy)
++            }
++            _ => {
++                let sx = if src_w > 0.0 { target_w / src_w } else { 1.0 };
++                let sy = if src_h > 0.0 { target_h / src_h } else { 1.0 };
++                (sx, sy, x, y)
++            }
++        };
++
++        cr.translate(off_x, off_y);
++        cr.scale(scale_x, scale_y);
++        cr.set_source_surface(&img_surface, 0.0, 0.0)?;
++
++        if alpha < 1.0 {
++            cr.paint_with_alpha(alpha)?;
++        } else {
++            cr.paint()?;
++        }
++        cr.restore()?;
++
++        Ok(Rect::new(x, y, target_w, target_h))
++    }
++
++    fn render_bar(
++        &self,
++        cr: &Context,
++        meter: &MeterConfig,
++        x: f64,
++        y: f64,
++        w: f64,
++        h: f64,
++        state: &SkinState,
++    ) -> Result<Rect, RenderError> {
++        let val = meter
++            .measure_name
++            .as_deref()
++            .and_then(|m| state.get_measure_value(m))
++            .map(|v| v.to_number_val())
++            .unwrap_or(0.0);
++
++        let min_val = meter
++            .get("minvalue")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(0.0);
++        let max_val = meter
++            .get("maxvalue")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(100.0);
++        let orientation = meter
++            .get("barorientation")
++            .unwrap_or("horizontal")
++            .to_ascii_lowercase();
++        let flip = meter.get("flip").map(|s| s == "1").unwrap_or(false);
++
++        let bar_color = meter
++            .get("barcolor")
++            .and_then(Color::parse)
++            .unwrap_or(Color::rgba(0.0, 1.0, 0.0, 1.0));
++
++        let progress = if max_val > min_val {
++            ((val - min_val) / (max_val - min_val)).clamp(0.0, 1.0)
++        } else {
++            0.0
++        };
++
++        cr.set_source_rgba(bar_color.r, bar_color.g, bar_color.b, bar_color.a);
++        if orientation == "vertical" {
++            let bar_h = h * progress;
++            let bar_y = if flip { y } else { y + h - bar_h };
++            cr.rectangle(x, bar_y, w, bar_h);
++            cr.fill()?;
++        } else {
++            let bar_w = w * progress;
++            let bar_x = if flip { x + w - bar_w } else { x };
++            cr.rectangle(bar_x, y, bar_w, h);
++            cr.fill()?;
++        }
++
++        Ok(Rect::new(x, y, w, h))
++    }
++
++    fn render_roundline(
++        &self,
++        cr: &Context,
++        meter: &MeterConfig,
++        x: f64,
++        y: f64,
++        w: f64,
++        h: f64,
++        state: &SkinState,
++    ) -> Result<Rect, RenderError> {
++        let mut val = meter
++            .measure_name
++            .as_deref()
++            .and_then(|m| state.get_measure_value(m))
++            .map(|v| v.to_number_val())
++            .unwrap_or(0.0);
++
++        if let Some(rem_str) = meter.get("valueremainder") {
++            if let Ok(rem) = rem_str.parse::<f64>() {
++                if rem > 0.0 {
++                    val %= rem;
++                }
++            }
++        }
++
++        let min_val = meter
++            .get("minvalue")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(0.0);
++        let max_val = meter
++            .get("maxvalue")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(1.0);
++        let progress = if max_val > min_val {
++            ((val - min_val) / (max_val - min_val)).clamp(0.0, 1.0)
++        } else {
++            0.0
++        };
++
++        let start_angle = meter
++            .get("startangle")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(0.0);
++        let rotation_angle = meter
++            .get("rotationangle")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(std::f64::consts::TAU);
++        let line_length = meter
++            .get("linelength")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or_else(|| w.max(h) / 2.0);
++        let line_start = meter
++            .get("linestart")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(0.0);
++        let line_width = meter
++            .get("linewidth")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(1.0);
++        let solid = meter.get("solid").map(|s| s == "1").unwrap_or(false);
++        let line_color = meter
++            .get("linecolor")
++            .and_then(Color::parse)
++            .unwrap_or(Color::WHITE);
++
++        let cx = x + if w > 0.0 { w / 2.0 } else { line_length };
++        let cy = y + if h > 0.0 { h / 2.0 } else { line_length };
++
++        cr.save()?;
++        cr.set_source_rgba(line_color.r, line_color.g, line_color.b, line_color.a);
++
++        if solid {
++            let end_angle = start_angle + progress * rotation_angle;
++            if rotation_angle >= 0.0 {
++                cr.arc(cx, cy, line_length, start_angle, end_angle);
++                if line_start > 0.0 {
++                    cr.arc_negative(cx, cy, line_start, end_angle, start_angle);
++                } else {
++                    cr.line_to(cx, cy);
++                }
++            } else {
++                cr.arc_negative(cx, cy, line_length, start_angle, end_angle);
++                if line_start > 0.0 {
++                    cr.arc(cx, cy, line_start, end_angle, start_angle);
++                } else {
++                    cr.line_to(cx, cy);
++                }
++            }
++            cr.close_path();
++            cr.fill()?;
++        } else {
++            let angle = start_angle + progress * rotation_angle;
++            let x1 = cx + line_start * angle.cos();
++            let y1 = cy + line_start * angle.sin();
++            let x2 = cx + line_length * angle.cos();
++            let y2 = cy + line_length * angle.sin();
++            cr.set_line_width(line_width);
++            cr.move_to(x1, y1);
++            cr.line_to(x2, y2);
++            cr.stroke()?;
++        }
++
++        cr.restore()?;
++
++        let bound_size = line_length * 2.0;
++        Ok(Rect::new(
++            cx - line_length,
++            cy - line_length,
++            bound_size,
++            bound_size,
++        ))
++    }
++
++    fn render_shape(
++        &self,
++        cr: &Context,
++        meter: &MeterConfig,
++        base_x: f64,
++        base_y: f64,
++    ) -> Result<Rect, RenderError> {
++        let mut shape_keys: Vec<(usize, String)> = Vec::new();
++        for (k, v) in &meter.properties {
++            if k == "shape" {
++                shape_keys.push((1, v.clone()));
++            } else if let Some(suffix) = k.strip_prefix("shape") {
++                if let Ok(idx) = suffix.parse::<usize>() {
++                    shape_keys.push((idx, v.clone()));
++                }
++            }
++        }
++        shape_keys.sort_by_key(|(idx, _)| *idx);
++
++        let mut total_rect = Rect::new(base_x, base_y, 0.0, 0.0);
++
++        for (_, shape_def) in shape_keys {
++            if let Some(r) = self.render_single_shape(cr, &shape_def, base_x, base_y)? {
++                total_rect = total_rect.union(&r);
++            }
++        }
++
++        Ok(total_rect)
++    }
++
++    fn render_single_shape(
++        &self,
++        cr: &Context,
++        def: &str,
++        base_x: f64,
++        base_y: f64,
++    ) -> Result<Option<Rect>, RenderError> {
++        let parts: Vec<&str> = def.split('|').map(str::trim).collect();
++        if parts.is_empty() {
++            return Ok(None);
++        }
++
++        let shape_decl = parts[0];
++        let mut fill_color = Some(Color::WHITE);
++        let mut stroke_color = None;
++        let mut stroke_width = 0.0;
++
++        for modifier in &parts[1..] {
++            let lower = modifier.to_ascii_lowercase();
++            if lower.starts_with("fill color") {
++                let col_str = modifier["fill color".len()..].trim();
++                fill_color = Color::parse(col_str);
++            } else if lower.starts_with("fill none") {
++                fill_color = None;
++            } else if lower.starts_with("stroke color") {
++                let col_str = modifier["stroke color".len()..].trim();
++                stroke_color = Color::parse(col_str);
++            } else if lower.starts_with("stroke none") {
++                stroke_color = None;
++            } else if lower.starts_with("strokewidth") {
++                let num_str = modifier["strokewidth".len()..].trim();
++                stroke_width = num_str.parse::<f64>().unwrap_or(1.0);
++            }
++        }
++
++        let tokens: Vec<&str> = shape_decl
++            .split(&[' ', ','][..])
++            .map(str::trim)
++            .filter(|s| !s.is_empty())
++            .collect();
++
++        if tokens.is_empty() {
++            return Ok(None);
++        }
++
++        let kind = tokens[0].to_ascii_lowercase();
++        let nums: Vec<f64> = tokens[1..]
++            .iter()
++            .filter_map(|s| s.parse::<f64>().ok())
++            .collect();
++
++        let mut bound = None;
++
++        cr.save()?;
++        cr.new_path();
++
++        match kind.as_str() {
++            "roundrectangle" | "rectangle" => {
++                if nums.len() >= 4 {
++                    let rx_val = nums[0] + base_x;
++                    let ry_val = nums[1] + base_y;
++                    let rw = nums[2];
++                    let rh = nums[3];
++                    let radius_x = if nums.len() >= 5 { nums[4] } else { 0.0 };
++                    let radius_y = if nums.len() >= 6 {
++                        nums[5]
++                    } else {
++                        radius_x
++                    };
++
++                    if radius_x > 0.0 && radius_y > 0.0 {
++                        draw_rounded_rect(cr, rx_val, ry_val, rw, rh, radius_x, radius_y);
++                    } else {
++                        cr.rectangle(rx_val, ry_val, rw, rh);
++                    }
++                    bound = Some(Rect::new(rx_val, ry_val, rw, rh));
++                }
++            }
++            "ellipse" => {
++                if nums.len() >= 3 {
++                    let cx = nums[0] + base_x;
++                    let cy = nums[1] + base_y;
++                    let rx_val = nums[2];
++                    let ry_val = if nums.len() >= 4 { nums[3] } else { rx_val };
++
++                    cr.save()?;
++                    cr.translate(cx, cy);
++                    if rx_val > 0.0 && ry_val > 0.0 {
++                        cr.scale(1.0, ry_val / rx_val);
++                        cr.arc(0.0, 0.0, rx_val, 0.0, std::f64::consts::TAU);
++                    }
++                    cr.restore()?;
++                    bound = Some(Rect::new(
++                        cx - rx_val,
++                        cy - ry_val,
++                        rx_val * 2.0,
++                        ry_val * 2.0,
++                    ));
++                }
++            }
++            "line" => {
++                if nums.len() >= 4 {
++                    let x1 = nums[0] + base_x;
++                    let y1 = nums[1] + base_y;
++                    let x2 = nums[2] + base_x;
++                    let y2 = nums[3] + base_y;
++                    cr.move_to(x1, y1);
++                    cr.line_to(x2, y2);
++                    bound = Some(Rect::new(
++                        x1.min(x2),
++                        y1.min(y2),
++                        (x2 - x1).abs(),
++                        (y2 - y1).abs(),
++                    ));
++                }
++            }
++            "curve" => {
++                if nums.len() >= 6 {
++                    let x1 = nums[0] + base_x;
++                    let y1 = nums[1] + base_y;
++                    let x2 = nums[2] + base_x;
++                    let y2 = nums[3] + base_y;
++                    let cx1 = nums[4] + base_x;
++                    let cy1 = nums[5] + base_y;
++                    let (cx2, cy2) = if nums.len() >= 8 {
++                        (nums[6] + base_x, nums[7] + base_y)
++                    } else {
++                        (cx1, cy1)
++                    };
++                    cr.move_to(x1, y1);
++                    cr.curve_to(cx1, cy1, cx2, cy2, x2, y2);
++                    bound = Some(Rect::new(
++                        x1.min(x2).min(cx1).min(cx2),
++                        y1.min(y2).min(cy1).min(cy2),
++                        (x2 - x1).abs().max((cx1 - x1).abs()),
++                        (y2 - y1).abs().max((cy1 - y1).abs()),
++                    ));
++                }
++            }
++            "path" => {
++                let raw_args = shape_decl
++                    .strip_prefix("path")
++                    .or_else(|| shape_decl.strip_prefix("Path"))
++                    .unwrap_or("")
++                    .trim();
++                let unquoted = raw_args.trim_matches('"').trim();
++                let has_svg = unquoted
++                    .chars()
++                    .any(|c| matches!(c, 'M' | 'm' | 'L' | 'l' | 'C' | 'c' | 'Z' | 'z'));
++
++                if has_svg {
++                    execute_svg_path(cr, unquoted, base_x, base_y)?;
++                } else {
++                    let start_nums: Vec<f64> = unquoted
++                        .split(&[' ', ','][..])
++                        .filter_map(|s| s.parse::<f64>().ok())
++                        .collect();
++                    if start_nums.len() >= 2 {
++                        cr.move_to(base_x + start_nums[0], base_y + start_nums[1]);
++                    }
++                }
++
++                for part in &parts[1..] {
++                    let p_trimmed = part.trim();
++                    let p_lower = p_trimmed.to_ascii_lowercase();
++                    if p_lower.starts_with("lineto") {
++                        let line_nums: Vec<f64> = p_trimmed["lineto".len()..]
++                            .split(&[' ', ','][..])
++                            .filter_map(|s| s.parse::<f64>().ok())
++                            .collect();
++                        if line_nums.len() >= 2 {
++                            cr.line_to(base_x + line_nums[0], base_y + line_nums[1]);
++                        }
++                    } else if p_lower.starts_with("curveto") {
++                        let curve_nums: Vec<f64> = p_trimmed["curveto".len()..]
++                            .split(&[' ', ','][..])
++                            .filter_map(|s| s.parse::<f64>().ok())
++                            .collect();
++                        if curve_nums.len() >= 6 {
++                            cr.curve_to(
++                                base_x + curve_nums[2],
++                                base_y + curve_nums[3],
++                                base_x + curve_nums[4],
++                                base_y + curve_nums[5],
++                                base_x + curve_nums[0],
++                                base_y + curve_nums[1],
++                            );
++                        } else if curve_nums.len() >= 4 {
++                            cr.curve_to(
++                                base_x + curve_nums[2],
++                                base_y + curve_nums[3],
++                                base_x + curve_nums[2],
++                                base_y + curve_nums[3],
++                                base_x + curve_nums[0],
++                                base_y + curve_nums[1],
++                            );
++                        }
++                    } else if p_lower.starts_with("closepath") || p_lower == "close" {
++                        cr.close_path();
++                    }
++                }
++
++                if let Ok((x1, y1, x2, y2)) = cr.path_extents() {
++                    bound = Some(Rect::new(x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0)));
++                }
++            }
++            _ => {}
++        }
++
++        if let Some(fill) = fill_color {
++            cr.set_source_rgba(fill.r, fill.g, fill.b, fill.a);
++            if stroke_color.is_some() && stroke_width > 0.0 {
++                cr.fill_preserve()?;
++            } else {
++                cr.fill()?;
++            }
++        }
++
++        if let Some(stroke) = stroke_color {
++            if stroke_width > 0.0 {
++                cr.set_source_rgba(stroke.r, stroke.g, stroke.b, stroke.a);
++                cr.set_line_width(stroke_width);
++                cr.stroke()?;
++            }
++        }
++
++        cr.restore()?;
++        Ok(bound)
++    }
++
++    fn render_histogram(
++        &self,
++        cr: &Context,
++        meter: &MeterConfig,
++        x: f64,
++        y: f64,
++        w: f64,
++        h: f64,
++        state: &SkinState,
++    ) -> Result<Rect, RenderError> {
++        let primary_val = meter
++            .measure_name
++            .as_deref()
++            .and_then(|m| state.get_measure_value(m))
++            .map(|v| v.to_number_val())
++            .unwrap_or(0.0);
++
++        let primary_color = meter
++            .get("primarycolor")
++            .and_then(Color::parse)
++            .unwrap_or(Color::rgba(0.0, 1.0, 0.0, 0.8));
++
++        let max_points = (w.ceil() as usize).max(10);
++        let mut history_guard = self.histogram_history.lock().unwrap();
++        let history = history_guard
++            .entry(meter.name.to_ascii_lowercase())
++            .or_insert_with(|| VecDeque::with_capacity(max_points));
++        history.push_back(primary_val);
++        while history.len() > max_points {
++            history.pop_front();
++        }
++
++        let min_val = meter
++            .get("minvalue")
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(0.0);
++        let autoscale = meter.get("autoscale").map(|s| s == "1").unwrap_or(false);
++        let max_val = if autoscale {
++            history.iter().copied().fold(1.0f64, f64::max)
++        } else {
++            meter
++                .get("maxvalue")
++                .and_then(|s| s.parse::<f64>().ok())
++                .unwrap_or(100.0)
++        };
++
++        if history.len() >= 2 && max_val > min_val {
++            cr.save()?;
++            cr.set_source_rgba(
++                primary_color.r,
++                primary_color.g,
++                primary_color.b,
++                primary_color.a,
++            );
++
++            let step = w / (max_points - 1).max(1) as f64;
++            let start_x = x + w - (history.len() - 1) as f64 * step;
++
++            cr.move_to(start_x, y + h);
++            for (i, &v) in history.iter().enumerate() {
++                let px = start_x + i as f64 * step;
++                let ratio = ((v - min_val) / (max_val - min_val)).clamp(0.0, 1.0);
++                let py = y + h - ratio * h;
++                cr.line_to(px, py);
++            }
++            let last_x = start_x + (history.len() - 1) as f64 * step;
++            cr.line_to(last_x, y + h);
++            cr.close_path();
++            cr.fill()?;
++            cr.restore()?;
++        }
++
++        Ok(Rect::new(x, y, w, h))
++    }
++
++    fn resolve_image_path(&self, raw: &str, skin_dir: &Path) -> Option<PathBuf> {
++        let p = Path::new(raw);
++        if p.is_absolute() && p.exists() {
++            return Some(p.to_path_buf());
++        }
++        self.vfs.resolve(skin_dir, raw)
++    }
++
++    fn load_cairo_image(
++        &self,
++        path: &Path,
++        tint: Option<&str>,
++    ) -> Result<ImageSurface, RenderError> {
++        let cache_key = ImageCacheKey {
++            path: path.to_path_buf(),
++            tint: tint.map(str::to_string),
++        };
++
++        let mut cache = self.image_cache.lock().unwrap();
++        if let Some(surf) = cache.get(&cache_key) {
++            return Ok(surf.clone());
++        }
++
++        let is_svg = path
++            .extension()
++            .and_then(|e| e.to_str())
++            .map(|e| e.eq_ignore_ascii_case("svg"))
++            .unwrap_or(false);
++
++        let (w, h, rgba_bytes) = if is_svg {
++            let svg_data = std::fs::read(path).map_err(|e| RenderError::Image(e.to_string()))?;
++            let opt = resvg::usvg::Options::default();
++            let tree = resvg::usvg::Tree::from_data(&svg_data, &opt)
++                .map_err(|e| RenderError::Image(e.to_string()))?;
++            let pixmap_size = tree.size().to_int_size();
++            let mut pixmap = resvg::tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())
++                .ok_or_else(|| RenderError::Image("Failed to allocate SVG pixmap".to_string()))?;
++            resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
++            (
++                pixmap_size.width(),
++                pixmap_size.height(),
++                pixmap.take(),
++            )
++        } else {
++            let img = image::open(path).map_err(|e| RenderError::Image(e.to_string()))?;
++            let rgba = img.to_rgba8();
++            let (img_w, img_h) = rgba.dimensions();
++            (img_w, img_h, rgba.into_raw())
++        };
++
++        let tint_col = tint.and_then(Color::parse);
++
++        let mut surface = ImageSurface::create(Format::ARgb32, w as i32, h as i32)?;
++        let stride = surface.stride() as usize;
++        {
++            let mut data = surface.data()?;
++
++            for y in 0..h {
++                let row_offset = y as usize * stride;
++                let src_row_offset = (y * w) as usize * 4;
++                for x in 0..w {
++                    let px_idx = src_row_offset + x as usize * 4;
++                    let mut r = rgba_bytes[px_idx] as f64 / 255.0;
++                    let mut g = rgba_bytes[px_idx + 1] as f64 / 255.0;
++                    let mut b = rgba_bytes[px_idx + 2] as f64 / 255.0;
++                    let mut a = rgba_bytes[px_idx + 3] as f64 / 255.0;
++
++                    if let Some(t) = tint_col {
++                        r *= t.r;
++                        g *= t.g;
++                        b *= t.b;
++                        a *= t.a;
++                    }
++
++                    // Premultiplied ARgb32
++                    let pr = (r * a * 255.0).round() as u8;
++                    let pg = (g * a * 255.0).round() as u8;
++                    let pb = (b * a * 255.0).round() as u8;
++                    let pa = (a * 255.0).round() as u8;
++
++                    let out_offset = row_offset + x as usize * 4;
++                    data[out_offset] = pb;
++                    data[out_offset + 1] = pg;
++                    data[out_offset + 2] = pr;
++                    data[out_offset + 3] = pa;
++                }
++            }
++        }
++
++        cache.insert(cache_key, surface.clone());
++        Ok(surface)
++    }
++}
++
++fn execute_svg_path(
++    cr: &Context,
++    path_str: &str,
++    base_x: f64,
++    base_y: f64,
++) -> Result<(), RenderError> {
++    let mut normalized = String::with_capacity(path_str.len() * 2);
++    let mut prev_char = ' ';
++    for ch in path_str.chars() {
++        if ch.is_ascii_alphabetic() {
++            normalized.push(' ');
++            normalized.push(ch);
++            normalized.push(' ');
++        } else if ch == ',' {
++            normalized.push(' ');
++        } else if ch == '-' && prev_char != 'e' && prev_char != 'E' {
++            normalized.push(' ');
++            normalized.push('-');
++        } else {
++            normalized.push(ch);
++        }
++        prev_char = ch;
++    }
++
++    let tokens: Vec<&str> = normalized.split_whitespace().collect();
++    let mut i = 0;
++    let mut current_cmd = ' ';
++    let mut cur_x = base_x;
++    let mut cur_y = base_y;
++
++    while i < tokens.len() {
++        let tok = tokens[i];
++        if tok.len() == 1 && tok.chars().next().unwrap().is_ascii_alphabetic() {
++            current_cmd = tok.chars().next().unwrap();
++            i += 1;
++        }
++
++        match current_cmd {
++            'M' => {
++                if i + 1 < tokens.len() {
++                    let x = tokens[i].parse::<f64>().unwrap_or(0.0);
++                    let y = tokens[i + 1].parse::<f64>().unwrap_or(0.0);
++                    cur_x = base_x + x;
++                    cur_y = base_y + y;
++                    cr.move_to(cur_x, cur_y);
++                    i += 2;
++                    current_cmd = 'L';
++                } else {
++                    break;
++                }
++            }
++            'm' => {
++                if i + 1 < tokens.len() {
++                    let dx = tokens[i].parse::<f64>().unwrap_or(0.0);
++                    let dy = tokens[i + 1].parse::<f64>().unwrap_or(0.0);
++                    cur_x += dx;
++                    cur_y += dy;
++                    cr.move_to(cur_x, cur_y);
++                    i += 2;
++                    current_cmd = 'l';
++                } else {
++                    break;
++                }
++            }
++            'L' => {
++                if i + 1 < tokens.len() {
++                    let x = tokens[i].parse::<f64>().unwrap_or(0.0);
++                    let y = tokens[i + 1].parse::<f64>().unwrap_or(0.0);
++                    cur_x = base_x + x;
++                    cur_y = base_y + y;
++                    cr.line_to(cur_x, cur_y);
++                    i += 2;
++                } else {
++                    break;
++                }
++            }
++            'l' => {
++                if i + 1 < tokens.len() {
++                    let dx = tokens[i].parse::<f64>().unwrap_or(0.0);
++                    let dy = tokens[i + 1].parse::<f64>().unwrap_or(0.0);
++                    cur_x += dx;
++                    cur_y += dy;
++                    cr.line_to(cur_x, cur_y);
++                    i += 2;
++                } else {
++                    break;
++                }
++            }
++            'H' => {
++                if i < tokens.len() {
++                    let x = tokens[i].parse::<f64>().unwrap_or(0.0);
++                    cur_x = base_x + x;
++                    cr.line_to(cur_x, cur_y);
++                    i += 1;
++                } else {
++                    break;
++                }
++            }
++            'h' => {
++                if i < tokens.len() {
++                    let dx = tokens[i].parse::<f64>().unwrap_or(0.0);
++                    cur_x += dx;
++                    cr.line_to(cur_x, cur_y);
++                    i += 1;
++                } else {
++                    break;
++                }
++            }
++            'V' => {
++                if i < tokens.len() {
++                    let y = tokens[i].parse::<f64>().unwrap_or(0.0);
++                    cur_y = base_y + y;
++                    cr.line_to(cur_x, cur_y);
++                    i += 1;
++                } else {
++                    break;
++                }
++            }
++            'v' => {
++                if i < tokens.len() {
++                    let dy = tokens[i].parse::<f64>().unwrap_or(0.0);
++                    cur_y += dy;
++                    cr.line_to(cur_x, cur_y);
++                    i += 1;
++                } else {
++                    break;
++                }
++            }
++            'C' => {
++                if i + 5 < tokens.len() {
++                    let cx1 = base_x + tokens[i].parse::<f64>().unwrap_or(0.0);
++                    let cy1 = base_y + tokens[i + 1].parse::<f64>().unwrap_or(0.0);
++                    let cx2 = base_x + tokens[i + 2].parse::<f64>().unwrap_or(0.0);
++                    let cy2 = base_y + tokens[i + 3].parse::<f64>().unwrap_or(0.0);
++                    let x = base_x + tokens[i + 4].parse::<f64>().unwrap_or(0.0);
++                    let y = base_y + tokens[i + 5].parse::<f64>().unwrap_or(0.0);
++                    cur_x = x;
++                    cur_y = y;
++                    cr.curve_to(cx1, cy1, cx2, cy2, cur_x, cur_y);
++                    i += 6;
++                } else {
++                    break;
++                }
++            }
++            'c' => {
++                if i + 5 < tokens.len() {
++                    let cx1 = cur_x + tokens[i].parse::<f64>().unwrap_or(0.0);
++                    let cy1 = cur_y + tokens[i + 1].parse::<f64>().unwrap_or(0.0);
++                    let cx2 = cur_x + tokens[i + 2].parse::<f64>().unwrap_or(0.0);
++                    let cy2 = cur_y + tokens[i + 3].parse::<f64>().unwrap_or(0.0);
++                    let x = cur_x + tokens[i + 4].parse::<f64>().unwrap_or(0.0);
++                    let y = cur_y + tokens[i + 5].parse::<f64>().unwrap_or(0.0);
++                    cur_x = x;
++                    cur_y = y;
++                    cr.curve_to(cx1, cy1, cx2, cy2, cur_x, cur_y);
++                    i += 6;
++                } else {
++                    break;
++                }
++            }
++            'Z' | 'z' => {
++                cr.close_path();
++            }
++            _ => {
++                i += 1;
++            }
++        }
++    }
++
++    Ok(())
++}
++
++fn draw_rounded_rect(
++    cr: &Context,
++    x: f64,
++    y: f64,
++    w: f64,
++    h: f64,
++    radius_x: f64,
++    radius_y: f64,
++) {
++    let pi = std::f64::consts::PI;
++    let r_x = radius_x.min(w / 2.0);
++    let r_y = radius_y.min(h / 2.0);
++
++    cr.save().unwrap();
++    cr.translate(x, y);
++    cr.scale(1.0, r_y / r_x);
++
++    let h_scaled = h * (r_x / r_y);
++
++    cr.new_sub_path();
++    cr.arc(w - r_x, r_x, r_x, -pi / 2.0, 0.0);
++    cr.arc(w - r_x, h_scaled - r_x, r_x, 0.0, pi / 2.0);
++    cr.arc(r_x, h_scaled - r_x, r_x, pi / 2.0, pi);
++    cr.arc(r_x, r_x, r_x, pi, 3.0 * pi / 2.0);
++    cr.close_path();
++
++    cr.restore().unwrap();
++}
++
++fn resolve_coordinate(
++    raw: Option<&str>,
++    prev_pos: f64,
++    prev_size: f64,
++    vars: &VariableMap,
++) -> f64 {
++    let raw = match raw {
++        Some(s) => s.trim(),
++        None => return 0.0,
++    };
++    if raw.is_empty() {
++        return 0.0;
++    }
++
++    if let Some(rest) = raw.strip_suffix('R') {
++        let val = eval_coord_num(rest, vars);
++        prev_pos + prev_size + val
++    } else if let Some(rest) = raw.strip_suffix('r') {
++        let val = eval_coord_num(rest, vars);
++        prev_pos + val
++    } else {
++        eval_coord_num(raw, vars)
++    }
++}
++
++fn eval_coord_num(s: &str, vars: &VariableMap) -> f64 {
++    let exp = vars.expand(s);
++    if let Ok(val) = eval_formula(&exp, vars) {
++        val
++    } else {
++        exp.trim().parse::<f64>().unwrap_or(0.0)
++    }
++}
++
++fn substitute_measures(template: &str, meter: &MeterConfig, state: &SkinState) -> String {
++    let mut result = template.to_string();
++    for (idx, mname) in meter.measure_names.iter().enumerate() {
++        let val_str = state
++            .get_measure_value(mname)
++            .map(|v| v.to_string_val())
++            .unwrap_or_default();
++        let placeholder = format!("%{}", idx + 1);
++        result = result.replace(&placeholder, &val_str);
++    }
++    if result.contains("%0") {
++        let val0 = meter
++            .measure_names
++            .first()
++            .and_then(|m| state.get_measure_value(m))
++            .map(|v| v.to_string_val())
++            .unwrap_or_default();
++        result = result.replace("%0", &val0);
++    }
++    result
++}
+diff --git a/crates/pluvia-core/src/render/mod.rs b/crates/pluvia-core/src/render/mod.rs
+new file mode 100644
+index 0000000..ffe0345
+--- /dev/null
++++ b/crates/pluvia-core/src/render/mod.rs
+@@ -0,0 +1,161 @@
++pub mod hit_mask;
++pub mod meter_renderer;
++pub mod pango_text;
++
++pub use hit_mask::AlphaHitMask;
++pub use meter_renderer::{MeterRenderer, RenderError, SkinState};
++pub use pango_text::{add_application_font, PangoTextRenderer, TextAlign, TextCase, TextStyle};
++
++/// 2D Rectangle with floating point coordinates and dimensions.
++#[derive(Debug, Clone, Copy, PartialEq, Default)]
++pub struct Rect {
++    pub x: f64,
++    pub y: f64,
++    pub width: f64,
++    pub height: f64,
++}
++
++impl Rect {
++    pub const ZERO: Self = Self {
++        x: 0.0,
++        y: 0.0,
++        width: 0.0,
++        height: 0.0,
++    };
++
++    pub fn new(x: f64, y: f64, width: f64, height: f64) -> Self {
++        Self {
++            x,
++            y,
++            width,
++            height,
++        }
++    }
++
++    pub fn contains(&self, px: f64, py: f64) -> bool {
++        px >= self.x && px < self.x + self.width && py >= self.y && py < self.y + self.height
++    }
++
++    pub fn union(&self, other: &Rect) -> Rect {
++        if self.width <= 0.0 && self.height <= 0.0 {
++            return *other;
++        }
++        if other.width <= 0.0 && other.height <= 0.0 {
++            return *self;
++        }
++        let x1 = self.x.min(other.x);
++        let y1 = self.y.min(other.y);
++        let x2 = (self.x + self.width).max(other.x + other.width);
++        let y2 = (self.y + self.height).max(other.y + other.height);
++        Rect {
++            x: x1,
++            y: y1,
++            width: (x2 - x1).max(0.0),
++            height: (y2 - y1).max(0.0),
++        }
++    }
++
++    pub fn to_i32_tuple(&self) -> (i32, i32, i32, i32) {
++        (
++            self.x.round() as i32,
++            self.y.round() as i32,
++            self.width.round().max(0.0) as i32,
++            self.height.round().max(0.0) as i32,
++        )
++    }
++}
++
++/// RGBA Color representation in normalized float space [0.0, 1.0].
++#[derive(Debug, Clone, Copy, PartialEq)]
++pub struct Color {
++    pub r: f64,
++    pub g: f64,
++    pub b: f64,
++    pub a: f64,
++}
++
++impl Color {
++    pub const WHITE: Self = Self {
++        r: 1.0,
++        g: 1.0,
++        b: 1.0,
++        a: 1.0,
++    };
++    pub const BLACK: Self = Self {
++        r: 0.0,
++        g: 0.0,
++        b: 0.0,
++        a: 1.0,
++    };
++    pub const TRANSPARENT: Self = Self {
++        r: 0.0,
++        g: 0.0,
++        b: 0.0,
++        a: 0.0,
++    };
++
++    pub fn rgba(r: f64, g: f64, b: f64, a: f64) -> Self {
++        Self {
++            r: r.clamp(0.0, 1.0),
++            g: g.clamp(0.0, 1.0),
++            b: b.clamp(0.0, 1.0),
++            a: a.clamp(0.0, 1.0),
++        }
++    }
++
++    pub fn rgb(r: f64, g: f64, b: f64) -> Self {
++        Self::rgba(r, g, b, 1.0)
++    }
++
++    pub fn from_u8(r: u8, g: u8, b: u8, a: u8) -> Self {
++        Self {
++            r: r as f64 / 255.0,
++            g: g as f64 / 255.0,
++            b: b as f64 / 255.0,
++            a: a as f64 / 255.0,
++        }
++    }
++
++    /// Parse Rainmeter color string like "255, 255, 255", "255,255,255,128", "#FFFFFF", "#FFFFFF80".
++    pub fn parse(s: &str) -> Option<Self> {
++        let trimmed = s.trim();
++        if trimmed.is_empty() {
++            return None;
++        }
++
++        if let Some(hex) = trimmed.strip_prefix('#') {
++            if hex.len() == 6 {
++                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
++                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
++                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
++                return Some(Self::from_u8(r, g, b, 255));
++            } else if hex.len() == 8 {
++                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
++                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
++                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
++                let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
++                return Some(Self::from_u8(r, g, b, a));
++            }
++        }
++
++        let parts: Vec<&str> = trimmed.split(',').map(str::trim).collect();
++        if parts.len() == 3 || parts.len() == 4 {
++            let r = parts[0].parse::<f64>().ok()?;
++            let g = parts[1].parse::<f64>().ok()?;
++            let b = parts[2].parse::<f64>().ok()?;
++            let a = if parts.len() == 4 {
++                parts[3].parse::<f64>().ok()?
++            } else {
++                255.0
++            };
++            return Some(Self {
++                r: (r / 255.0).clamp(0.0, 1.0),
++                g: (g / 255.0).clamp(0.0, 1.0),
++                b: (b / 255.0).clamp(0.0, 1.0),
++                a: (a / 255.0).clamp(0.0, 1.0),
++            });
++        }
++
++        None
++    }
++}
+diff --git a/crates/pluvia-core/src/render/pango_text.rs b/crates/pluvia-core/src/render/pango_text.rs
+new file mode 100644
+index 0000000..cc905d4
+--- /dev/null
++++ b/crates/pluvia-core/src/render/pango_text.rs
+@@ -0,0 +1,285 @@
++use crate::render::{Color, Rect};
++use cairo::{Context, ImageSurface};
++use std::ffi::CString;
++use std::os::unix::ffi::OsStrExt;
++use std::path::Path;
++
++#[link(name = "fontconfig")]
++extern "C" {
++    fn FcConfigGetCurrent() -> *mut std::ffi::c_void;
++    fn FcConfigAppFontAddFile(
++        config: *mut std::ffi::c_void,
++        file: *const libc::c_char,
++    ) -> libc::c_int;
++}
++
++/// Dynamic application font registration for `@Resources/Fonts/*.otf|ttf`.
++pub fn add_application_font(path: &Path) -> bool {
++    if !path.exists() {
++        return false;
++    }
++    let c_path = match CString::new(path.as_os_str().as_bytes()) {
++        Ok(s) => s,
++        Err(_) => return false,
++    };
++    unsafe {
++        let config = FcConfigGetCurrent();
++        if config.is_null() {
++            return false;
++        }
++        let res = FcConfigAppFontAddFile(config, c_path.as_ptr());
++        res != 0
++    }
++}
++
++/// Text alignment within layout and meter bounds.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
++pub enum TextAlign {
++    #[default]
++    Left,
++    Center,
++    Right,
++}
++
++impl TextAlign {
++    pub fn parse(s: &str) -> Self {
++        let lower = s.to_ascii_lowercase();
++        if lower.starts_with("center") {
++            TextAlign::Center
++        } else if lower.starts_with("right") {
++            TextAlign::Right
++        } else {
++            TextAlign::Left
++        }
++    }
++}
++
++/// Text case transformation.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
++pub enum TextCase {
++    #[default]
++    None,
++    Upper,
++    Lower,
++    Proper,
++}
++
++impl TextCase {
++    pub fn parse(s: &str) -> Self {
++        match s.to_ascii_lowercase().as_str() {
++            "upper" => TextCase::Upper,
++            "lower" => TextCase::Lower,
++            "proper" => TextCase::Proper,
++            _ => TextCase::None,
++        }
++    }
++
++    pub fn apply(&self, s: &str) -> String {
++        match self {
++            TextCase::None => s.to_string(),
++            TextCase::Upper => s.to_uppercase(),
++            TextCase::Lower => s.to_lowercase(),
++            TextCase::Proper => {
++                let mut result = String::with_capacity(s.len());
++                let mut capitalize_next = true;
++                for c in s.chars() {
++                    if c.is_alphanumeric() {
++                        if capitalize_next {
++                            result.extend(c.to_uppercase());
++                            capitalize_next = false;
++                        } else {
++                            result.extend(c.to_lowercase());
++                        }
++                    } else {
++                        capitalize_next = true;
++                        result.push(c);
++                    }
++                }
++                result
++            }
++        }
++    }
++}
++
++/// Text styling (weight and slant).
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
++pub enum TextStyle {
++    #[default]
++    Normal,
++    Bold,
++    Italic,
++    BoldItalic,
++}
++
++impl TextStyle {
++    pub fn parse(s: &str) -> Self {
++        match s.to_ascii_lowercase().as_str() {
++            "bold" => TextStyle::Bold,
++            "italic" => TextStyle::Italic,
++            "bolditalic" => TextStyle::BoldItalic,
++            _ => TextStyle::Normal,
++        }
++    }
++}
++
++/// PangoCairo text layout and rasterization engine.
++#[derive(Debug, Clone, Default)]
++pub struct PangoTextRenderer;
++
++impl PangoTextRenderer {
++    pub fn new() -> Self {
++        Self
++    }
++
++    /// Renders text with basic styling to an `ImageSurface` and returns the ink bounding box.
++    pub fn render_text(
++        &self,
++        surface: &ImageSurface,
++        text: &str,
++        font_face: &str,
++        font_size: f64,
++        color: (f64, f64, f64, f64),
++        x: f64,
++        y: f64,
++    ) -> Result<Rect, cairo::Error> {
++        let cr = Context::new(surface)?;
++        self.render_text_to_context(
++            &cr,
++            text,
++            font_face,
++            font_size,
++            Color::rgba(color.0, color.1, color.2, color.3),
++            x,
++            y,
++            TextAlign::Left,
++            TextStyle::Normal,
++            TextCase::None,
++            true,
++            0.0,
++        )
++    }
++
++    /// Renders text to a Cairo `Context` with full alignment, casing, styling, and rotation support.
++    pub fn render_text_to_context(
++        &self,
++        cr: &Context,
++        text: &str,
++        font_face: &str,
++        font_size: f64,
++        color: Color,
++        x: f64,
++        y: f64,
++        align: TextAlign,
++        style: TextStyle,
++        case: TextCase,
++        antialias: bool,
++        angle: f64,
++    ) -> Result<Rect, cairo::Error> {
++        let formatted_text = case.apply(text);
++
++        cr.save()?;
++
++        if antialias {
++            cr.set_antialias(cairo::Antialias::Subpixel);
++        } else {
++            cr.set_antialias(cairo::Antialias::None);
++        }
++
++        let layout = pangocairo::functions::create_layout(cr);
++        layout.set_text(&formatted_text);
++
++        let mut desc = pango::FontDescription::from_string(font_face);
++        // Rainmeter FontSize in points -> Pango units
++        desc.set_size((font_size.max(1.0) * pango::SCALE as f64) as i32);
++
++        match style {
++            TextStyle::Bold => desc.set_weight(pango::Weight::Bold),
++            TextStyle::Italic => desc.set_style(pango::Style::Italic),
++            TextStyle::BoldItalic => {
++                desc.set_weight(pango::Weight::Bold);
++                desc.set_style(pango::Style::Italic);
++            }
++            TextStyle::Normal => {}
++        }
++
++        layout.set_font_description(Some(&desc));
++
++        match align {
++            TextAlign::Left => layout.set_alignment(pango::Alignment::Left),
++            TextAlign::Center => layout.set_alignment(pango::Alignment::Center),
++            TextAlign::Right => layout.set_alignment(pango::Alignment::Right),
++        }
++
++        let (ink_rect, logical_rect) = layout.pixel_extents();
++        let text_w = logical_rect.width() as f64;
++        let text_h = logical_rect.height() as f64;
++
++        let render_x = match align {
++            TextAlign::Left => x,
++            TextAlign::Center => x - text_w / 2.0,
++            TextAlign::Right => x - text_w,
++        };
++        let render_y = y;
++
++        if angle != 0.0 {
++            cr.translate(render_x, render_y);
++            cr.rotate(angle);
++            cr.move_to(0.0, 0.0);
++        } else {
++            cr.move_to(render_x, render_y);
++        }
++
++        cr.set_source_rgba(color.r, color.g, color.b, color.a);
++        pangocairo::functions::show_layout(cr, &layout);
++
++        cr.restore()?;
++
++        let bound = if angle != 0.0 {
++            let cos_a = angle.cos();
++            let sin_a = angle.sin();
++
++            // 4 corners in local space relative to (render_x, render_y)
++            let corners = [
++                (0.0, 0.0),
++                (text_w, 0.0),
++                (0.0, text_h),
++                (text_w, text_h),
++            ];
++
++            let mut min_x = f64::INFINITY;
++            let mut min_y = f64::INFINITY;
++            let mut max_x = f64::NEG_INFINITY;
++            let mut max_y = f64::NEG_INFINITY;
++
++            for (cx, cy) in corners {
++                let rx = render_x + cx * cos_a - cy * sin_a;
++                let ry = render_y + cx * sin_a + cy * cos_a;
++                min_x = min_x.min(rx);
++                min_y = min_y.min(ry);
++                max_x = max_x.max(rx);
++                max_y = max_y.max(ry);
++            }
++
++            Rect {
++                x: min_x,
++                y: min_y,
++                width: (max_x - min_x).max(1.0),
++                height: (max_y - min_y).max(1.0),
++            }
++        } else {
++            let bound_x = render_x + ink_rect.x() as f64;
++            let bound_y = render_y + ink_rect.y() as f64;
++            let bound_w = (ink_rect.width() as f64).max(text_w);
++            let bound_h = (ink_rect.height() as f64).max(text_h);
++
++            Rect {
++                x: bound_x,
++                y: bound_y,
++                width: bound_w,
++                height: bound_h,
++            }
++        };
++
++        Ok(bound)
++    }
++}
+diff --git a/crates/pluvia-core/tests/test_renderer.rs b/crates/pluvia-core/tests/test_renderer.rs
+new file mode 100644
+index 0000000..f663557
+--- /dev/null
++++ b/crates/pluvia-core/tests/test_renderer.rs
+@@ -0,0 +1,608 @@
++use cairo::{Context, Format, ImageSurface};
++use pluvia_core::ini::parse_skin_ini;
++use pluvia_core::measures::MeasureValue;
++use pluvia_core::render::hit_mask::AlphaHitMask;
++use pluvia_core::render::meter_renderer::{MeterRenderer, SkinState};
++use pluvia_core::render::pango_text::{
++    add_application_font, PangoTextRenderer, TextAlign, TextCase, TextStyle,
++};
++use std::collections::HashMap;
++use std::path::Path;
++use tempfile::tempdir;
++
++#[test]
++fn test_pango_text_surface_rendering_and_hit_mask() {
++    let surface = ImageSurface::create(Format::ARgb32, 400, 200).unwrap();
++    let text_renderer = PangoTextRenderer::new();
++    let rect = text_renderer
++        .render_text(
++            &surface,
++            "MONDAY",
++            "Sans Bold",
++            32.0,
++            (1.0, 1.0, 1.0, 1.0),
++            50.0,
++            50.0,
++        )
++        .unwrap();
++
++    // Verify non-zero bounds
++    assert!(rect.width > 0.0);
++    assert!(rect.height > 0.0);
++
++    let mask = AlphaHitMask::from_surface(&surface);
++    // Non-transparent text area must register hit
++    assert!(mask.contains(rect.x as i32 + 5, rect.y as i32 + 5));
++    // Blank corner must be click-through
++    assert!(!mask.contains(5, 5));
++}
++
++#[test]
++fn test_alpha_hit_mask_bounding_rectangles_extraction() {
++    let surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
++    let cr = Context::new(&surface).unwrap();
++
++    // Draw two solid boxes on transparent surface
++    cr.set_source_rgba(1.0, 0.0, 0.0, 1.0);
++    cr.rectangle(10.0, 10.0, 40.0, 30.0);
++    cr.fill().unwrap();
++
++    cr.set_source_rgba(0.0, 1.0, 0.0, 1.0);
++    cr.rectangle(100.0, 120.0, 50.0, 40.0);
++    cr.fill().unwrap();
++
++    let mask = AlphaHitMask::from_surface(&surface);
++    assert!(mask.contains(15, 15));
++    assert!(mask.contains(110, 130));
++    assert!(!mask.contains(70, 70));
++    assert!(!mask.contains(0, 0));
++
++    let rects = mask.to_rectangles();
++    assert!(!rects.is_empty());
++
++    // Hit test every extracted rectangle to ensure they only cover active pixels
++    for r in &rects {
++        let cx = (r.x + r.width / 2.0) as i32;
++        let cy = (r.y + r.height / 2.0) as i32;
++        assert!(
++            mask.contains(cx, cy),
++            "Extracted rectangle at ({}, {}) was not in hit mask",
++            cx,
++            cy
++        );
++    }
++}
++
++#[test]
++fn test_fontconfig_add_application_font() {
++    let valid_font = Path::new("/usr/share/fonts/Adwaita/AdwaitaMono-Regular.ttf");
++    if valid_font.exists() {
++        assert!(add_application_font(valid_font));
++    }
++    assert!(!add_application_font(Path::new("/nonexistent/font.ttf")));
++}
++
++#[test]
++fn test_pango_text_alignment_case_and_styling() {
++    assert_eq!(TextAlign::parse("Left"), TextAlign::Left);
++    assert_eq!(TextAlign::parse("Center"), TextAlign::Center);
++    assert_eq!(TextAlign::parse("Right"), TextAlign::Right);
++    assert_eq!(TextAlign::parse("CenterCenter"), TextAlign::Center);
++
++    assert_eq!(TextCase::Upper.apply("hello world"), "HELLO WORLD");
++    assert_eq!(TextCase::Lower.apply("HELLO WORLD"), "hello world");
++    assert_eq!(TextCase::Proper.apply("hello world"), "Hello World");
++
++    assert_eq!(TextStyle::parse("Bold"), TextStyle::Bold);
++    assert_eq!(TextStyle::parse("Italic"), TextStyle::Italic);
++    assert_eq!(TextStyle::parse("BoldItalic"), TextStyle::BoldItalic);
++    assert_eq!(TextStyle::parse("Normal"), TextStyle::Normal);
++}
++
++#[test]
++fn test_meter_renderer_string_with_measure_substitution() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[MeasureTime]
++Measure=Time
++Format=%H:%M
++
++[MeterTime]
++Meter=String
++MeasureName=MeasureTime
++FontFace=Sans
++FontSize=24
++FontColor=255,255,255,255
++StringCase=Upper
++StringStyle=Bold
++Text="Time: %1"
++X=10
++Y=10
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let mut measure_values = HashMap::new();
++    measure_values.insert(
++        "measuretime".to_string(),
++        MeasureValue::String("14:30".to_string()),
++    );
++
++    let state = SkinState {
++        config,
++        measure_values,
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 300, 100).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    // Bounding mask should not be empty
++    assert!(!mask.is_empty());
++    let rects = mask.to_rectangles();
++    assert!(!rects.is_empty());
++}
++
++#[test]
++fn test_meter_renderer_bar_progress() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[MeasureCpu]
++Measure=Cpu
++
++[MeterCpuBar]
++Meter=Bar
++MeasureName=MeasureCpu
++BarColor=0,255,0,255
++SolidColor=50,50,50,255
++W=200
++H=20
++BarOrientation=Horizontal
++X=0
++Y=0
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let mut measure_values = HashMap::new();
++    // 50% CPU
++    measure_values.insert("measurecpu".to_string(), MeasureValue::Number(50.0));
++
++    let state = SkinState {
++        config,
++        measure_values,
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 250, 50).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    // The bar occupies 200x20
++    assert!(mask.contains(50, 10)); // left half (active bar)
++    assert!(mask.contains(150, 10)); // right half (solid background)
++    assert!(!mask.contains(220, 10)); // beyond the bar W=200
++}
++
++#[test]
++fn test_meter_renderer_image() {
++    let tmp = tempdir().unwrap();
++    let img_path = tmp.path().join("icon.png");
++
++    // Create a 32x32 red PNG image using the `image` crate
++    let img = image::RgbaImage::from_pixel(32, 32, image::Rgba([255, 0, 0, 255]));
++    img.save(&img_path).unwrap();
++
++    let ini = format!(
++        r#"
++[Rainmeter]
++Update=1000
++
++[MeterIcon]
++Meter=Image
++ImageName="{}"
++W=64
++H=64
++PreserveAspectRatio=1
++ImageAlpha=255
++X=10
++Y=10
++"#,
++        img_path.display()
++    );
++
++    let config = parse_skin_ini(&ini, tmp.path()).unwrap();
++    let state = SkinState {
++        config,
++        measure_values: HashMap::new(),
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 120, 120).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    // Image scaled to 64x64 at (10, 10), so (40, 40) must be hit
++    assert!(mask.contains(40, 40));
++    // Blank outside (5, 5) and (100, 100) must be click-through
++    assert!(!mask.contains(5, 5));
++    assert!(!mask.contains(100, 100));
++}
++
++#[test]
++fn test_meter_renderer_shape() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[MeterBox]
++Meter=Shape
++Shape=Rectangle 20, 20, 100, 50 | Fill Color 0,0,255,255 | StrokeWidth 0
++Shape2=Ellipse 160, 45, 20, 20 | Fill Color 255,0,0,255 | StrokeWidth 0
++X=0
++Y=0
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let state = SkinState {
++        config,
++        measure_values: HashMap::new(),
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 200, 100).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    // Rectangle is 20..120 x, 20..70 y
++    assert!(mask.contains(50, 40));
++    // Ellipse center at (160, 45)
++    assert!(mask.contains(160, 45));
++    assert!(!mask.contains(5, 5));
++    assert!(!mask.contains(195, 45));
++}
++
++#[test]
++fn test_meter_renderer_roundline() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[MeasureSec]
++Measure=Time
++
++[MeterDial]
++Meter=Roundline
++MeasureName=MeasureSec
++LineLength=40
++LineStart=10
++Solid=1
++StartAngle=0.0
++RotationAngle=6.2831853
++LineColor=255,255,255,255
++X=50
++Y=50
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let mut measure_values = HashMap::new();
++    measure_values.insert("measuresec".to_string(), MeasureValue::Number(0.5));
++
++    let state = SkinState {
++        config,
++        measure_values,
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    assert!(!mask.is_empty());
++}
++
++#[test]
++fn test_meter_renderer_histogram() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[MeasureCpu]
++Measure=Cpu
++
++[MeterHist]
++Meter=Histogram
++MeasureName=MeasureCpu
++PrimaryColor=0,255,0,255
++SolidColor=20,20,20,255
++W=100
++H=50
++X=10
++Y=10
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let mut measure_values = HashMap::new();
++    measure_values.insert("measurecpu".to_string(), MeasureValue::Number(40.0));
++
++    let state = SkinState {
++        config,
++        measure_values,
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 150, 80).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    // Solid background of histogram should register
++    assert!(mask.contains(50, 30));
++    assert!(!mask.contains(5, 5));
++}
++
++#[test]
++fn test_meter_renderer_relative_positioning() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[MeterFirst]
++Meter=Bar
++SolidColor=255,0,0,255
++W=50
++H=30
++X=10
++Y=10
++
++[MeterSecond]
++Meter=Bar
++SolidColor=0,255,0,255
++W=40
++H=30
++X=10R
++Y=0r
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let state = SkinState {
++        config,
++        measure_values: HashMap::new(),
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 150, 60).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    // Meter1 is X=10..60, Y=10..40
++    assert!(mask.contains(30, 20));
++    // Gap is X=60..70
++    assert!(!mask.contains(65, 20));
++    // Meter2 is X=70..110, Y=10..40
++    assert!(mask.contains(80, 20));
++}
++
++#[test]
++fn test_meter_renderer_shape_path_and_round_rectangle() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[MeterShapes]
++Meter=Shape
++Shape=RoundRectangle 10, 10, 80, 40, 6, 6 | Fill Color 255,0,0,255 | StrokeWidth 0
++Shape2=Path 100, 10 | LineTo 160, 10 | LineTo 160, 60 | ClosePath 1 | Fill Color 0,255,0,255 | StrokeWidth 0
++Shape3=Path "M 10 70 L 60 70 L 60 110 Z" | Fill Color 0,0,255,255 | StrokeWidth 0
++X=0
++Y=0
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let state = SkinState {
++        config,
++        measure_values: HashMap::new(),
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 200, 150).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    // RoundRectangle inside at (50, 30)
++    assert!(mask.contains(50, 30));
++    // Rainmeter pipe Path inside at (130, 30)
++    assert!(mask.contains(130, 30));
++    // SVG Path inside at (35, 90)
++    assert!(mask.contains(35, 90));
++
++    // Outside bounds
++    assert!(!mask.contains(5, 5));
++    assert!(!mask.contains(90, 30));
++    assert!(!mask.contains(180, 30));
++}
++
++#[test]
++fn test_meter_renderer_webp_and_svg_images() {
++    let tmp = tempdir().unwrap();
++
++    // 1. Create a 32x32 WebP image
++    let webp_path = tmp.path().join("test.webp");
++    let img = image::RgbaImage::from_pixel(32, 32, image::Rgba([255, 128, 0, 255]));
++    img.save(&webp_path).unwrap();
++
++    // 2. Create an SVG file
++    let svg_path = tmp.path().join("test.svg");
++    let svg_content = r#"<svg width="40" height="40" xmlns="http://www.w3.org/2000/svg">
++        <rect width="40" height="40" fill="purple" />
++    </svg>"#;
++    std::fs::write(&svg_path, svg_content).unwrap();
++
++    let ini = format!(
++        r#"
++[Rainmeter]
++Update=1000
++
++[MeterWebp]
++Meter=Image
++ImageName="{}"
++W=32
++H=32
++X=10
++Y=10
++
++[MeterSvg]
++Meter=Image
++ImageName="{}"
++W=40
++H=40
++X=10R
++Y=10
++"#,
++        webp_path.display(),
++        svg_path.display()
++    );
++
++    let config = parse_skin_ini(&ini, tmp.path()).unwrap();
++    let state = SkinState {
++        config,
++        measure_values: HashMap::new(),
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 120, 70).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    // WebP at (10, 10) size 32x32 -> (20, 20) hit
++    assert!(mask.contains(20, 20));
++    // SVG at (10+32+10=52, 10) size 40x40 -> (70, 25) hit
++    assert!(mask.contains(70, 25));
++    // Blank gaps
++    assert!(!mask.contains(5, 5));
++    assert!(!mask.contains(45, 20));
++}
++
++#[test]
++fn test_image_cache_distinct_tints() {
++    let tmp = tempdir().unwrap();
++    let img_path = tmp.path().join("white_box.png");
++
++    // Pure white 16x16 image
++    let img = image::RgbaImage::from_pixel(16, 16, image::Rgba([255, 255, 255, 255]));
++    img.save(&img_path).unwrap();
++
++    let ini = format!(
++        r#"
++[Rainmeter]
++Update=1000
++
++[MeterRed]
++Meter=Image
++ImageName="{}"
++ImageTint=255,0,0,255
++W=16
++H=16
++X=0
++Y=0
++
++[MeterGreen]
++Meter=Image
++ImageName="{}"
++ImageTint=0,255,0,255
++W=16
++H=16
++X=30
++Y=0
++"#,
++        img_path.display(),
++        img_path.display()
++    );
++
++    let config = parse_skin_ini(&ini, tmp.path()).unwrap();
++    let state = SkinState {
++        config,
++        measure_values: HashMap::new(),
++    };
++
++    let surface = ImageSurface::create(Format::ARgb32, 60, 30).unwrap();
++    let renderer = MeterRenderer::new();
++    let mask = renderer.render_to_surface(&state, &surface).unwrap();
++
++    assert!(mask.contains(8, 8));
++    assert!(mask.contains(38, 8));
++
++    // Verify distinct colors in the surface data
++    let stride = surface.stride() as usize;
++    surface.flush();
++    let data_ptr = unsafe { cairo::ffi::cairo_image_surface_get_data(surface.to_raw_none()) };
++    assert!(!data_ptr.is_null());
++    let data = unsafe { std::slice::from_raw_parts(data_ptr, 30 * stride) };
++
++    // At (8, 8): Red meter -> [B=0, G=0, R=255, A=255]
++    let red_offset = 8 * stride + 8 * 4;
++    assert_eq!(data[red_offset], 0); // B
++    assert_eq!(data[red_offset + 1], 0); // G
++    assert_eq!(data[red_offset + 2], 255); // R
++    assert_eq!(data[red_offset + 3], 255); // A
++
++    // At (38, 8): Green meter -> [B=0, G=255, R=0, A=255]
++    let green_offset = 8 * stride + 38 * 4;
++    assert_eq!(data[green_offset], 0); // B
++    assert_eq!(data[green_offset + 1], 255); // G
++    assert_eq!(data[green_offset + 2], 0); // R
++    assert_eq!(data[green_offset + 3], 255); // A
++}
++
++#[test]
++fn test_text_rotation_origin_and_bounds() {
++    let surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
++    let cr = Context::new(&surface).unwrap();
++    let text_renderer = PangoTextRenderer::new();
++
++    // 1. Render normal horizontal text at (50, 50)
++    let normal_rect = text_renderer
++        .render_text_to_context(
++            &cr,
++            "TESTING ROTATION",
++            "Sans",
++            16.0,
++            pluvia_core::render::Color::WHITE,
++            50.0,
++            50.0,
++            TextAlign::Left,
++            TextStyle::Normal,
++            TextCase::None,
++            true,
++            0.0,
++        )
++        .unwrap();
++
++    // Normal text is wider than tall
++    assert!(normal_rect.width > normal_rect.height);
++    assert!(normal_rect.x >= 50.0);
++    assert!(normal_rect.y >= 50.0);
++
++    // 2. Render 90-degree rotated text at (50, 50)
++    let rot_surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
++    let rot_cr = Context::new(&rot_surface).unwrap();
++    let rot_rect = text_renderer
++        .render_text_to_context(
++            &rot_cr,
++            "TESTING ROTATION",
++            "Sans",
++            16.0,
++            pluvia_core::render::Color::WHITE,
++            50.0,
++            50.0,
++            TextAlign::Left,
++            TextStyle::Normal,
++            TextCase::None,
++            true,
++            std::f64::consts::FRAC_PI_2, // 90 degrees
++        )
++        .unwrap();
++
++    // Rotated 90 degrees: height is roughly original width, width is roughly original height
++    assert!(rot_rect.height > rot_rect.width);
++    // Bounding box must cover (50, 50)
++    assert!(rot_rect.x <= 50.0);
++    assert!(rot_rect.y <= 50.0);
++    assert!(rot_rect.y + rot_rect.height >= 50.0 + normal_rect.width * 0.8);
++
++    let mask = AlphaHitMask::from_surface(&rot_surface);
++    assert!(!mask.is_empty());
++}

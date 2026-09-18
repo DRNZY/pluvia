@@ -1,0 +1,227 @@
+diff --git a/crates/pluvia-core/src/ini.rs b/crates/pluvia-core/src/ini.rs
+index c4924c2..02f4ac5 100644
+--- a/crates/pluvia-core/src/ini.rs
++++ b/crates/pluvia-core/src/ini.rs
+@@ -2,7 +2,7 @@ use crate::encoding::decode_ini_bytes;
+ use crate::formulas::{eval_formula, FormulaError};
+ use crate::variables::VariableMap;
+ use crate::vfs::VfsResolver;
+-use std::collections::{HashMap, HashSet};
++use std::collections::HashMap;
+ use std::fs;
+ use std::path::{Path, PathBuf};
+ 
+@@ -108,7 +108,7 @@ impl SkinConfig {
+ struct ParserState<'a> {
+     skin_dir: &'a Path,
+     vfs: VfsResolver,
+-    visited_files: HashSet<PathBuf>,
++    include_stack: Vec<PathBuf>,
+     variables: VariableMap,
+     // (original_name, properties) keyed by lowercase section name
+     raw_sections: HashMap<String, (String, HashMap<String, String>)>,
+@@ -229,19 +229,22 @@ fn parse_content_recursive(
+                     .canonicalize()
+                     .unwrap_or_else(|_| inc_path.clone());
+ 
+-                if state.visited_files.contains(&canonical) {
++                // Check active call stack for circular dependencies (A -> B -> A)
++                if state.include_stack.contains(&canonical) {
+                     return Err(ParseError::CircularInclude(inc_path.display().to_string()));
+                 }
+-                state.visited_files.insert(canonical);
++                state.include_stack.push(canonical);
+ 
+                 let bytes = fs::read(&inc_path)?;
+                 let decoded = decode_ini_bytes(&bytes)?;
+-                parse_content_recursive(
++                let res = parse_content_recursive(
+                     &decoded,
+                     &inc_path,
+                     state,
+                     current_section.clone(),
+-                )?;
++                );
++                state.include_stack.pop();
++                res?;
+                 continue;
+             }
+ 
+@@ -264,8 +267,13 @@ fn apply_meter_styles(
+     raw_sections: &HashMap<String, (String, HashMap<String, String>)>,
+ ) {
+     if let Some(styles_str) = props.get("meterstyle").cloned() {
+-        for style_name in styles_str.split('|') {
+-            let lower_style = style_name.trim().to_ascii_lowercase();
++        // Rainmeter precedence: rightmost style supersedes earlier styles.
++        // Reverse iteration with or_insert_with ensures:
++        // 1. Meter's explicit options take highest precedence (already in props).
++        // 2. The rightmost style inserts missing keys first.
++        // 3. Earlier styles cannot overwrite keys from later styles.
++        for style_name in styles_str.split('|').map(str::trim).rev() {
++            let lower_style = style_name.to_ascii_lowercase();
+             if let Some((_, style_props)) = raw_sections.get(&lower_style) {
+                 for (sk, sv) in style_props {
+                     props.entry(sk.clone()).or_insert_with(|| sv.clone());
+@@ -279,11 +287,14 @@ fn apply_meter_styles(
+ pub fn parse_skin_ini<P: AsRef<Path>>(content: &str, skin_dir: P) -> Result<SkinConfig, ParseError> {
+     let skin_dir_ref = skin_dir.as_ref();
+     let dummy_main = skin_dir_ref.join("main.ini");
++    let canon_main = dummy_main
++        .canonicalize()
++        .unwrap_or_else(|_| dummy_main.clone());
+ 
+     let mut state = ParserState {
+         skin_dir: skin_dir_ref,
+         vfs: VfsResolver::new(),
+-        visited_files: HashSet::new(),
++        include_stack: vec![canon_main],
+         variables: VariableMap::with_skin_dir(skin_dir_ref),
+         raw_sections: HashMap::new(),
+         section_order: Vec::new(),
+@@ -386,16 +397,26 @@ pub fn parse_skin_ini<P: AsRef<Path>>(content: &str, skin_dir: P) -> Result<Skin
+                 apply_meter_styles(&mut props, &state.raw_sections);
+ 
+                 let meter_type = props.get("meter").cloned().unwrap_or_default();
+-                let measure_name = props
+-                    .get("measurename")
+-                    .map(|s| state.variables.expand(s));
+ 
+-                let mut measure_names = Vec::new();
++                // Deterministic measure ordering by index:
++                // measurename -> index 1
++                // measurename<N> -> index N
++                let mut indexed_measures: Vec<(usize, String)> = Vec::new();
+                 for (k, v) in &props {
+-                    if k.starts_with("measurename") {
+-                        measure_names.push(state.variables.expand(v));
++                    if k == "measurename" {
++                        indexed_measures.push((1, state.variables.expand(v)));
++                    } else if let Some(suffix) = k.strip_prefix("measurename") {
++                        if let Ok(idx) = suffix.parse::<usize>() {
++                            indexed_measures.push((idx, state.variables.expand(v)));
++                        }
+                     }
+                 }
++                indexed_measures.sort_by_key(|(idx, _)| *idx);
++                let measure_names: Vec<String> = indexed_measures
++                    .into_iter()
++                    .map(|(_, val)| strip_quotes(&val).to_string())
++                    .collect();
++                let measure_name = measure_names.first().cloned();
+ 
+                 let font_face = props
+                     .get("fontface")
+diff --git a/crates/pluvia-core/tests/test_parser.rs b/crates/pluvia-core/tests/test_parser.rs
+index 27c2a02..b6aeacd 100644
+--- a/crates/pluvia-core/tests/test_parser.rs
++++ b/crates/pluvia-core/tests/test_parser.rs
+@@ -254,3 +254,108 @@ Text=Hello; World
+     let meter = config.meters.get("metera").unwrap();
+     assert_eq!(meter.text.as_deref(), Some("Hello; World"));
+ }
++
++#[test]
++fn test_diamond_dependency_includes() {
++    let tmp = tempdir().unwrap();
++    let res_dir = tmp.path().join("@Resources");
++    fs::create_dir_all(&res_dir).unwrap();
++
++    // Common leaf: SharedVars.inc
++    let shared_file = res_dir.join("SharedVars.inc");
++    let mut f_shared = File::create(&shared_file).unwrap();
++    f_shared.write_all(b"[Variables]\nSharedConst=42\n").unwrap();
++
++    // Branch 1: BranchA.inc (includes SharedVars.inc)
++    let branch_a = res_dir.join("BranchA.inc");
++    let mut f_a = File::create(&branch_a).unwrap();
++    f_a.write_all(b"[Variables]\n@Include=#@#SharedVars.inc\nVarA=10\n").unwrap();
++
++    // Branch 2: BranchB.inc (includes SharedVars.inc)
++    let branch_b = res_dir.join("BranchB.inc");
++    let mut f_b = File::create(&branch_b).unwrap();
++    f_b.write_all(b"[Variables]\n@Include=#@#SharedVars.inc\nVarB=20\n").unwrap();
++
++    // Main skin includes both BranchA and BranchB (diamond dependency on SharedVars.inc)
++    let main_ini = r#"
++[Rainmeter]
++Update=1000
++
++[Variables]
++@IncludeA=#@#BranchA.inc
++@IncludeB=#@#BranchB.inc
++
++[MeterTest]
++Meter=String
++Text="A=#VarA#, B=#VarB#, Shared=#SharedConst#"
++"#;
++
++    let config = parse_skin_ini(main_ini, tmp.path()).unwrap();
++    assert_eq!(config.variables.get("sharedconst").unwrap(), "42");
++    assert_eq!(config.variables.get("vara").unwrap(), "10");
++    assert_eq!(config.variables.get("varb").unwrap(), "20");
++    let meter = config.meters.get("metertest").unwrap();
++    assert_eq!(meter.text.as_deref(), Some("A=10, B=20, Shared=42"));
++}
++
++#[test]
++fn test_meter_style_override_precedence() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[StyleBase]
++FontFace=Arial
++FontSize=12
++FontColor=100,100,100
++
++[StyleOverride]
++FontSize=18
++FontColor=200,200,200
++
++[MeterStyled]
++Meter=String
++MeterStyle=StyleBase | StyleOverride
++FontColor=255,255,255
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let meter = config.meters.get("meterstyled").unwrap();
++    // FontFace comes from StyleBase
++    assert_eq!(meter.font_face.as_deref(), Some("Arial"));
++    // FontSize from StyleOverride supersedes StyleBase (rightmost style wins)
++    assert_eq!(meter.font_size, Some(18.0));
++    // Explicit FontColor on meter supersedes all styles
++    assert_eq!(meter.font_color.as_deref(), Some("255,255,255"));
++}
++
++#[test]
++fn test_meter_multi_measure_ordering() {
++    let ini = r#"
++[Rainmeter]
++Update=1000
++
++[MeasureOne]
++Measure=Time
++
++[MeasureTwo]
++Measure=Time
++
++[MeasureThree]
++Measure=Time
++
++[MeterMulti]
++Meter=String
++MeasureName3=MeasureThree
++MeasureName=MeasureOne
++MeasureName2=MeasureTwo
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    let meter = config.meters.get("metermulti").unwrap();
++    assert_eq!(meter.measure_name.as_deref(), Some("MeasureOne"));
++    assert_eq!(
++        meter.measure_names,
++        vec!["MeasureOne", "MeasureTwo", "MeasureThree"]
++    );
++}

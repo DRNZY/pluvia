@@ -1,0 +1,416 @@
+diff --git a/crates/pluvia-core/Cargo.toml b/crates/pluvia-core/Cargo.toml
+index 613b859..2b780e6 100644
+--- a/crates/pluvia-core/Cargo.toml
++++ b/crates/pluvia-core/Cargo.toml
+@@ -7,5 +7,7 @@ edition = "2021"
+ encoding_rs = "0.8"
+ thiserror.workspace = true
+ zip = "2.2"
++
++[dev-dependencies]
+ tempfile = "3.12"
+ 
+diff --git a/crates/pluvia-core/src/extractor.rs b/crates/pluvia-core/src/extractor.rs
+index 7f76b79..e7b20ac 100644
+--- a/crates/pluvia-core/src/extractor.rs
++++ b/crates/pluvia-core/src/extractor.rs
+@@ -1,8 +1,13 @@
+ use std::fs::{self, File};
+-use std::io;
+-use std::path::{Component, Path};
++use std::io::{self, Read};
++use std::path::{Component, Path, PathBuf};
++#[cfg(unix)]
++use std::os::unix::fs::MetadataExt;
+ use thiserror::Error;
+ 
++/// Maximum allowable cumulative decompressed extraction size (500 MB) to prevent zip-bomb DoS attacks.
++pub const MAX_EXTRACTION_BYTES: u64 = 500 * 1024 * 1024;
++
+ /// Errors that can occur during `.rmskin` package extraction.
+ #[derive(Error, Debug)]
+ pub enum ExtractionError {
+@@ -10,6 +15,10 @@ pub enum ExtractionError {
+     ZipSlipDetected,
+     #[error("Symlink extraction is strictly forbidden")]
+     SymlinkForbidden,
++    #[error("Hardlink target mutation is strictly forbidden")]
++    HardlinkForbidden,
++    #[error("Extraction size quota exceeded")]
++    QuotaExceeded,
+     #[error("Archive error: {0}")]
+     ArchiveError(#[from] zip::result::ZipError),
+     #[error("IO error: {0}")]
+@@ -26,13 +35,23 @@ pub struct ExtractionReport {
+ /// Extracts a Rainmeter `.rmskin` (or standard `.zip`) package to a target directory.
+ ///
+ /// Security constraints:
+-/// - Absolute anti-Zip-Slip enforcement (rejects parent directory components, root components,
+-///   and path escapes via canonical prefix verification).
+-/// - Strict symlink immunity (any symlink entry detected via Unix mode attributes is rejected).
+-/// - Rejects pre-existing symlinks in destination paths that could allow symlink-following escapes.
++/// - Absolute anti-Zip-Slip enforcement (normalizes Windows `\` backslashes before component
++///   inspection, rejects parent directory / root components, and validates canonical destination prefixes).
++/// - Strict symlink immunity (rejects symlink archive entries and existing symlinks on target paths/dirs).
++/// - Hardlink safety (rejects writing to existing files with `nlink > 1` on Unix to prevent mutating shared inodes).
++/// - Decompression quota enforcement (`MAX_EXTRACTION_BYTES` cap protecting against zip bomb DoS).
+ pub fn extract_rmskin_package<P: AsRef<Path>, Q: AsRef<Path>>(
+     archive_path: P,
+     dest_root: Q,
++) -> Result<ExtractionReport, ExtractionError> {
++    extract_rmskin_package_with_limit(archive_path, dest_root, MAX_EXTRACTION_BYTES)
++}
++
++/// Extracts a Rainmeter `.rmskin` package with a custom byte quota.
++pub fn extract_rmskin_package_with_limit<P: AsRef<Path>, Q: AsRef<Path>>(
++    archive_path: P,
++    dest_root: Q,
++    max_bytes: u64,
+ ) -> Result<ExtractionReport, ExtractionError> {
+     let dest_root = dest_root.as_ref();
+     fs::create_dir_all(dest_root)?;
+@@ -42,7 +61,7 @@ pub fn extract_rmskin_package<P: AsRef<Path>, Q: AsRef<Path>>(
+     let mut zip = zip::ZipArchive::new(file)?;
+ 
+     let mut files_extracted = 0;
+-    let mut total_bytes = 0;
++    let mut total_bytes: u64 = 0;
+ 
+     for i in 0..zip.len() {
+         let mut entry = zip.by_index(i)?;
+@@ -56,10 +75,11 @@ pub fn extract_rmskin_package<P: AsRef<Path>, Q: AsRef<Path>>(
+             return Err(ExtractionError::SymlinkForbidden);
+         }
+ 
+-        // 2. Component inspection on raw entry name
++        // 2. Component inspection on raw entry name with backslash normalization
+         let raw_name = entry.name();
+-        let raw_path = Path::new(raw_name);
+-        if raw_path.components().any(|c| {
++        let normalized = raw_name.replace('\\', "/");
++        let norm_path = Path::new(&normalized);
++        if norm_path.components().any(|c| {
+             matches!(
+                 c,
+                 Component::ParentDir | Component::Prefix(_) | Component::RootDir
+@@ -83,10 +103,30 @@ pub fn extract_rmskin_package<P: AsRef<Path>, Q: AsRef<Path>>(
+             return Err(ExtractionError::ZipSlipDetected);
+         }
+ 
+-        let target_path = dest_canonical.join(&enclosed);
++        // Validate each path component does not encounter pre-existing symlinks
++        let mut check_path = dest_canonical.to_path_buf();
++        for comp in enclosed.components() {
++            check_path.push(comp);
++            let check_str = check_path.to_string_lossy();
++            let clean_check = Path::new(check_str.trim_end_matches('/'));
++            if let Ok(meta) = fs::symlink_metadata(clean_check) {
++                if meta.file_type().is_symlink() {
++                    return Err(ExtractionError::SymlinkForbidden);
++                }
++            }
++        }
++
++        let raw_target = dest_canonical.join(&enclosed);
++        let target_str = raw_target.to_string_lossy();
++        let target_path = PathBuf::from(target_str.trim_end_matches('/'));
+ 
+         // 4. Directory entry extraction
+         if entry.is_dir() {
++            if let Ok(meta) = fs::symlink_metadata(&target_path) {
++                if meta.file_type().is_symlink() {
++                    return Err(ExtractionError::SymlinkForbidden);
++                }
++            }
+             fs::create_dir_all(&target_path)?;
+             let canonical = target_path.canonicalize()?;
+             if !canonical.starts_with(&dest_canonical) {
+@@ -94,7 +134,18 @@ pub fn extract_rmskin_package<P: AsRef<Path>, Q: AsRef<Path>>(
+             }
+         } else {
+             // 5. File entry extraction
++            // Quota check based on declared uncompressed size
++            let declared_size = entry.size();
++            if total_bytes.saturating_add(declared_size) > max_bytes {
++                return Err(ExtractionError::QuotaExceeded);
++            }
++
+             if let Some(parent) = target_path.parent() {
++                if let Ok(parent_meta) = fs::symlink_metadata(parent) {
++                    if parent_meta.file_type().is_symlink() {
++                        return Err(ExtractionError::SymlinkForbidden);
++                    }
++                }
+                 fs::create_dir_all(parent)?;
+                 let canonical_parent = parent.canonicalize()?;
+                 if !canonical_parent.starts_with(&dest_canonical) {
+@@ -102,18 +153,32 @@ pub fn extract_rmskin_package<P: AsRef<Path>, Q: AsRef<Path>>(
+                 }
+             }
+ 
+-            // Reject if target path is already an existing symlink
++            // Existing target metadata checks: symlink and hardlink safety
+             if let Ok(meta) = fs::symlink_metadata(&target_path) {
+                 if meta.file_type().is_symlink() {
+                     return Err(ExtractionError::SymlinkForbidden);
+                 }
++                #[cfg(unix)]
++                if meta.nlink() > 1 {
++                    return Err(ExtractionError::HardlinkForbidden);
++                }
+             }
+ 
++            // Stream extraction bounded by remaining quota
++            let remaining_quota = max_bytes.saturating_sub(total_bytes);
++            let mut limited_reader = (&mut entry).take(remaining_quota + 1);
++
+             let mut out_file = File::create(&target_path)?;
+-            let bytes = io::copy(&mut entry, &mut out_file)?;
++            let bytes = io::copy(&mut limited_reader, &mut out_file)?;
++
++            if bytes > remaining_quota {
++                let _ = fs::remove_file(&target_path);
++                return Err(ExtractionError::QuotaExceeded);
++            }
+ 
+             let canonical_target = target_path.canonicalize()?;
+             if !canonical_target.starts_with(&dest_canonical) {
++                let _ = fs::remove_file(&target_path);
+                 return Err(ExtractionError::ZipSlipDetected);
+             }
+ 
+diff --git a/crates/pluvia-core/src/vfs.rs b/crates/pluvia-core/src/vfs.rs
+index e5b7c2e..99d6349 100644
+--- a/crates/pluvia-core/src/vfs.rs
++++ b/crates/pluvia-core/src/vfs.rs
+@@ -8,7 +8,7 @@ use std::sync::RwLock;
+ /// Rainmeter configurations were written for Windows NTFS filesystems, which are case-insensitive
+ /// and use `\` path separators. On Linux, filesystems are case-sensitive and use `/`.
+ /// `VfsResolver` normalizes paths and resolves case mismatches dynamically, caching hits for $O(1)$
+-/// subsequent lookups.
++/// subsequent lookups using case-folded cache keys.
+ pub struct VfsResolver {
+     cache: RwLock<HashMap<String, PathBuf>>,
+ }
+@@ -42,13 +42,14 @@ impl VfsResolver {
+     }
+ 
+     /// Resolves a path relative to `base`, performing case-insensitive matching across each path
+-    /// component if direct lookup fails. Successful resolutions are cached.
++    /// component if direct lookup fails. Successful resolutions are cached under a case-folded key.
++    /// Traversal is strictly jailed to `base` (cannot escape above `base` via `..`).
+     pub fn resolve<P: AsRef<Path>>(&self, base: P, raw_rel: &str) -> Option<PathBuf> {
+         let base = base.as_ref();
+         let normalized = Self::normalize_rel_path(raw_rel);
+-        let cache_key = format!("{}::{}", base.display(), normalized);
++        let cache_key = format!("{}::{}", base.display(), normalized.to_ascii_lowercase());
+ 
+-        // Check cache first
++        // Check cache first (case-folded key ensures `clock.ini` and `Clock.ini` hit same entry)
+         if let Ok(read_guard) = self.cache.read() {
+             if let Some(cached) = read_guard.get(&cache_key) {
+                 return Some(cached.clone());
+@@ -61,7 +62,10 @@ impl VfsResolver {
+                 continue;
+             }
+             if segment == ".." {
+-                current.pop();
++                // Enforce base jailing: do not pop above base
++                if current != base {
++                    current.pop();
++                }
+                 continue;
+             }
+ 
+@@ -89,7 +93,7 @@ impl VfsResolver {
+             }
+         }
+ 
+-        if current.exists() {
++        if current.exists() && current.starts_with(base) {
+             if let Ok(mut write_guard) = self.cache.write() {
+                 write_guard.insert(cache_key, current.clone());
+             }
+@@ -99,11 +103,11 @@ impl VfsResolver {
+         }
+     }
+ 
+-    /// Checks whether a given path resolution is currently cached.
++    /// Checks whether a given path resolution is currently cached (using case-folded lookup).
+     pub fn is_cached<P: AsRef<Path>>(&self, base: P, raw_rel: &str) -> bool {
+         let base = base.as_ref();
+         let normalized = Self::normalize_rel_path(raw_rel);
+-        let cache_key = format!("{}::{}", base.display(), normalized);
++        let cache_key = format!("{}::{}", base.display(), normalized.to_ascii_lowercase());
+         if let Ok(guard) = self.cache.read() {
+             guard.contains_key(&cache_key)
+         } else {
+diff --git a/crates/pluvia-core/tests/test_vfs_and_extractor.rs b/crates/pluvia-core/tests/test_vfs_and_extractor.rs
+index 0cfba62..ecbead4 100644
+--- a/crates/pluvia-core/tests/test_vfs_and_extractor.rs
++++ b/crates/pluvia-core/tests/test_vfs_and_extractor.rs
+@@ -1,5 +1,7 @@
++use pluvia_core::extractor::{
++    extract_rmskin_package, extract_rmskin_package_with_limit, ExtractionError,
++};
+ use pluvia_core::vfs::VfsResolver;
+-use pluvia_core::extractor::{extract_rmskin_package, ExtractionError};
+ use std::fs::{self, File};
+ use std::io::Write;
+ use tempfile::tempdir;
+@@ -52,6 +54,49 @@ fn test_vfs_cached_lookup_verification() {
+     assert_eq!(cached_resolved, ini_file);
+ }
+ 
++#[test]
++fn test_vfs_case_folded_cache_hit() {
++    let tmp = tempdir().unwrap();
++    let skin_dir = tmp.path().join("Mond").join("Clock");
++    fs::create_dir_all(&skin_dir).unwrap();
++    let ini_file = skin_dir.join("Clock.ini");
++    File::create(&ini_file).unwrap();
++
++    let vfs = VfsResolver::new();
++
++    // Resolve with mixed case
++    let resolved = vfs.resolve(tmp.path(), "Mond\\Clock\\Clock.ini").unwrap();
++    assert_eq!(resolved, ini_file);
++    assert_eq!(vfs.cache_len(), 1);
++
++    // Case-folded lookup for lowercase variant should already be cached
++    assert!(vfs.is_cached(tmp.path(), "mond\\clock\\clock.ini"));
++
++    // And resolving it directly hits the same cache entry without increasing cache_len
++    let cached = vfs.resolve(tmp.path(), "mond\\clock\\clock.ini").unwrap();
++    assert_eq!(cached, ini_file);
++    assert_eq!(vfs.cache_len(), 1);
++}
++
++#[test]
++fn test_vfs_base_jailing() {
++    let tmp = tempdir().unwrap();
++    let base = tmp.path().join("Skins");
++    fs::create_dir_all(&base).unwrap();
++    let clock_file = base.join("Clock.ini");
++    File::create(&clock_file).unwrap();
++
++    let vfs = VfsResolver::new();
++
++    // Popping above base via .. must be jailed to base
++    let resolved = vfs.resolve(&base, "../../Clock.ini");
++    assert_eq!(resolved, Some(clock_file));
++
++    // Arbitrary traversal out of base must return None
++    let evil = vfs.resolve(&base, "../../../../etc/passwd");
++    assert!(evil.is_none());
++}
++
+ #[test]
+ fn test_anti_zip_slip_path_traversal() {
+     let tmp = tempdir().unwrap();
+@@ -71,6 +116,25 @@ fn test_anti_zip_slip_path_traversal() {
+     assert!(matches!(err, ExtractionError::ZipSlipDetected));
+ }
+ 
++#[test]
++fn test_anti_zip_slip_windows_backslash_traversal() {
++    let tmp = tempdir().unwrap();
++    let zip_path = tmp.path().join("backslash_slip.zip");
++
++    let file = File::create(&zip_path).unwrap();
++    let mut zip = zip::ZipWriter::new(file);
++    let options = zip::write::SimpleFileOptions::default();
++
++    // Windows backslash traversal entry
++    zip.start_file("..\\..\\evil.txt", options).unwrap();
++    zip.write_all(b"malicious payload").unwrap();
++    zip.finish().unwrap();
++
++    let dest = tmp.path().join("extracted");
++    let err = extract_rmskin_package(&zip_path, &dest).unwrap_err();
++    assert!(matches!(err, ExtractionError::ZipSlipDetected));
++}
++
+ #[test]
+ fn test_strict_symlink_rejection() {
+     let tmp = tempdir().unwrap();
+@@ -88,6 +152,79 @@ fn test_strict_symlink_rejection() {
+     assert!(matches!(err, ExtractionError::SymlinkForbidden));
+ }
+ 
++#[test]
++fn test_directory_symlink_rejection() {
++    let tmp = tempdir().unwrap();
++    let dest = tmp.path().join("extracted");
++    fs::create_dir_all(&dest).unwrap();
++
++    // Pre-create a directory symlink in dest targeting another dir
++    let real_dir = tmp.path().join("outside");
++    fs::create_dir_all(&real_dir).unwrap();
++    #[cfg(unix)]
++    std::os::unix::fs::symlink(&real_dir, dest.join("sym_dir")).unwrap();
++
++    // Archive has a directory entry for sym_dir/
++    let zip_path = tmp.path().join("dir_sym.zip");
++    let file = File::create(&zip_path).unwrap();
++    let mut zip = zip::ZipWriter::new(file);
++    let options = zip::write::SimpleFileOptions::default();
++
++    zip.add_directory("sym_dir/", options).unwrap();
++    zip.finish().unwrap();
++
++    let err = extract_rmskin_package(&zip_path, &dest).unwrap_err();
++    assert!(matches!(err, ExtractionError::SymlinkForbidden));
++}
++
++#[test]
++fn test_hardlink_target_forbidden() {
++    let tmp = tempdir().unwrap();
++    let dest = tmp.path().join("extracted");
++    fs::create_dir_all(&dest).unwrap();
++
++    // Pre-create a hardlinked file in dest
++    let shared = tmp.path().join("shared.txt");
++    fs::write(&shared, b"original").unwrap();
++    let target = dest.join("hardlinked.txt");
++    fs::hard_link(&shared, &target).unwrap();
++
++    let zip_path = tmp.path().join("hardlink.zip");
++    let file = File::create(&zip_path).unwrap();
++    let mut zip = zip::ZipWriter::new(file);
++    let options = zip::write::SimpleFileOptions::default();
++
++    zip.start_file("hardlinked.txt", options).unwrap();
++    zip.write_all(b"overwrite attempt").unwrap();
++    zip.finish().unwrap();
++
++    let err = extract_rmskin_package(&zip_path, &dest).unwrap_err();
++    assert!(matches!(err, ExtractionError::HardlinkForbidden));
++}
++
++#[test]
++fn test_quota_exceeded_zip_bomb() {
++    let tmp = tempdir().unwrap();
++    let dest = tmp.path().join("extracted");
++    let zip_path = tmp.path().join("bomb.zip");
++
++    let file = File::create(&zip_path).unwrap();
++    let mut zip = zip::ZipWriter::new(file);
++    let options = zip::write::SimpleFileOptions::default();
++
++    let large_data = vec![b'A'; 2048];
++    zip.start_file("large.bin", options).unwrap();
++    zip.write_all(&large_data).unwrap();
++    zip.finish().unwrap();
++
++    // Enforce small quota of 500 bytes (lower than 2048 bytes)
++    let err = extract_rmskin_package_with_limit(&zip_path, &dest, 500).unwrap_err();
++    assert!(matches!(err, ExtractionError::QuotaExceeded));
++
++    // Ensure the partial file was deleted
++    assert!(!dest.join("large.bin").exists());
++}
++
+ #[test]
+ fn test_valid_zip_extraction_and_report() {
+     let tmp = tempdir().unwrap();
