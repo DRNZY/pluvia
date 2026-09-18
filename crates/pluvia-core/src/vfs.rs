@@ -8,7 +8,7 @@ use std::sync::RwLock;
 /// Rainmeter configurations were written for Windows NTFS filesystems, which are case-insensitive
 /// and use `\` path separators. On Linux, filesystems are case-sensitive and use `/`.
 /// `VfsResolver` normalizes paths and resolves case mismatches dynamically, caching hits for $O(1)$
-/// subsequent lookups.
+/// subsequent lookups using case-folded cache keys.
 pub struct VfsResolver {
     cache: RwLock<HashMap<String, PathBuf>>,
 }
@@ -42,13 +42,14 @@ impl VfsResolver {
     }
 
     /// Resolves a path relative to `base`, performing case-insensitive matching across each path
-    /// component if direct lookup fails. Successful resolutions are cached.
+    /// component if direct lookup fails. Successful resolutions are cached under a case-folded key.
+    /// Traversal is strictly jailed to `base` (cannot escape above `base` via `..`).
     pub fn resolve<P: AsRef<Path>>(&self, base: P, raw_rel: &str) -> Option<PathBuf> {
         let base = base.as_ref();
         let normalized = Self::normalize_rel_path(raw_rel);
-        let cache_key = format!("{}::{}", base.display(), normalized);
+        let cache_key = format!("{}::{}", base.display(), normalized.to_ascii_lowercase());
 
-        // Check cache first
+        // Check cache first (case-folded key ensures `clock.ini` and `Clock.ini` hit same entry)
         if let Ok(read_guard) = self.cache.read() {
             if let Some(cached) = read_guard.get(&cache_key) {
                 return Some(cached.clone());
@@ -61,7 +62,10 @@ impl VfsResolver {
                 continue;
             }
             if segment == ".." {
-                current.pop();
+                // Enforce base jailing: do not pop above base
+                if current != base {
+                    current.pop();
+                }
                 continue;
             }
 
@@ -89,7 +93,7 @@ impl VfsResolver {
             }
         }
 
-        if current.exists() {
+        if current.exists() && current.starts_with(base) {
             if let Ok(mut write_guard) = self.cache.write() {
                 write_guard.insert(cache_key, current.clone());
             }
@@ -99,11 +103,11 @@ impl VfsResolver {
         }
     }
 
-    /// Checks whether a given path resolution is currently cached.
+    /// Checks whether a given path resolution is currently cached (using case-folded lookup).
     pub fn is_cached<P: AsRef<Path>>(&self, base: P, raw_rel: &str) -> bool {
         let base = base.as_ref();
         let normalized = Self::normalize_rel_path(raw_rel);
-        let cache_key = format!("{}::{}", base.display(), normalized);
+        let cache_key = format!("{}::{}", base.display(), normalized.to_ascii_lowercase());
         if let Ok(guard) = self.cache.read() {
             guard.contains_key(&cache_key)
         } else {
