@@ -1,0 +1,19 @@
+[package]
+name = "pluvia-daemon"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pluvia-core = { path = "../pluvia-core" }
+cairo-rs = "0.20"
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+futures = "0.3"
+
+[dev-dependencies]
+tempfile = "3.12"
+pluvia-cli = { path = "../pluvia-cli" }
+zip = "2.2"

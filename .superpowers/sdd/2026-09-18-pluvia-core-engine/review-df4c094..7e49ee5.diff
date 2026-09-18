@@ -1,0 +1,1562 @@
+diff --git a/crates/pluvia-core/src/formulas.rs b/crates/pluvia-core/src/formulas.rs
+new file mode 100644
+index 0000000..b7970f0
+--- /dev/null
++++ b/crates/pluvia-core/src/formulas.rs
+@@ -0,0 +1,639 @@
++use crate::variables::VariableMap;
++use std::collections::HashMap;
++
++/// Trait for resolving variable values numerically within formulas.
++pub trait VariableLookup {
++    fn get_variable_value(&self, name: &str) -> Option<f64>;
++}
++
++impl VariableLookup for VariableMap {
++    fn get_variable_value(&self, name: &str) -> Option<f64> {
++        self.get_num(name)
++    }
++}
++
++impl VariableLookup for HashMap<String, f64> {
++    fn get_variable_value(&self, name: &str) -> Option<f64> {
++        let lower = name.to_ascii_lowercase();
++        self.get(&lower).copied().or_else(|| self.get(name).copied())
++    }
++}
++
++impl VariableLookup for HashMap<String, String> {
++    fn get_variable_value(&self, name: &str) -> Option<f64> {
++        let lower = name.to_ascii_lowercase();
++        self.get(&lower)
++            .or_else(|| self.get(name))
++            .and_then(|s| s.trim().parse::<f64>().ok())
++    }
++}
++
++impl<T: VariableLookup + ?Sized> VariableLookup for &T {
++    fn get_variable_value(&self, name: &str) -> Option<f64> {
++        (*self).get_variable_value(name)
++    }
++}
++
++#[derive(thiserror::Error, Debug, Clone, PartialEq)]
++pub enum FormulaError {
++    #[error("Formula syntax error: {0}")]
++    SyntaxError(String),
++    #[error("Unknown variable: {0}")]
++    UnknownVariable(String),
++    #[error("Unknown function: {0}")]
++    UnknownFunction(String),
++    #[error("Invalid argument count for {func}: expected {expected}, got {got}")]
++    InvalidArguments {
++        func: String,
++        expected: usize,
++        got: usize,
++    },
++    #[error("Division by zero")]
++    DivisionByZero,
++    #[error("Empty expression")]
++    EmptyExpression,
++}
++
++#[derive(Debug, Clone, PartialEq)]
++enum Token {
++    Number(f64),
++    Ident(String),
++    Var(String),
++    Plus,
++    Minus,
++    Star,
++    Slash,
++    Percent,
++    Power,
++    Eq,
++    Ne,
++    Lt,
++    Le,
++    Gt,
++    Ge,
++    And,
++    Or,
++    Not,
++    Question,
++    Colon,
++    LParen,
++    RParen,
++    Comma,
++    Eof,
++}
++
++fn tokenize(expr: &str) -> Result<Vec<Token>, FormulaError> {
++    let mut tokens = Vec::new();
++    let chars: Vec<char> = expr.chars().collect();
++    let mut i = 0;
++    let len = chars.len();
++
++    while i < len {
++        let c = chars[i];
++        if c.is_whitespace() {
++            i += 1;
++            continue;
++        }
++
++        // Floating point numbers
++        if c.is_ascii_digit() || (c == '.' && i + 1 < len && chars[i + 1].is_ascii_digit()) {
++            let start = i;
++            let mut seen_dot = c == '.';
++            i += 1;
++            while i < len {
++                let ch = chars[i];
++                if ch.is_ascii_digit() {
++                    i += 1;
++                } else if ch == '.' && !seen_dot {
++                    seen_dot = true;
++                    i += 1;
++                } else {
++                    break;
++                }
++            }
++            let s: String = chars[start..i].iter().collect();
++            let num = s
++                .parse::<f64>()
++                .map_err(|_| FormulaError::SyntaxError(format!("Invalid number: {}", s)))?;
++            tokens.push(Token::Number(num));
++            continue;
++        }
++
++        // #VarName#
++        if c == '#' {
++            let start = i + 1;
++            let mut end = start;
++            while end < len && chars[end] != '#' {
++                end += 1;
++            }
++            if end >= len {
++                return Err(FormulaError::SyntaxError(
++                    "Unclosed variable macro '#' in formula".to_string(),
++                ));
++            }
++            let var_name: String = chars[start..end].iter().collect();
++            tokens.push(Token::Var(var_name));
++            i = end + 1;
++            continue;
++        }
++
++        // Identifiers: functions or variables
++        if c.is_alphabetic() || c == '_' {
++            let start = i;
++            while i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {
++                i += 1;
++            }
++            let ident: String = chars[start..i].iter().collect();
++            tokens.push(Token::Ident(ident));
++            continue;
++        }
++
++        // Operators
++        match c {
++            '+' => tokens.push(Token::Plus),
++            '-' => tokens.push(Token::Minus),
++            '*' => {
++                if i + 1 < len && chars[i + 1] == '*' {
++                    tokens.push(Token::Power);
++                    i += 1;
++                } else {
++                    tokens.push(Token::Star);
++                }
++            }
++            '/' => tokens.push(Token::Slash),
++            '%' => tokens.push(Token::Percent),
++            '^' => tokens.push(Token::Power),
++            '(' => tokens.push(Token::LParen),
++            ')' => tokens.push(Token::RParen),
++            ',' => tokens.push(Token::Comma),
++            '?' => tokens.push(Token::Question),
++            ':' => tokens.push(Token::Colon),
++            '<' => {
++                if i + 1 < len && chars[i + 1] == '>' {
++                    tokens.push(Token::Ne);
++                    i += 1;
++                } else if i + 1 < len && chars[i + 1] == '=' {
++                    tokens.push(Token::Le);
++                    i += 1;
++                } else {
++                    tokens.push(Token::Lt);
++                }
++            }
++            '>' => {
++                if i + 1 < len && chars[i + 1] == '=' {
++                    tokens.push(Token::Ge);
++                    i += 1;
++                } else {
++                    tokens.push(Token::Gt);
++                }
++            }
++            '=' => {
++                if i + 1 < len && chars[i + 1] == '=' {
++                    i += 1;
++                }
++                tokens.push(Token::Eq);
++            }
++            '!' => {
++                if i + 1 < len && chars[i + 1] == '=' {
++                    tokens.push(Token::Ne);
++                    i += 1;
++                } else {
++                    tokens.push(Token::Not);
++                }
++            }
++            '&' => {
++                if i + 1 < len && chars[i + 1] == '&' {
++                    i += 1;
++                }
++                tokens.push(Token::And);
++            }
++            '|' => {
++                if i + 1 < len && chars[i + 1] == '|' {
++                    i += 1;
++                }
++                tokens.push(Token::Or);
++            }
++            _ => {
++                return Err(FormulaError::SyntaxError(format!(
++                    "Unexpected character: '{}'",
++                    c
++                )));
++            }
++        }
++        i += 1;
++    }
++
++    tokens.push(Token::Eof);
++    Ok(tokens)
++}
++
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++enum InfixOp {
++    Add,
++    Sub,
++    Mul,
++    Div,
++    Mod,
++    Pow,
++    Eq,
++    Ne,
++    Lt,
++    Le,
++    Gt,
++    Ge,
++    And,
++    Or,
++    Ternary,
++}
++
++struct Parser<'a, V: VariableLookup> {
++    tokens: Vec<Token>,
++    pos: usize,
++    vars: &'a V,
++}
++
++impl<'a, V: VariableLookup> Parser<'a, V> {
++    fn peek(&self) -> &Token {
++        self.tokens.get(self.pos).unwrap_or(&Token::Eof)
++    }
++
++    fn next(&mut self) -> Token {
++        if self.pos < self.tokens.len() {
++            let tok = self.tokens[self.pos].clone();
++            self.pos += 1;
++            tok
++        } else {
++            Token::Eof
++        }
++    }
++
++    fn expect(&mut self, expected: Token) -> Result<(), FormulaError> {
++        let tok = self.next();
++        if tok == expected {
++            Ok(())
++        } else {
++            Err(FormulaError::SyntaxError(format!(
++                "Expected {:?}, got {:?}",
++                expected, tok
++            )))
++        }
++    }
++
++    fn parse_expression(&mut self, min_bp: u8) -> Result<f64, FormulaError> {
++        let tok = self.next();
++        let mut lhs = match tok {
++            Token::Number(n) => n,
++            Token::Var(name) => self
++                .vars
++                .get_variable_value(&name)
++                .ok_or_else(|| FormulaError::UnknownVariable(name))?,
++            Token::Ident(ident) => {
++                if *self.peek() == Token::LParen {
++                    self.next(); // consume LParen
++                    let mut args = Vec::new();
++                    if *self.peek() != Token::RParen {
++                        loop {
++                            let arg = self.parse_expression(0)?;
++                            args.push(arg);
++                            if *self.peek() == Token::Comma {
++                                self.next();
++                            } else {
++                                break;
++                            }
++                        }
++                    }
++                    self.expect(Token::RParen)?;
++                    eval_function(&ident, &args)?
++                } else {
++                    self.vars
++                        .get_variable_value(&ident)
++                        .ok_or_else(|| FormulaError::UnknownVariable(ident))?
++                }
++            }
++            Token::Plus => self.parse_expression(8)?,
++            Token::Minus => -self.parse_expression(8)?,
++            Token::Not => {
++                let val = self.parse_expression(8)?;
++                if val == 0.0 {
++                    1.0
++                } else {
++                    0.0
++                }
++            }
++            Token::LParen => {
++                let inner = self.parse_expression(0)?;
++                self.expect(Token::RParen)?;
++                inner
++            }
++            Token::Eof => return Err(FormulaError::EmptyExpression),
++            other => {
++                return Err(FormulaError::SyntaxError(format!(
++                    "Unexpected token: {:?}",
++                    other
++                )))
++            }
++        };
++
++        loop {
++            let (left_bp, right_bp, op) = match self.peek() {
++                Token::Question => (1, 1, InfixOp::Ternary),
++                Token::Or => (2, 3, InfixOp::Or),
++                Token::And => (3, 4, InfixOp::And),
++                Token::Eq => (4, 5, InfixOp::Eq),
++                Token::Ne => (4, 5, InfixOp::Ne),
++                Token::Lt => (4, 5, InfixOp::Lt),
++                Token::Le => (4, 5, InfixOp::Le),
++                Token::Gt => (4, 5, InfixOp::Gt),
++                Token::Ge => (4, 5, InfixOp::Ge),
++                Token::Plus => (5, 6, InfixOp::Add),
++                Token::Minus => (5, 6, InfixOp::Sub),
++                Token::Star => (6, 7, InfixOp::Mul),
++                Token::Slash => (6, 7, InfixOp::Div),
++                Token::Percent => (6, 7, InfixOp::Mod),
++                Token::Power => (8, 7, InfixOp::Pow), // Right-associative
++                _ => break,
++            };
++
++            if left_bp < min_bp {
++                break;
++            }
++
++            self.next(); // consume operator
++
++            lhs = match op {
++                InfixOp::Add => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    lhs + rhs
++                }
++                InfixOp::Sub => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    lhs - rhs
++                }
++                InfixOp::Mul => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    lhs * rhs
++                }
++                InfixOp::Div => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if rhs == 0.0 {
++                        return Err(FormulaError::DivisionByZero);
++                    }
++                    lhs / rhs
++                }
++                InfixOp::Mod => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if rhs == 0.0 {
++                        return Err(FormulaError::DivisionByZero);
++                    }
++                    lhs % rhs
++                }
++                InfixOp::Pow => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    lhs.powf(rhs)
++                }
++                InfixOp::Eq => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if (lhs - rhs).abs() < 1e-9 {
++                        1.0
++                    } else {
++                        0.0
++                    }
++                }
++                InfixOp::Ne => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if (lhs - rhs).abs() >= 1e-9 {
++                        1.0
++                    } else {
++                        0.0
++                    }
++                }
++                InfixOp::Lt => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if lhs < rhs {
++                        1.0
++                    } else {
++                        0.0
++                    }
++                }
++                InfixOp::Le => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if lhs <= rhs {
++                        1.0
++                    } else {
++                        0.0
++                    }
++                }
++                InfixOp::Gt => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if lhs > rhs {
++                        1.0
++                    } else {
++                        0.0
++                    }
++                }
++                InfixOp::Ge => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if lhs >= rhs {
++                        1.0
++                    } else {
++                        0.0
++                    }
++                }
++                InfixOp::And => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if lhs != 0.0 && rhs != 0.0 {
++                        1.0
++                    } else {
++                        0.0
++                    }
++                }
++                InfixOp::Or => {
++                    let rhs = self.parse_expression(right_bp)?;
++                    if lhs != 0.0 || rhs != 0.0 {
++                        1.0
++                    } else {
++                        0.0
++                    }
++                }
++                InfixOp::Ternary => {
++                    let true_val = self.parse_expression(0)?;
++                    self.expect(Token::Colon)?;
++                    let false_val = self.parse_expression(1)?;
++                    if lhs != 0.0 {
++                        true_val
++                    } else {
++                        false_val
++                    }
++                }
++            };
++        }
++
++        Ok(lhs)
++    }
++}
++
++fn eval_function(name: &str, args: &[f64]) -> Result<f64, FormulaError> {
++    let lower = name.to_ascii_lowercase();
++    match lower.as_str() {
++        "round" => {
++            if args.is_empty() || args.len() > 2 {
++                return Err(FormulaError::InvalidArguments {
++                    func: name.to_string(),
++                    expected: 1,
++                    got: args.len(),
++                });
++            }
++            if args.len() == 1 {
++                Ok(args[0].round())
++            } else {
++                let decimals = args[1] as i32;
++                let factor = 10f64.powi(decimals);
++                Ok((args[0] * factor).round() / factor)
++            }
++        }
++        "trunc" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].trunc())
++        }
++        "abs" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].abs())
++        }
++        "min" => {
++            if args.is_empty() {
++                return Err(FormulaError::InvalidArguments {
++                    func: name.to_string(),
++                    expected: 2,
++                    got: 0,
++                });
++            }
++            Ok(args.iter().copied().fold(f64::INFINITY, f64::min))
++        }
++        "max" => {
++            if args.is_empty() {
++                return Err(FormulaError::InvalidArguments {
++                    func: name.to_string(),
++                    expected: 2,
++                    got: 0,
++                });
++            }
++            Ok(args.iter().copied().fold(f64::NEG_INFINITY, f64::max))
++        }
++        "clamp" => {
++            check_arg_count(name, args, 3)?;
++            let val = args[0];
++            let min = args[1];
++            let max = args[2];
++            Ok(val.max(min).min(max))
++        }
++        "sin" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].sin())
++        }
++        "cos" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].cos())
++        }
++        "tan" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].tan())
++        }
++        "asin" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].asin())
++        }
++        "acos" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].acos())
++        }
++        "atan" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].atan())
++        }
++        "atan2" => {
++            check_arg_count(name, args, 2)?;
++            Ok(args[0].atan2(args[1]))
++        }
++        "floor" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].floor())
++        }
++        "ceil" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].ceil())
++        }
++        "sqrt" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].sqrt())
++        }
++        "log" | "ln" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].ln())
++        }
++        "log10" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].log10())
++        }
++        "exp" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].exp())
++        }
++        "rad" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].to_radians())
++        }
++        "deg" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].to_degrees())
++        }
++        "sgn" | "sign" => {
++            check_arg_count(name, args, 1)?;
++            if args[0] > 0.0 {
++                Ok(1.0)
++            } else if args[0] < 0.0 {
++                Ok(-1.0)
++            } else {
++                Ok(0.0)
++            }
++        }
++        "frac" => {
++            check_arg_count(name, args, 1)?;
++            Ok(args[0].fract())
++        }
++        _ => Err(FormulaError::UnknownFunction(name.to_string())),
++    }
++}
++
++fn check_arg_count(name: &str, args: &[f64], expected: usize) -> Result<(), FormulaError> {
++    if args.len() != expected {
++        Err(FormulaError::InvalidArguments {
++            func: name.to_string(),
++            expected,
++            got: args.len(),
++        })
++    } else {
++        Ok(())
++    }
++}
++
++/// Evaluates a mathematical formula with variable substitution and standard functions.
++pub fn eval_formula<V: VariableLookup>(expr: &str, vars: &V) -> Result<f64, FormulaError> {
++    let trimmed = expr.trim();
++    if trimmed.is_empty() {
++        return Err(FormulaError::EmptyExpression);
++    }
++    let tokens = tokenize(trimmed)?;
++    let mut parser = Parser {
++        tokens,
++        pos: 0,
++        vars,
++    };
++    let result = parser.parse_expression(0)?;
++    if *parser.peek() != Token::Eof {
++        return Err(FormulaError::SyntaxError(format!(
++            "Unexpected trailing tokens in formula: {:?}",
++            parser.peek()
++        )));
++    }
++    Ok(result)
++}
+diff --git a/crates/pluvia-core/src/ini.rs b/crates/pluvia-core/src/ini.rs
+new file mode 100644
+index 0000000..c4924c2
+--- /dev/null
++++ b/crates/pluvia-core/src/ini.rs
+@@ -0,0 +1,492 @@
++use crate::encoding::decode_ini_bytes;
++use crate::formulas::{eval_formula, FormulaError};
++use crate::variables::VariableMap;
++use crate::vfs::VfsResolver;
++use std::collections::{HashMap, HashSet};
++use std::fs;
++use std::path::{Path, PathBuf};
++
++#[derive(thiserror::Error, Debug)]
++pub enum ParseError {
++    #[error("IO error: {0}")]
++    Io(#[from] std::io::Error),
++    #[error("Encoding error: {0}")]
++    Encoding(#[from] crate::encoding::EncodingError),
++    #[error("Include file not found: {0}")]
++    IncludeNotFound(String),
++    #[error("Circular include detected: {0}")]
++    CircularInclude(String),
++    #[error("Invalid syntax at line {line}: {msg}")]
++    SyntaxError { line: usize, msg: String },
++    #[error("Formula evaluation error: {0}")]
++    Formula(#[from] FormulaError),
++}
++
++/// Representation of a parsed Rainmeter meter (`Meter=...`).
++#[derive(Debug, Clone, PartialEq)]
++pub struct MeterConfig {
++    pub name: String,
++    pub meter_type: String,
++    pub measure_name: Option<String>,
++    pub measure_names: Vec<String>,
++    pub font_face: Option<String>,
++    pub font_size: Option<f64>,
++    pub font_color: Option<String>,
++    pub text: Option<String>,
++    pub anti_alias: bool,
++    pub x: Option<String>,
++    pub y: Option<String>,
++    pub w: Option<f64>,
++    pub h: Option<f64>,
++    pub solid_color: Option<String>,
++    pub hidden: bool,
++    pub dynamic_variables: bool,
++    pub meter_style: Option<String>,
++    pub properties: HashMap<String, String>,
++}
++
++impl MeterConfig {
++    /// Case-insensitive property lookup.
++    pub fn get(&self, key: &str) -> Option<&str> {
++        self.properties.get(&key.to_ascii_lowercase()).map(|s| s.as_str())
++    }
++}
++
++/// Representation of a parsed Rainmeter measure (`Measure=...`).
++#[derive(Debug, Clone, PartialEq)]
++pub struct MeasureConfig {
++    pub name: String,
++    pub measure_type: String,
++    pub plugin: Option<String>,
++    pub format: Option<String>,
++    pub formula: Option<String>,
++    pub update_divider: u32,
++    pub disabled: bool,
++    pub dynamic_variables: bool,
++    pub properties: HashMap<String, String>,
++}
++
++impl MeasureConfig {
++    /// Case-insensitive property lookup.
++    pub fn get(&self, key: &str) -> Option<&str> {
++        self.properties.get(&key.to_ascii_lowercase()).map(|s| s.as_str())
++    }
++}
++
++/// Complete parsed configuration of a Rainmeter skin.
++#[derive(Debug, Clone)]
++pub struct SkinConfig {
++    pub update_rate_ms: u64,
++    pub accurate_text: bool,
++    pub dynamic_window_size: bool,
++    pub variables: VariableMap,
++    pub measures: HashMap<String, MeasureConfig>,
++    pub meters: HashMap<String, MeterConfig>,
++    pub measure_order: Vec<String>,
++    pub meter_order: Vec<String>,
++    pub raw_sections: HashMap<String, HashMap<String, String>>,
++    pub skin_dir: PathBuf,
++}
++
++impl SkinConfig {
++    /// Case-insensitive meter lookup.
++    pub fn get_meter(&self, name: &str) -> Option<&MeterConfig> {
++        self.meters.get(&name.to_ascii_lowercase())
++    }
++
++    /// Case-insensitive measure lookup.
++    pub fn get_measure(&self, name: &str) -> Option<&MeasureConfig> {
++        self.measures.get(&name.to_ascii_lowercase())
++    }
++
++    /// Case-insensitive variable lookup.
++    pub fn get_variable(&self, name: &str) -> Option<&str> {
++        self.variables.get(name)
++    }
++}
++
++struct ParserState<'a> {
++    skin_dir: &'a Path,
++    vfs: VfsResolver,
++    visited_files: HashSet<PathBuf>,
++    variables: VariableMap,
++    // (original_name, properties) keyed by lowercase section name
++    raw_sections: HashMap<String, (String, HashMap<String, String>)>,
++    section_order: Vec<String>,
++}
++
++fn strip_quotes(s: &str) -> &str {
++    let trimmed = s.trim();
++    if trimmed.len() >= 2 && trimmed.starts_with('"') && trimmed.ends_with('"') {
++        &trimmed[1..trimmed.len() - 1]
++    } else {
++        trimmed
++    }
++}
++
++fn parse_num_or_formula(val_str: &str, vars: &VariableMap) -> Option<f64> {
++    let expanded = vars.expand(val_str);
++    let trimmed = expanded.trim();
++    if trimmed.is_empty() {
++        return None;
++    }
++    if let Ok(result) = eval_formula(trimmed, vars) {
++        return Some(result);
++    }
++    trimmed.parse::<f64>().ok()
++}
++
++fn resolve_include_path(
++    skin_dir: &Path,
++    current_file_path: &Path,
++    raw_path: &str,
++    vfs: &VfsResolver,
++) -> Result<PathBuf, ParseError> {
++    let norm = VfsResolver::normalize_rel_path(raw_path);
++    let current_dir = current_file_path
++        .parent()
++        .unwrap_or_else(|| Path::new("."));
++
++    // 1. Try VFS resolve relative to current file's directory
++    if let Some(path) = vfs.resolve(current_dir, &norm) {
++        return Ok(path);
++    }
++
++    // 2. Try VFS resolve relative to skin_dir
++    if let Some(path) = vfs.resolve(skin_dir, &norm) {
++        return Ok(path);
++    }
++
++    // 3. Try VFS resolve relative to skin_dir parent (e.g. skin suite root)
++    if let Some(parent) = skin_dir.parent() {
++        if let Some(path) = vfs.resolve(parent, &norm) {
++            return Ok(path);
++        }
++    }
++
++    // 4. Direct relative checks
++    let direct_curr = current_dir.join(&norm);
++    if direct_curr.exists() {
++        return Ok(direct_curr);
++    }
++
++    let direct_skin = skin_dir.join(&norm);
++    if direct_skin.exists() {
++        return Ok(direct_skin);
++    }
++
++    // 5. Absolute path check
++    let p = Path::new(raw_path);
++    if p.is_absolute() && p.exists() {
++        return Ok(p.to_path_buf());
++    }
++
++    Err(ParseError::IncludeNotFound(raw_path.to_string()))
++}
++
++fn parse_content_recursive(
++    content: &str,
++    current_file_path: &Path,
++    state: &mut ParserState,
++    mut current_section: Option<String>,
++) -> Result<(), ParseError> {
++    for line in content.lines() {
++        let trimmed = line.trim();
++        if trimmed.is_empty() || trimmed.starts_with(';') {
++            continue;
++        }
++
++        // Section header: [SectionName]
++        if trimmed.starts_with('[') && trimmed.ends_with(']') {
++            let title = trimmed[1..trimmed.len() - 1].trim();
++            let lower_title = title.to_ascii_lowercase();
++            if !state.raw_sections.contains_key(&lower_title) {
++                state
++                    .raw_sections
++                    .insert(lower_title.clone(), (title.to_string(), HashMap::new()));
++                state.section_order.push(lower_title.clone());
++            }
++            current_section = Some(lower_title);
++            continue;
++        }
++
++        // Key=Value
++        if let Some((k, v)) = trimmed.split_once('=') {
++            let key = k.trim();
++            let val = v.trim();
++            let lower_key = key.to_ascii_lowercase();
++
++            // Check for @Include directive
++            if lower_key.starts_with("@include") {
++                let inc_path_str = state.variables.expand(val);
++                let inc_path = resolve_include_path(
++                    state.skin_dir,
++                    current_file_path,
++                    &inc_path_str,
++                    &state.vfs,
++                )?;
++                let canonical = inc_path
++                    .canonicalize()
++                    .unwrap_or_else(|_| inc_path.clone());
++
++                if state.visited_files.contains(&canonical) {
++                    return Err(ParseError::CircularInclude(inc_path.display().to_string()));
++                }
++                state.visited_files.insert(canonical);
++
++                let bytes = fs::read(&inc_path)?;
++                let decoded = decode_ini_bytes(&bytes)?;
++                parse_content_recursive(
++                    &decoded,
++                    &inc_path,
++                    state,
++                    current_section.clone(),
++                )?;
++                continue;
++            }
++
++            if let Some(ref sec) = current_section {
++                if sec == "variables" {
++                    state.variables.set(key, val);
++                }
++                if let Some((_, props)) = state.raw_sections.get_mut(sec) {
++                    props.insert(lower_key, val.to_string());
++                }
++            }
++        }
++    }
++
++    Ok(())
++}
++
++fn apply_meter_styles(
++    props: &mut HashMap<String, String>,
++    raw_sections: &HashMap<String, (String, HashMap<String, String>)>,
++) {
++    if let Some(styles_str) = props.get("meterstyle").cloned() {
++        for style_name in styles_str.split('|') {
++            let lower_style = style_name.trim().to_ascii_lowercase();
++            if let Some((_, style_props)) = raw_sections.get(&lower_style) {
++                for (sk, sv) in style_props {
++                    props.entry(sk.clone()).or_insert_with(|| sv.clone());
++                }
++            }
++        }
++    }
++}
++
++/// Parses a Rainmeter skin configuration from an INI string.
++pub fn parse_skin_ini<P: AsRef<Path>>(content: &str, skin_dir: P) -> Result<SkinConfig, ParseError> {
++    let skin_dir_ref = skin_dir.as_ref();
++    let dummy_main = skin_dir_ref.join("main.ini");
++
++    let mut state = ParserState {
++        skin_dir: skin_dir_ref,
++        vfs: VfsResolver::new(),
++        visited_files: HashSet::new(),
++        variables: VariableMap::with_skin_dir(skin_dir_ref),
++        raw_sections: HashMap::new(),
++        section_order: Vec::new(),
++    };
++
++    parse_content_recursive(content, &dummy_main, &mut state, None)?;
++
++    // Chained variable resolution in VariableMap
++    for _ in 0..16 {
++        let mut changed = false;
++        let keys: Vec<String> = state.variables.iter().map(|(k, _)| k.to_string()).collect();
++        for k in keys {
++            if let Some(val) = state.variables.get(&k).map(|s| s.to_string()) {
++                let expanded = state.variables.expand(&val);
++                if expanded != val {
++                    state.variables.set(&k, &expanded);
++                    changed = true;
++                }
++            }
++        }
++        if !changed {
++            break;
++        }
++    }
++
++    // Extract [Rainmeter] section settings
++    let mut update_rate_ms = 1000;
++    let mut accurate_text = false;
++    let mut dynamic_window_size = false;
++
++    if let Some((_, props)) = state.raw_sections.get("rainmeter") {
++        if let Some(up) = props.get("update") {
++            let exp = state.variables.expand(up);
++            if let Ok(num) = eval_formula(&exp, &state.variables) {
++                update_rate_ms = num.max(0.0) as u64;
++            } else if let Ok(num) = exp.trim().parse::<u64>() {
++                update_rate_ms = num;
++            }
++        }
++        if let Some(at) = props.get("accuratetext") {
++            accurate_text = at == "1" || at.eq_ignore_ascii_case("true");
++        }
++        if let Some(dws) = props.get("dynamicwindowsize") {
++            dynamic_window_size = dws == "1" || dws.eq_ignore_ascii_case("true");
++        }
++    }
++
++    // Categorize sections into Measures and Meters
++    let mut measures = HashMap::new();
++    let mut meters = HashMap::new();
++    let mut measure_order = Vec::new();
++    let mut meter_order = Vec::new();
++    let mut raw_output = HashMap::new();
++
++    for sec_lower in &state.section_order {
++        if let Some((orig_name, props)) = state.raw_sections.get(sec_lower) {
++            let mut props = props.clone();
++            raw_output.insert(sec_lower.clone(), props.clone());
++
++            if sec_lower == "rainmeter" || sec_lower == "variables" {
++                continue;
++            }
++
++            if props.contains_key("measure") {
++                let measure_type = props.get("measure").cloned().unwrap_or_default();
++                let plugin = props.get("plugin").map(|s| state.variables.expand(s));
++                let format = props.get("format").map(|s| state.variables.expand(s));
++                let formula = props.get("formula").map(|s| state.variables.expand(s));
++                let update_divider = props
++                    .get("updatedivider")
++                    .and_then(|s| s.parse::<u32>().ok())
++                    .unwrap_or(1);
++                let disabled = props.get("disabled").map(|s| s == "1").unwrap_or(false);
++                let dynamic_variables = props
++                    .get("dynamicvariables")
++                    .map(|s| s == "1")
++                    .unwrap_or(false);
++
++                let mut expanded_props = HashMap::new();
++                for (k, v) in &props {
++                    let exp = state.variables.expand(v);
++                    expanded_props.insert(k.clone(), strip_quotes(&exp).to_string());
++                }
++
++                let measure_config = MeasureConfig {
++                    name: orig_name.clone(),
++                    measure_type,
++                    plugin,
++                    format,
++                    formula,
++                    update_divider,
++                    disabled,
++                    dynamic_variables,
++                    properties: expanded_props,
++                };
++
++                measures.insert(sec_lower.clone(), measure_config);
++                measure_order.push(sec_lower.clone());
++            } else if props.contains_key("meter") {
++                apply_meter_styles(&mut props, &state.raw_sections);
++
++                let meter_type = props.get("meter").cloned().unwrap_or_default();
++                let measure_name = props
++                    .get("measurename")
++                    .map(|s| state.variables.expand(s));
++
++                let mut measure_names = Vec::new();
++                for (k, v) in &props {
++                    if k.starts_with("measurename") {
++                        measure_names.push(state.variables.expand(v));
++                    }
++                }
++
++                let font_face = props
++                    .get("fontface")
++                    .map(|s| strip_quotes(&state.variables.expand(s)).to_string());
++                let font_size = props
++                    .get("fontsize")
++                    .and_then(|s| parse_num_or_formula(s, &state.variables));
++                let font_color = props
++                    .get("fontcolor")
++                    .map(|s| strip_quotes(&state.variables.expand(s)).to_string());
++                let text = props
++                    .get("text")
++                    .map(|s| strip_quotes(&state.variables.expand(s)).to_string());
++                let anti_alias = props
++                    .get("antialias")
++                    .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
++                    .unwrap_or(false);
++
++                let x = props.get("x").map(|s| state.variables.expand(s));
++                let y = props.get("y").map(|s| state.variables.expand(s));
++                let w = props
++                    .get("w")
++                    .and_then(|s| parse_num_or_formula(s, &state.variables));
++                let h = props
++                    .get("h")
++                    .and_then(|s| parse_num_or_formula(s, &state.variables));
++                let solid_color = props
++                    .get("solidcolor")
++                    .map(|s| state.variables.expand(s));
++                let hidden = props.get("hidden").map(|s| s == "1").unwrap_or(false);
++                let dynamic_variables = props
++                    .get("dynamicvariables")
++                    .map(|s| s == "1")
++                    .unwrap_or(false);
++                let meter_style = props.get("meterstyle").cloned();
++
++                let mut expanded_props = HashMap::new();
++                for (k, v) in &props {
++                    let exp = state.variables.expand(v);
++                    expanded_props.insert(k.clone(), strip_quotes(&exp).to_string());
++                }
++
++                let meter_config = MeterConfig {
++                    name: orig_name.clone(),
++                    meter_type,
++                    measure_name,
++                    measure_names,
++                    font_face,
++                    font_size,
++                    font_color,
++                    text,
++                    anti_alias,
++                    x,
++                    y,
++                    w,
++                    h,
++                    solid_color,
++                    hidden,
++                    dynamic_variables,
++                    meter_style,
++                    properties: expanded_props,
++                };
++
++                meters.insert(sec_lower.clone(), meter_config);
++                meter_order.push(sec_lower.clone());
++            }
++        }
++    }
++
++    Ok(SkinConfig {
++        update_rate_ms,
++        accurate_text,
++        dynamic_window_size,
++        variables: state.variables,
++        measures,
++        meters,
++        measure_order,
++        meter_order,
++        raw_sections: raw_output,
++        skin_dir: skin_dir_ref.to_path_buf(),
++    })
++}
++
++/// Parses a Rainmeter skin file from disk, detecting encoding automatically.
++pub fn parse_skin_file<P: AsRef<Path>>(path: P) -> Result<SkinConfig, ParseError> {
++    let file_path = path.as_ref();
++    let bytes = fs::read(file_path)?;
++    let content = decode_ini_bytes(&bytes)?;
++    let skin_dir = file_path
++        .parent()
++        .unwrap_or_else(|| Path::new("."))
++        .to_path_buf();
++    parse_skin_ini(&content, skin_dir)
++}
+diff --git a/crates/pluvia-core/src/lib.rs b/crates/pluvia-core/src/lib.rs
+index 34a95dc..f147cc6 100644
+--- a/crates/pluvia-core/src/lib.rs
++++ b/crates/pluvia-core/src/lib.rs
+@@ -1,3 +1,6 @@
+ pub mod encoding;
+ pub mod extractor;
++pub mod formulas;
++pub mod ini;
++pub mod variables;
+ pub mod vfs;
+diff --git a/crates/pluvia-core/src/variables.rs b/crates/pluvia-core/src/variables.rs
+new file mode 100644
+index 0000000..05c454a
+--- /dev/null
++++ b/crates/pluvia-core/src/variables.rs
+@@ -0,0 +1,140 @@
++use std::collections::HashMap;
++use std::path::Path;
++
++/// Case-insensitive variable map supporting `#VarName#` expansion and built-in macros.
++#[derive(Debug, Clone, PartialEq)]
++pub struct VariableMap {
++    vars: HashMap<String, String>,
++}
++
++impl VariableMap {
++    /// Creates a new `VariableMap` initialized with default built-in variables (`#@#`).
++    pub fn new() -> Self {
++        let mut map = Self {
++            vars: HashMap::new(),
++        };
++        // Built-in Rainmeter macro: #@# expands to @Resources/
++        map.set("@", "@Resources/");
++        map
++    }
++
++    /// Creates a `VariableMap` initialized with skin directory paths and built-ins.
++    pub fn with_skin_dir<P: AsRef<Path>>(skin_dir: P) -> Self {
++        let mut map = Self::new();
++        let path = skin_dir.as_ref();
++        let path_str = path.to_string_lossy();
++        let formatted = if path_str.ends_with('/') {
++            path_str.to_string()
++        } else {
++            format!("{}/", path_str)
++        };
++        map.set("currentpath", &formatted);
++        map.set("skinspath", &formatted);
++        map
++    }
++
++    /// Sets a variable with case-insensitive key.
++    pub fn set<K: AsRef<str>, V: AsRef<str>>(&mut self, key: K, val: V) {
++        self.vars
++            .insert(key.as_ref().to_ascii_lowercase(), val.as_ref().to_string());
++    }
++
++    /// Retrieves a variable by case-insensitive key.
++    pub fn get(&self, key: &str) -> Option<&str> {
++        self.vars
++            .get(&key.to_ascii_lowercase())
++            .map(|s| s.as_str())
++    }
++
++    /// Retrieves a variable parsed as an `f64`.
++    pub fn get_num(&self, key: &str) -> Option<f64> {
++        self.get(key).and_then(|s| s.trim().parse::<f64>().ok())
++    }
++
++    /// Checks if a variable is defined (case-insensitive).
++    pub fn contains_key(&self, key: &str) -> bool {
++        self.vars.contains_key(&key.to_ascii_lowercase())
++    }
++
++    /// Removes a variable by case-insensitive key.
++    pub fn remove(&mut self, key: &str) -> Option<String> {
++        self.vars.remove(&key.to_ascii_lowercase())
++    }
++
++    /// Number of variables stored.
++    pub fn len(&self) -> usize {
++        self.vars.len()
++    }
++
++    /// Returns true if empty.
++    pub fn is_empty(&self) -> bool {
++        self.vars.is_empty()
++    }
++
++    /// Iterates over all (lowercase key, value) pairs.
++    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
++        self.vars.iter().map(|(k, v)| (k.as_str(), v.as_str()))
++    }
++
++    /// Expands all `#VarName#` occurrences in `input`.
++    ///
++    /// Supports nested/chained variable expansion up to 16 passes.
++    /// Unrecognized `#...#` patterns are left unmodified.
++    pub fn expand(&self, input: &str) -> String {
++        let mut current = input.to_string();
++
++        for _ in 0..16 {
++            let next = self.expand_single_pass(&current);
++            if next == current {
++                break;
++            }
++            current = next;
++        }
++
++        current
++    }
++
++    fn expand_single_pass(&self, input: &str) -> String {
++        let mut output = String::with_capacity(input.len());
++        let mut chars = input.char_indices().peekable();
++
++        while let Some((i, c)) = chars.next() {
++            if c == '#' {
++                // Find closing '#'
++                let rest = &input[i + 1..];
++                if let Some(close_rel) = rest.find('#') {
++                    let var_name = &rest[..close_rel];
++                    // Verify var_name is non-empty and contains valid characters
++                    if !var_name.is_empty() && var_name.chars().all(is_valid_var_char) {
++                        if let Some(val) = self.get(var_name) {
++                            output.push_str(val);
++                            // Advance iterator past closing '#'
++                            let target_idx = i + 1 + close_rel;
++                            while let Some(&(next_idx, _)) = chars.peek() {
++                                if next_idx <= target_idx {
++                                    chars.next();
++                                } else {
++                                    break;
++                                }
++                            }
++                            continue;
++                        }
++                    }
++                }
++            }
++            output.push(c);
++        }
++
++        output
++    }
++}
++
++fn is_valid_var_char(c: char) -> bool {
++    c.is_alphanumeric() || c == '_' || c == '-' || c == '.' || c == '@' || c == ':'
++}
++
++impl Default for VariableMap {
++    fn default() -> Self {
++        Self::new()
++    }
++}
+diff --git a/crates/pluvia-core/tests/test_parser.rs b/crates/pluvia-core/tests/test_parser.rs
+new file mode 100644
+index 0000000..27c2a02
+--- /dev/null
++++ b/crates/pluvia-core/tests/test_parser.rs
+@@ -0,0 +1,256 @@
++use pluvia_core::ini::parse_skin_ini;
++use pluvia_core::variables::VariableMap;
++use pluvia_core::formulas::{eval_formula, FormulaError};
++use std::collections::HashMap;
++use std::fs::{self, File};
++use std::io::Write;
++use std::path::Path;
++use tempfile::tempdir;
++
++#[test]
++fn test_parse_mond_clock_ini() {
++    let sample_ini = r#"
++[Rainmeter]
++Update=1000
++AccurateText=1
++DynamicWindowSize=1
++
++[Variables]
++FontName=Anurati
++Color1=226,232,240
++Scale=1.2
++
++[MeasureTime]
++Measure=Time
++Format=%H:%M
++
++[MeterTime]
++Meter=String
++MeasureName=MeasureTime
++FontFace=#FontName#
++FontColor=#Color1#
++FontSize=(16 * #Scale#)
++Text="Now: %1"
++AntiAlias=1
++"#;
++
++    let config = parse_skin_ini(sample_ini, Path::new("/dummy")).unwrap();
++    assert_eq!(config.update_rate_ms, 1000);
++    assert_eq!(config.variables.get("fontname").unwrap(), "Anurati");
++
++    let meter = config.meters.get("metertime").unwrap();
++    assert_eq!(meter.font_face.as_deref(), Some("Anurati"));
++    assert_eq!(meter.font_size, Some(19.2));
++}
++
++#[test]
++fn test_formula_math_evaluation() {
++    let mut vars = HashMap::new();
++    vars.insert("w".to_string(), 100.0);
++    vars.insert("scale".to_string(), 1.5);
++
++    assert_eq!(eval_formula("(#W# * #Scale#) + 10", &vars).unwrap(), 160.0);
++    assert_eq!(eval_formula("Round(14.7)", &vars).unwrap(), 15.0);
++}
++
++#[test]
++fn test_case_insensitive_key_and_section_retrieval() {
++    let ini = r#"
++[rAiNmEtEr]
++uPdAtE=2000
++
++[vArIaBlEs]
++mYfOnT=Segoe UI
++
++[mEaSuReCpU]
++mEaSuRe=Cpu
++
++[mEtErClOcK]
++mEtEr=String
++fOnTfAcE=#mYfOnT#
++fOnTsIzE=24
++tExT="Hello"
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    assert_eq!(config.update_rate_ms, 2000);
++    assert_eq!(config.variables.get("myfont").unwrap(), "Segoe UI");
++    assert_eq!(config.variables.get("MYFONT").unwrap(), "Segoe UI");
++
++    let measure = config.measures.get("measurecpu").unwrap();
++    assert_eq!(measure.measure_type, "Cpu");
++    assert_eq!(measure.get("measure").unwrap(), "Cpu");
++
++    let meter = config.meters.get("meterclock").unwrap();
++    assert_eq!(meter.font_face.as_deref(), Some("Segoe UI"));
++    assert_eq!(meter.font_size, Some(24.0));
++    assert_eq!(meter.get("fontface").unwrap(), "Segoe UI");
++    assert_eq!(meter.get("FONTFACE").unwrap(), "Segoe UI");
++}
++
++#[test]
++fn test_formula_advanced_math_functions() {
++    let vars = VariableMap::new();
++
++    assert_eq!(eval_formula("Trunc(14.7)", &vars).unwrap(), 14.0);
++    assert_eq!(eval_formula("Abs(-42.5)", &vars).unwrap(), 42.5);
++    assert_eq!(eval_formula("Min(10, 5, 20)", &vars).unwrap(), 5.0);
++    assert_eq!(eval_formula("Max(10, 5, 20)", &vars).unwrap(), 20.0);
++    assert_eq!(eval_formula("Clamp(15, 0, 10)", &vars).unwrap(), 10.0);
++    assert_eq!(eval_formula("Clamp(-5, 0, 10)", &vars).unwrap(), 0.0);
++    assert_eq!(eval_formula("Clamp(5, 0, 10)", &vars).unwrap(), 5.0);
++    assert_eq!(eval_formula("Sin(0)", &vars).unwrap(), 0.0);
++    assert_eq!(eval_formula("Cos(0)", &vars).unwrap(), 1.0);
++    assert_eq!(eval_formula("2 ** 3", &vars).unwrap(), 8.0);
++    assert_eq!(eval_formula("2 ^ 4", &vars).unwrap(), 16.0);
++    assert_eq!(eval_formula("17 % 5", &vars).unwrap(), 2.0);
++    assert_eq!(eval_formula("Round(Min(15.6, 20.1))", &vars).unwrap(), 16.0);
++}
++
++#[test]
++fn test_include_directive_expansion_with_vfs() {
++    let tmp = tempdir().unwrap();
++    let res_dir = tmp.path().join("@Resources");
++    fs::create_dir_all(&res_dir).unwrap();
++
++    let inc_file = res_dir.join("Variables.inc");
++    let mut f = File::create(&inc_file).unwrap();
++    f.write_all(b"[Variables]\nIncludedFont=Hack\nScale=2.0\n").unwrap();
++
++    let main_ini = r#"
++[Rainmeter]
++Update=500
++
++[Variables]
++@Include=#@#Variables.inc
++Theme=Dark
++
++[MeterSample]
++Meter=String
++FontFace=#IncludedFont#
++FontSize=(10 * #Scale#)
++"#;
++
++    let config = parse_skin_ini(main_ini, tmp.path()).unwrap();
++    assert_eq!(config.variables.get("includedfont").unwrap(), "Hack");
++    assert_eq!(config.variables.get("scale").unwrap(), "2.0");
++    assert_eq!(config.variables.get("theme").unwrap(), "Dark");
++
++    let meter = config.meters.get("metersample").unwrap();
++    assert_eq!(meter.font_face.as_deref(), Some("Hack"));
++    assert_eq!(meter.font_size, Some(20.0));
++}
++
++#[test]
++fn test_builtin_resource_macro_resolution() {
++    let vars = VariableMap::new();
++    let expanded = vars.expand("#@#Fonts/Anurati.otf");
++    assert_eq!(expanded, "@Resources/Fonts/Anurati.otf");
++
++    let expanded_backslash = vars.expand("#@#Fonts\\Anurati.otf");
++    assert_eq!(expanded_backslash, "@Resources/Fonts\\Anurati.otf");
++}
++
++#[test]
++fn test_division_by_zero_error() {
++    let vars = VariableMap::new();
++    let res = eval_formula("10 / 0", &vars);
++    assert!(matches!(res, Err(FormulaError::DivisionByZero)));
++}
++
++#[test]
++fn test_nested_include_and_style_inheritance() {
++    let tmp = tempdir().unwrap();
++    let res_dir = tmp.path().join("@Resources");
++    fs::create_dir_all(&res_dir).unwrap();
++
++    let style_file = res_dir.join("Styles.inc");
++    let mut f1 = File::create(&style_file).unwrap();
++    f1.write_all(b"[StyleBase]\nFontFace=Roboto\nFontSize=14\nAntiAlias=1\n\n[StyleAccent]\nFontColor=255,0,0\n").unwrap();
++
++    let vars_file = res_dir.join("Vars.inc");
++    let mut f2 = File::create(&vars_file).unwrap();
++    f2.write_all(b"[Variables]\n@Include=#@#Styles.inc\nPrefix=App\n").unwrap();
++
++    let main_ini = r#"
++[Rainmeter]
++Update=1000
++
++[Variables]
++@Include=#@#Vars.inc
++Title=#Prefix# Clock
++
++[MeterTitle]
++Meter=String
++MeterStyle=StyleBase | StyleAccent
++Text=#Title#
++"#;
++
++    let config = parse_skin_ini(main_ini, tmp.path()).unwrap();
++    assert_eq!(config.variables.get("prefix").unwrap(), "App");
++    assert_eq!(config.variables.get("title").unwrap(), "App Clock");
++
++    let meter = config.meters.get("metertitle").unwrap();
++    assert_eq!(meter.font_face.as_deref(), Some("Roboto"));
++    assert_eq!(meter.font_size, Some(14.0));
++    assert_eq!(meter.font_color.as_deref(), Some("255,0,0"));
++    assert!(meter.anti_alias);
++    assert_eq!(meter.text.as_deref(), Some("App Clock"));
++}
++
++#[test]
++fn test_circular_include_detection() {
++    let tmp = tempdir().unwrap();
++    let f1_path = tmp.path().join("a.inc");
++    let f2_path = tmp.path().join("b.inc");
++
++    let mut f1 = File::create(&f1_path).unwrap();
++    f1.write_all(b"@Include=b.inc\n").unwrap();
++
++    let mut f2 = File::create(&f2_path).unwrap();
++    f2.write_all(b"@Include=a.inc\n").unwrap();
++
++    let main_ini = r#"
++[Rainmeter]
++Update=1000
++@Include=a.inc
++"#;
++
++    let res = parse_skin_ini(main_ini, tmp.path());
++    assert!(matches!(res, Err(pluvia_core::ini::ParseError::CircularInclude(_))));
++}
++
++#[test]
++fn test_formula_ternary_and_comparisons() {
++    let vars = VariableMap::new();
++    assert_eq!(eval_formula("(10 > 5) ? 100 : 200", &vars).unwrap(), 100.0);
++    assert_eq!(eval_formula("(2 >= 5) ? 100 : 200", &vars).unwrap(), 200.0);
++    assert_eq!(eval_formula("(5 == 5) ? 42 : 0", &vars).unwrap(), 42.0);
++    assert_eq!(eval_formula("(5 != 5) ? 42 : 0", &vars).unwrap(), 0.0);
++}
++
++#[test]
++fn test_comments_and_empty_lines() {
++    let ini = r#"
++; Top level comment
++; Another comment line
++
++[Rainmeter]
++; Comment inside section
++Update=1000
++
++[Variables]
++; Comment before var
++Font=Arial
++
++[MeterA]
++Meter=String
++Text=Hello; World
++"#;
++
++    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
++    assert_eq!(config.update_rate_ms, 1000);
++    assert_eq!(config.variables.get("font").unwrap(), "Arial");
++    let meter = config.meters.get("metera").unwrap();
++    assert_eq!(meter.text.as_deref(), Some("Hello; World"));
++}

@@ -1,0 +1,2415 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 9db3fe6..96fe03d 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -19,6 +19,15 @@ dependencies = [
+  "cpufeatures",
+ ]
+ 
++[[package]]
++name = "android_system_properties"
++version = "0.1.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ae221649c9976a6f6c56ae1facf410f3ddb33cc661c4b7b61020a912d4237fbc"
++dependencies = [
++ "libc",
++]
++
+ [[package]]
+ name = "arbitrary"
+ version = "1.4.2"
+@@ -28,6 +37,46 @@ dependencies = [
+  "derive_arbitrary",
+ ]
+ 
++[[package]]
++name = "async-broadcast"
++version = "0.7.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "435a87a52755b8f27fcf321ac4f04b2802e337c8c4872923137471ec39c37532"
++dependencies = [
++ "event-listener",
++ "event-listener-strategy",
++ "futures-core",
++ "pin-project-lite",
++]
++
++[[package]]
++name = "async-recursion"
++version = "1.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
++
++[[package]]
++name = "async-trait"
++version = "0.1.92"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 3.0.6",
++]
++
++[[package]]
++name = "autocfg"
++version = "1.5.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
++
+ [[package]]
+ name = "bitflags"
+ version = "2.13.2"
+@@ -55,6 +104,12 @@ version = "1.5.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+ 
++[[package]]
++name = "bytes"
++version = "1.12.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
++
+ [[package]]
+ name = "bzip2"
+ version = "0.5.2"
+@@ -92,6 +147,19 @@ version = "1.0.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
+ 
++[[package]]
++name = "chrono"
++version = "0.4.45"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
++dependencies = [
++ "iana-time-zone",
++ "js-sys",
++ "num-traits",
++ "wasm-bindgen",
++ "windows-link",
++]
++
+ [[package]]
+ name = "cipher"
+ version = "0.4.4"
+@@ -108,6 +176,12 @@ version = "0.3.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
+ 
++[[package]]
++name = "core-foundation-sys"
++version = "0.8.7"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
++
+ [[package]]
+ name = "core_detect"
+ version = "1.0.0"
+@@ -223,6 +297,33 @@ dependencies = [
+  "simdutf8",
+ ]
+ 
++[[package]]
++name = "endi"
++version = "1.1.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
++
++[[package]]
++name = "enumflags2"
++version = "0.7.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1027f7680c853e056ebcec683615fb6fbbc07dbaa13b4d5d9442b146ded4ecef"
++dependencies = [
++ "enumflags2_derive",
++ "serde",
++]
++
++[[package]]
++name = "enumflags2_derive"
++version = "0.7.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "67c78a4d8fdf9953a5c9d458f9efe940fd97a0cab0941c075a813ac594733827"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
++
+ [[package]]
+ name = "equivalent"
+ version = "1.0.2"
+@@ -239,6 +340,26 @@ dependencies = [
+  "windows-sys",
+ ]
+ 
++[[package]]
++name = "event-listener"
++version = "5.4.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5a23add41df1562121a9393cb065eab5146a1242410f23a644851e90cfd669d2"
++dependencies = [
++ "parking",
++ "pin-project-lite",
++]
++
++[[package]]
++name = "event-listener-strategy"
++version = "0.5.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
++dependencies = [
++ "event-listener",
++ "pin-project-lite",
++]
++
+ [[package]]
+ name = "fastrand"
+ version = "2.5.0"
+@@ -261,6 +382,49 @@ dependencies = [
+  "miniz_oxide",
+ ]
+ 
++[[package]]
++name = "futures-core"
++version = "0.3.34"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
++
++[[package]]
++name = "futures-io"
++version = "0.3.34"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "53c0fa8157de1303bfffdaa1cc2a673bfffb60102f76b0ef4441659124373fed"
++
++[[package]]
++name = "futures-lite"
++version = "2.6.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f78e10609fe0e0b3f4157ffab1876319b5b0db102a2c60dc4626306dc46b44ad"
++dependencies = [
++ "fastrand",
++ "futures-core",
++ "futures-io",
++ "parking",
++ "pin-project-lite",
++]
++
++[[package]]
++name = "futures-task"
++version = "0.3.34"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cd417de3d1d015fc3bfd2b1ea46dfc7bab72ef86f1cc7cc9c78e728b34a6d1fd"
++
++[[package]]
++name = "futures-util"
++version = "0.3.34"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
++dependencies = [
++ "futures-core",
++ "futures-task",
++ "pin-project-lite",
++ "slab",
++]
++
+ [[package]]
+ name = "generic-array"
+ version = "0.14.7"
+@@ -302,6 +466,12 @@ version = "0.17.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+ 
++[[package]]
++name = "hex"
++version = "0.4.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
++
+ [[package]]
+ name = "hmac"
+ version = "0.12.1"
+@@ -311,6 +481,30 @@ dependencies = [
+  "digest",
+ ]
+ 
++[[package]]
++name = "iana-time-zone"
++version = "0.1.65"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e31bc9ad994ba00e440a8aa5c9ef0ec67d5cb5e5cb0cc7f8b744a35b389cc470"
++dependencies = [
++ "android_system_properties",
++ "core-foundation-sys",
++ "iana-time-zone-haiku",
++ "js-sys",
++ "log",
++ "wasm-bindgen",
++ "windows-core",
++]
++
++[[package]]
++name = "iana-time-zone-haiku"
++version = "0.1.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f31827a206f56af32e590ba56d5d2d085f558508192593743f16b2306495269f"
++dependencies = [
++ "cc",
++]
++
+ [[package]]
+ name = "indexmap"
+ version = "2.14.2"
+@@ -347,6 +541,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "ce57d20d1ea864ce2ac172ab472d409214f4fd359f0b2a2775abdf522e2af99e"
+ dependencies = [
+  "cfg-if",
++ "futures-util",
+  "wasm-bindgen",
+ ]
+ 
+@@ -395,6 +590,15 @@ version = "2.8.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+ 
++[[package]]
++name = "memoffset"
++version = "0.9.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
++dependencies = [
++ "autocfg",
++]
++
+ [[package]]
+ name = "miniz_oxide"
+ version = "0.9.1"
+@@ -405,6 +609,17 @@ dependencies = [
+  "simd-adler32",
+ ]
+ 
++[[package]]
++name = "mio"
++version = "1.2.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4b18443e9c262bfe8fa82f51666e2642c53393f7e5c27b3e1aeab922cff5b9d8"
++dependencies = [
++ "libc",
++ "wasi",
++ "windows-sys",
++]
++
+ [[package]]
+ name = "multiversion"
+ version = "0.9.0"
+@@ -438,12 +653,37 @@ version = "0.2.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "521739c6d2bac4aa25192232afe6841231376b2b26d4d9fae5ecf8ca5772e441"
+ 
++[[package]]
++name = "num-traits"
++version = "0.2.19"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
++dependencies = [
++ "autocfg",
++]
++
+ [[package]]
+ name = "once_cell"
+ version = "1.21.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+ 
++[[package]]
++name = "ordered-stream"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
++dependencies = [
++ "futures-core",
++ "pin-project-lite",
++]
++
++[[package]]
++name = "parking"
++version = "2.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
++
+ [[package]]
+ name = "pbkdf2"
+ version = "0.12.2"
+@@ -454,6 +694,12 @@ dependencies = [
+  "hmac",
+ ]
+ 
++[[package]]
++name = "pin-project-lite"
++version = "0.2.17"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
++
+ [[package]]
+ name = "pkg-config"
+ version = "0.3.34"
+@@ -468,9 +714,12 @@ version = "0.1.0"
+ name = "pluvia-core"
+ version = "0.1.0"
+ dependencies = [
++ "chrono",
+  "encoding_rs",
++ "libc",
+  "tempfile",
+  "thiserror",
++ "zbus",
+  "zip",
+ ]
+ 
+@@ -484,6 +733,15 @@ version = "0.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
+ 
++[[package]]
++name = "proc-macro-crate"
++version = "3.5.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e67ba7e9b2b56446f1d419b1d807906278ffa1a658a8a5d8a39dcb1f5a78614f"
++dependencies = [
++ "toml_edit",
++]
++
+ [[package]]
+ name = "proc-macro2"
+ version = "1.0.107"
+@@ -539,6 +797,16 @@ version = "1.2.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
+ 
++[[package]]
++name = "serde"
++version = "1.0.229"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
++dependencies = [
++ "serde_core",
++ "serde_derive",
++]
++
+ [[package]]
+ name = "serde_core"
+ version = "1.0.229"
+@@ -559,6 +827,17 @@ dependencies = [
+  "syn 3.0.6",
+ ]
+ 
++[[package]]
++name = "serde_repr"
++version = "0.1.21"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8d3b1629de253c70a0508c3899572da79ca359fdab27c7920ff00406df418906"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 3.0.6",
++]
++
+ [[package]]
+ name = "sha1"
+ version = "0.10.7"
+@@ -576,6 +855,16 @@ version = "2.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+ 
++[[package]]
++name = "signal-hook-registry"
++version = "1.4.8"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
++dependencies = [
++ "errno",
++ "libc",
++]
++
+ [[package]]
+ name = "simd-adler32"
+ version = "0.3.10"
+@@ -588,6 +877,22 @@ version = "0.1.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+ 
++[[package]]
++name = "slab"
++version = "0.4.12"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
++
++[[package]]
++name = "socket2"
++version = "0.6.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c3d1e2c7f27f8d4cb10542a02c49005dbd6e93095799d6f3be745fae9f8fedd4"
++dependencies = [
++ "libc",
++ "windows-sys",
++]
++
+ [[package]]
+ name = "subtle"
+ version = "2.6.1"
+@@ -668,24 +973,129 @@ version = "0.1.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9e1c906769ad99c88eaa54e728060edef082f8e358ff32030cb7c7d315e81109"
+ 
++[[package]]
++name = "tokio"
++version = "1.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
++dependencies = [
++ "bytes",
++ "libc",
++ "mio",
++ "pin-project-lite",
++ "signal-hook-registry",
++ "socket2",
++ "tracing",
++ "windows-sys",
++]
++
++[[package]]
++name = "toml_datetime"
++version = "1.1.1+spec-1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3165f65f62e28e0115a00b2ebdd37eb6f3b641855f9d636d3cd4103767159ad7"
++dependencies = [
++ "serde_core",
++]
++
++[[package]]
++name = "toml_edit"
++version = "0.25.15+spec-1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1340ea94a5856333492c9064b02c778b191dd2c853778d9609debdcdfea3a614"
++dependencies = [
++ "indexmap",
++ "toml_datetime",
++ "toml_parser",
++ "winnow",
++]
++
++[[package]]
++name = "toml_parser"
++version = "1.1.3+spec-1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1d38ac1cf9b95face32296c0a3ede1fdc270627c9d9c02a7274dd6d960dc4d56"
++dependencies = [
++ "winnow",
++]
++
++[[package]]
++name = "tracing"
++version = "0.1.44"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
++dependencies = [
++ "pin-project-lite",
++ "tracing-attributes",
++ "tracing-core",
++]
++
++[[package]]
++name = "tracing-attributes"
++version = "0.1.31"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
++
++[[package]]
++name = "tracing-core"
++version = "0.1.36"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
++dependencies = [
++ "once_cell",
++]
++
+ [[package]]
+ name = "typenum"
+ version = "1.20.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+ 
++[[package]]
++name = "uds_windows"
++version = "1.2.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
++dependencies = [
++ "memoffset",
++ "tempfile",
++ "windows-sys",
++]
++
+ [[package]]
+ name = "unicode-ident"
+ version = "1.0.26"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
+ 
++[[package]]
++name = "uuid"
++version = "1.26.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce"
++dependencies = [
++ "js-sys",
++ "serde_core",
++ "wasm-bindgen",
++]
++
+ [[package]]
+ name = "version_check"
+ version = "0.9.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+ 
++[[package]]
++name = "wasi"
++version = "0.11.1+wasi-snapshot-preview1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
++
+ [[package]]
+ name = "wasip2"
+ version = "1.0.4+wasi-0.2.12"
+@@ -740,12 +1150,65 @@ dependencies = [
+  "unicode-ident",
+ ]
+ 
++[[package]]
++name = "windows-core"
++version = "0.62.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b8e83a14d34d0623b51dce9581199302a221863196a1dde71a7663a4c2be9deb"
++dependencies = [
++ "windows-implement",
++ "windows-interface",
++ "windows-link",
++ "windows-result",
++ "windows-strings",
++]
++
++[[package]]
++name = "windows-implement"
++version = "0.60.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "053e2e040ab57b9dc951b72c264860db7eb3b0200ba345b4e4c3b14f67855ddf"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
++
++[[package]]
++name = "windows-interface"
++version = "0.59.3"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3f316c4a2570ba26bbec722032c4099d8c8bc095efccdc15688708623367e358"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "syn 2.0.119",
++]
++
+ [[package]]
+ name = "windows-link"
+ version = "0.2.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+ 
++[[package]]
++name = "windows-result"
++version = "0.4.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7781fa89eaf60850ac3d2da7af8e5242a5ea78d1a11c49bf2910bb5a73853eb5"
++dependencies = [
++ "windows-link",
++]
++
++[[package]]
++name = "windows-strings"
++version = "0.5.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7837d08f69c77cf6b07689544538e017c1bfcf57e34b4c0ff58e6c2cd3b37091"
++dependencies = [
++ "windows-link",
++]
++
+ [[package]]
+ name = "windows-sys"
+ version = "0.61.2"
+@@ -755,6 +1218,15 @@ dependencies = [
+  "windows-link",
+ ]
+ 
++[[package]]
++name = "winnow"
++version = "1.0.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "23b97319f7b8343df12cc98938e5c3eb436064524c8d2b4e30a1d3a36eecdf81"
++dependencies = [
++ "memchr",
++]
++
+ [[package]]
+ name = "wit-bindgen"
+ version = "0.57.1"
+@@ -770,6 +1242,71 @@ dependencies = [
+  "lzma-sys",
+ ]
+ 
++[[package]]
++name = "zbus"
++version = "5.19.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5db4be7c075cb421e4b7ee645541604239bd243ba7c357511f4ff3a74b555907"
++dependencies = [
++ "async-broadcast",
++ "async-recursion",
++ "async-trait",
++ "enumflags2",
++ "event-listener",
++ "futures-core",
++ "futures-lite",
++ "hex",
++ "libc",
++ "ordered-stream",
++ "rustix",
++ "serde",
++ "serde_repr",
++ "tokio",
++ "tracing",
++ "uds_windows",
++ "uuid",
++ "windows-sys",
++ "winnow",
++ "zbus_macros",
++ "zbus_names",
++ "zvariant",
++]
++
++[[package]]
++name = "zbus_macros"
++version = "5.19.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2990635d09ade6df1868f72f8cac69a876a90981e8bd3c40b1be413f8dc88f40"
++dependencies = [
++ "proc-macro-crate",
++ "proc-macro2",
++ "quote",
++ "syn 3.0.6",
++ "zbus_names",
++ "zvariant",
++ "zvariant_utils",
++]
++
++[[package]]
++name = "zbus_names"
++version = "4.3.4"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d8bf88b4a3ff53e883001e0e0115b297a9d53c31b9c1edd2bfdd853e3428624e"
++dependencies = [
++ "serde",
++ "winnow",
++ "zvariant",
++]
++
++[[package]]
++name = "zcheapstr"
++version = "1.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d1afec51604565183aeb5c54c20aeab286120d4e4460f7f76e3e8bb8c0d99473"
++dependencies = [
++ "serde",
++]
++
+ [[package]]
+ name = "zeroize"
+ version = "1.9.0"
+@@ -859,3 +1396,44 @@ dependencies = [
+  "cc",
+  "pkg-config",
+ ]
++
++[[package]]
++name = "zvariant"
++version = "5.15.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c1d34c27cc6cdd1f458427519dd6b8612f7b7e3f7b9a0b2355d041dda9869147"
++dependencies = [
++ "endi",
++ "enumflags2",
++ "serde",
++ "winnow",
++ "zcheapstr",
++ "zvariant_derive",
++ "zvariant_utils",
++]
++
++[[package]]
++name = "zvariant_derive"
++version = "5.15.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "864155e69b4352db0c7f374917bf45d1e0c8d17659c8b3dbf9795f3673f8c497"
++dependencies = [
++ "proc-macro-crate",
++ "proc-macro2",
++ "quote",
++ "syn 3.0.6",
++ "zvariant_utils",
++]
++
++[[package]]
++name = "zvariant_utils"
++version = "4.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bad0294361a320b694a328460dc73add56c306150f5cb6bfafc44446120008a3"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "serde",
++ "syn 3.0.6",
++ "winnow",
++]
+diff --git a/crates/pluvia-core/Cargo.toml b/crates/pluvia-core/Cargo.toml
+index 2b780e6..d6fa6ce 100644
+--- a/crates/pluvia-core/Cargo.toml
++++ b/crates/pluvia-core/Cargo.toml
+@@ -4,9 +4,12 @@ version = "0.1.0"
+ edition = "2021"
+ 
+ [dependencies]
++chrono = "0.4"
+ encoding_rs = "0.8"
++libc = "0.2"
+ thiserror.workspace = true
+ zip = "2.2"
++zbus = { version = "5.0", default-features = false, features = ["tokio", "blocking-api"] }
+ 
+ [dev-dependencies]
+ tempfile = "3.12"
+diff --git a/crates/pluvia-core/src/lib.rs b/crates/pluvia-core/src/lib.rs
+index f147cc6..88619ba 100644
+--- a/crates/pluvia-core/src/lib.rs
++++ b/crates/pluvia-core/src/lib.rs
+@@ -2,5 +2,6 @@ pub mod encoding;
+ pub mod extractor;
+ pub mod formulas;
+ pub mod ini;
++pub mod measures;
+ pub mod variables;
+ pub mod vfs;
+diff --git a/crates/pluvia-core/src/measures/mod.rs b/crates/pluvia-core/src/measures/mod.rs
+new file mode 100644
+index 0000000..cf30d20
+--- /dev/null
++++ b/crates/pluvia-core/src/measures/mod.rs
+@@ -0,0 +1,124 @@
++pub mod mpris;
++pub mod system;
++pub mod time;
++
++use crate::ini::MeasureConfig;
++
++/// Value produced by a telemetry measure.
++#[derive(Debug, Clone, PartialEq)]
++pub enum MeasureValue {
++    String(String),
++    Number(f64),
++}
++
++impl MeasureValue {
++    /// Return the string representation of the measure value.
++    pub fn to_string_val(&self) -> String {
++        match self {
++            MeasureValue::String(s) => s.clone(),
++            MeasureValue::Number(n) => {
++                if n.fract() == 0.0 && !n.is_infinite() && !n.is_nan() && n.abs() < 1e16 {
++                    format!("{:.0}", n)
++                } else {
++                    format!("{}", n)
++                }
++            }
++        }
++    }
++
++    /// Return the numeric representation of the measure value.
++    pub fn to_number_val(&self) -> f64 {
++        match self {
++            MeasureValue::Number(n) => *n,
++            MeasureValue::String(s) => s.trim().parse::<f64>().unwrap_or(0.0),
++        }
++    }
++
++    /// Access inner string slice if value is a string.
++    pub fn as_str(&self) -> Option<&str> {
++        match self {
++            MeasureValue::String(s) => Some(s.as_str()),
++            MeasureValue::Number(_) => None,
++        }
++    }
++
++    /// Access inner number if value is numeric.
++    pub fn as_f64(&self) -> Option<f64> {
++        match self {
++            MeasureValue::Number(n) => Some(*n),
++            MeasureValue::String(_) => None,
++        }
++    }
++}
++
++impl std::fmt::Display for MeasureValue {
++    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        write!(f, "{}", self.to_string_val())
++    }
++}
++
++impl From<String> for MeasureValue {
++    fn from(s: String) -> Self {
++        MeasureValue::String(s)
++    }
++}
++
++impl From<&str> for MeasureValue {
++    fn from(s: &str) -> Self {
++        MeasureValue::String(s.to_string())
++    }
++}
++
++impl From<f64> for MeasureValue {
++    fn from(n: f64) -> Self {
++        MeasureValue::Number(n)
++    }
++}
++
++impl From<u64> for MeasureValue {
++    fn from(n: u64) -> Self {
++        MeasureValue::Number(n as f64)
++    }
++}
++
++impl From<i64> for MeasureValue {
++    fn from(n: i64) -> Self {
++        MeasureValue::Number(n as f64)
++    }
++}
++
++/// Common trait for all Rainmeter telemetry and data collection measures.
++pub trait Measure: Send + Sync {
++    /// Update the measure state and return the updated value.
++    fn update(&mut self) -> MeasureValue;
++
++    /// Get the current/cached value without updating.
++    fn get_value(&self) -> MeasureValue;
++}
++
++/// Factory function to instantiate a measure from a parsed `MeasureConfig`.
++pub fn create_measure(config: &MeasureConfig) -> Option<Box<dyn Measure>> {
++    let m_type = config.measure_type.to_ascii_lowercase();
++    match m_type.as_str() {
++        "time" => Some(Box::new(time::TimeMeasure::from_config(config))),
++        "cpu" => Some(Box::new(system::CpuMeasure::from_config(config))),
++        "physicalmemory" | "memory" | "swapmemory" => {
++            Some(Box::new(system::MemoryMeasure::from_config(config)))
++        }
++        "freediskspace" | "disk" => Some(Box::new(system::DiskMeasure::from_config(config))),
++        "uptime" => Some(Box::new(system::UptimeMeasure::from_config(config))),
++        "netin" | "netout" | "nettotal" | "net" => {
++            Some(Box::new(system::NetMeasure::from_config(config)))
++        }
++        "nowplaying" => Some(Box::new(mpris::NowPlayingMeasure::from_config(config))),
++        "plugin" => {
++            let plugin = config.plugin.as_deref().unwrap_or("").to_ascii_lowercase();
++            if plugin == "nowplaying" || plugin == "nowplaying.dll" {
++                Some(Box::new(mpris::NowPlayingMeasure::from_config(config)))
++            } else {
++                None
++            }
++        }
++        _ => None,
++    }
++}
+diff --git a/crates/pluvia-core/src/measures/mpris.rs b/crates/pluvia-core/src/measures/mpris.rs
+new file mode 100644
+index 0000000..171b849
+--- /dev/null
++++ b/crates/pluvia-core/src/measures/mpris.rs
+@@ -0,0 +1,274 @@
++use crate::ini::MeasureConfig;
++use crate::measures::{Measure, MeasureValue};
++use std::collections::HashMap;
++use std::ops::Deref;
++use zbus::blocking::{Connection, Proxy};
++use zbus::zvariant::{OwnedValue, Value};
++
++/// Media property to extract from MPRIS player.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum PlayerType {
++    Title,
++    Artist,
++    Album,
++    Cover,
++    State,
++    Status,
++    Duration,
++    Position,
++    Progress,
++}
++
++/// Extracted playback metadata.
++#[derive(Debug, Clone, Default)]
++pub struct NowPlayingData {
++    pub title: String,
++    pub artist: String,
++    pub album: String,
++    pub cover: String,
++    pub state: u32,
++    pub status: u32,
++    pub duration: f64,
++    pub position: f64,
++}
++
++/// Measure connecting to MPRIS D-Bus services (`org.mpris.MediaPlayer2.*`).
++#[derive(Debug)]
++pub struct NowPlayingMeasure {
++    player_type: PlayerType,
++    player_name: Option<String>,
++    current_value: MeasureValue,
++    mock_data: Option<NowPlayingData>,
++}
++
++impl NowPlayingMeasure {
++    /// Create a new `NowPlayingMeasure` for a specific `PlayerType`.
++    pub fn new(player_type: PlayerType) -> Self {
++        Self {
++            player_type,
++            player_name: None,
++            current_value: match player_type {
++                PlayerType::Title | PlayerType::Artist | PlayerType::Album | PlayerType::Cover => {
++                    MeasureValue::String(String::new())
++                }
++                _ => MeasureValue::Number(0.0),
++            },
++            mock_data: None,
++        }
++    }
++
++    /// Specify a target player service name (e.g. `"spotify"` or `"vlc"`).
++    pub fn with_player(mut self, player: &str) -> Self {
++        self.player_name = Some(player.to_string());
++        self
++    }
++
++    /// Provide mock playback data (useful for deterministic tests).
++    pub fn with_mock_data(mut self, data: NowPlayingData) -> Self {
++        self.mock_data = Some(data);
++        self
++    }
++
++    /// Set mock data dynamically.
++    pub fn set_mock_data(&mut self, data: Option<NowPlayingData>) {
++        self.mock_data = data;
++    }
++
++    /// Instantiate from `MeasureConfig`.
++    pub fn from_config(config: &MeasureConfig) -> Self {
++        let ptype_str = config
++            .get("playertype")
++            .unwrap_or("title")
++            .to_ascii_lowercase();
++
++        let player_type = match ptype_str.as_str() {
++            "artist" => PlayerType::Artist,
++            "album" => PlayerType::Album,
++            "cover" => PlayerType::Cover,
++            "state" => PlayerType::State,
++            "status" => PlayerType::Status,
++            "duration" => PlayerType::Duration,
++            "position" => PlayerType::Position,
++            "progress" => PlayerType::Progress,
++            _ => PlayerType::Title,
++        };
++
++        let player_name = config.get("playername").map(|s| {
++            let trimmed = s.trim();
++            if trimmed.starts_with('[') && trimmed.ends_with(']') {
++                &trimmed[1..trimmed.len() - 1]
++            } else {
++                trimmed
++            }
++            .to_string()
++        });
++
++        Self {
++            player_type,
++            player_name,
++            current_value: match player_type {
++                PlayerType::Title | PlayerType::Artist | PlayerType::Album | PlayerType::Cover => {
++                    MeasureValue::String(String::new())
++                }
++                _ => MeasureValue::Number(0.0),
++            },
++            mock_data: None,
++        }
++    }
++
++    fn query_mpris_data(&self) -> Option<NowPlayingData> {
++        let conn = Connection::session().ok()?;
++
++        let destination = if let Some(ref target) = self.player_name {
++            if target.starts_with("org.mpris.MediaPlayer2.") {
++                target.clone()
++            } else {
++                format!("org.mpris.MediaPlayer2.{}", target)
++            }
++        } else {
++            let dbus_proxy = Proxy::new(
++                &conn,
++                "org.freedesktop.DBus",
++                "/org/freedesktop/DBus",
++                "org.freedesktop.DBus",
++            )
++            .ok()?;
++            let names: Vec<String> = dbus_proxy.call("ListNames", &()).ok()?;
++            names
++                .into_iter()
++                .find(|n| n.starts_with("org.mpris.MediaPlayer2."))?
++        };
++
++        let player_proxy = Proxy::new(
++            &conn,
++            destination,
++            "/org/mpris/MediaPlayer2",
++            "org.mpris.MediaPlayer2.Player",
++        )
++        .ok()?;
++
++        let status_str: String = player_proxy
++            .get_property("PlaybackStatus")
++            .unwrap_or_else(|_| "Stopped".to_string());
++        let state = match status_str.to_ascii_lowercase().as_str() {
++            "playing" => 1,
++            "paused" => 2,
++            _ => 0,
++        };
++        let status = 1;
++
++        let metadata: HashMap<String, OwnedValue> =
++            player_proxy.get_property("Metadata").unwrap_or_default();
++
++        let title = metadata
++            .get("xesam:title")
++            .and_then(extract_string)
++            .unwrap_or_default();
++        let album = metadata
++            .get("xesam:album")
++            .and_then(extract_string)
++            .unwrap_or_default();
++        let cover = metadata
++            .get("mpris:artUrl")
++            .and_then(extract_string)
++            .unwrap_or_default();
++        let artist = metadata.get("xesam:artist").map(extract_artist).unwrap_or_default();
++
++        let duration_us: u64 = metadata
++            .get("mpris:length")
++            .and_then(extract_u64)
++            .unwrap_or(0);
++        let duration = duration_us as f64 / 1_000_000.0;
++
++        let position_us: i64 = player_proxy.get_property("Position").unwrap_or(0);
++        let position = position_us as f64 / 1_000_000.0;
++
++        Some(NowPlayingData {
++            title,
++            artist,
++            album,
++            cover,
++            state,
++            status,
++            duration,
++            position,
++        })
++    }
++}
++
++fn extract_string(val: &OwnedValue) -> Option<String> {
++    match val.deref() {
++        Value::Str(s) => Some(s.to_string()),
++        _ => None,
++    }
++}
++
++fn extract_u64(val: &OwnedValue) -> Option<u64> {
++    match val.deref() {
++        Value::U64(n) => Some(*n),
++        Value::I64(n) => Some(*n as u64),
++        Value::U32(n) => Some(*n as u64),
++        _ => None,
++    }
++}
++
++fn extract_artist(val: &OwnedValue) -> String {
++    match val.deref() {
++        Value::Str(s) => s.to_string(),
++        Value::Array(arr) => {
++            let artists: Vec<String> = arr
++                .iter()
++                .filter_map(|v| match v {
++                    Value::Str(s) => Some(s.to_string()),
++                    _ => None,
++                })
++                .collect();
++            artists.join(", ")
++        }
++        _ => String::new(),
++    }
++}
++
++impl Measure for NowPlayingMeasure {
++    fn update(&mut self) -> MeasureValue {
++        let data = if let Some(ref mock) = self.mock_data {
++            Some(mock.clone())
++        } else {
++            self.query_mpris_data()
++        };
++
++        let val = match data {
++            Some(d) => match self.player_type {
++                PlayerType::Title => MeasureValue::String(d.title),
++                PlayerType::Artist => MeasureValue::String(d.artist),
++                PlayerType::Album => MeasureValue::String(d.album),
++                PlayerType::Cover => MeasureValue::String(d.cover),
++                PlayerType::State => MeasureValue::Number(d.state as f64),
++                PlayerType::Status => MeasureValue::Number(d.status as f64),
++                PlayerType::Duration => MeasureValue::Number(d.duration),
++                PlayerType::Position => MeasureValue::Number(d.position),
++                PlayerType::Progress => {
++                    let pct = if d.duration > 0.0 {
++                        (d.position / d.duration) * 100.0
++                    } else {
++                        0.0
++                    };
++                    MeasureValue::Number(pct.clamp(0.0, 100.0))
++                }
++            },
++            None => match self.player_type {
++                PlayerType::Title | PlayerType::Artist | PlayerType::Album | PlayerType::Cover => {
++                    MeasureValue::String(String::new())
++                }
++                _ => MeasureValue::Number(0.0),
++            },
++        };
++
++        self.current_value = val;
++        self.current_value.clone()
++    }
++
++    fn get_value(&self) -> MeasureValue {
++        self.current_value.clone()
++    }
++}
+diff --git a/crates/pluvia-core/src/measures/system.rs b/crates/pluvia-core/src/measures/system.rs
+new file mode 100644
+index 0000000..7790608
+--- /dev/null
++++ b/crates/pluvia-core/src/measures/system.rs
+@@ -0,0 +1,705 @@
++use crate::ini::MeasureConfig;
++use crate::measures::{Measure, MeasureValue};
++use std::ffi::CString;
++use std::fs::File;
++use std::io::Read;
++use std::mem::MaybeUninit;
++use std::path::PathBuf;
++use std::time::Instant;
++
++#[derive(Debug, Clone, Copy, Default)]
++struct CpuTimes {
++    user: u64,
++    nice: u64,
++    system: u64,
++    idle: u64,
++    iowait: u64,
++    irq: u64,
++    softirq: u64,
++    steal: u64,
++}
++
++fn parse_cpu_times(line: &str) -> CpuTimes {
++    let mut parts = line.split_whitespace().skip(1);
++    let user = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++    let nice = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++    let system = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++    let idle = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++    let iowait = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++    let irq = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++    let softirq = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++    let steal = parts.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++
++    CpuTimes {
++        user,
++        nice,
++        system,
++        idle,
++        iowait,
++        irq,
++        softirq,
++        steal,
++    }
++}
++
++/// Zero-allocation delta CPU usage measure parsing `/proc/stat`.
++#[derive(Debug)]
++pub struct CpuMeasure {
++    stat_path: PathBuf,
++    processor: Option<usize>,
++    prev_user: u64,
++    prev_nice: u64,
++    prev_system: u64,
++    prev_idle: u64,
++    prev_iowait: u64,
++    prev_irq: u64,
++    prev_softirq: u64,
++    prev_steal: u64,
++    has_prev: bool,
++    buffer: String,
++    current_value: MeasureValue,
++}
++
++impl CpuMeasure {
++    /// Create a measure for overall CPU usage using `/proc/stat`.
++    pub fn new() -> Self {
++        Self::with_path(PathBuf::from("/proc/stat"), None)
++    }
++
++    /// Create a measure for a specific processor core (0 = overall, 1 = core 0, etc.).
++    pub fn with_processor(processor: Option<usize>) -> Self {
++        Self::with_path(PathBuf::from("/proc/stat"), processor)
++    }
++
++    /// Create a CPU measure with a custom `/proc/stat` path (for testing or container environments).
++    pub fn with_path(stat_path: PathBuf, processor: Option<usize>) -> Self {
++        Self {
++            stat_path,
++            processor,
++            prev_user: 0,
++            prev_nice: 0,
++            prev_system: 0,
++            prev_idle: 0,
++            prev_iowait: 0,
++            prev_irq: 0,
++            prev_softirq: 0,
++            prev_steal: 0,
++            has_prev: false,
++            buffer: String::with_capacity(2048),
++            current_value: MeasureValue::Number(0.0),
++        }
++    }
++
++    /// Update the path to `/proc/stat`.
++    pub fn set_stat_path(&mut self, path: PathBuf) {
++        self.stat_path = path;
++    }
++
++    /// Instantiate from a Rainmeter `MeasureConfig`.
++    pub fn from_config(config: &MeasureConfig) -> Self {
++        let processor = config
++            .get("processor")
++            .and_then(|s| s.parse::<usize>().ok());
++        Self::with_processor(processor)
++    }
++
++    fn record_and_calculate_delta(&mut self, times: CpuTimes) -> MeasureValue {
++        let curr_idle = times.idle + times.iowait;
++        let curr_total = times.user
++            + times.nice
++            + times.system
++            + times.idle
++            + times.iowait
++            + times.irq
++            + times.softirq
++            + times.steal;
++
++        let prev_idle = self.prev_idle + self.prev_iowait;
++        let prev_total = self.prev_user
++            + self.prev_nice
++            + self.prev_system
++            + self.prev_idle
++            + self.prev_iowait
++            + self.prev_irq
++            + self.prev_softirq
++            + self.prev_steal;
++
++        self.prev_user = times.user;
++        self.prev_nice = times.nice;
++        self.prev_system = times.system;
++        self.prev_idle = times.idle;
++        self.prev_iowait = times.iowait;
++        self.prev_irq = times.irq;
++        self.prev_softirq = times.softirq;
++        self.prev_steal = times.steal;
++
++        if !self.has_prev {
++            self.has_prev = true;
++            self.current_value = MeasureValue::Number(0.0);
++            return self.current_value.clone();
++        }
++
++        let delta_total = curr_total.saturating_sub(prev_total);
++        let delta_idle = curr_idle.saturating_sub(prev_idle);
++        let delta_work = delta_total.saturating_sub(delta_idle);
++
++        let pct = if delta_total > 0 {
++            (delta_work as f64 / delta_total as f64) * 100.0
++        } else {
++            0.0
++        };
++
++        self.current_value = MeasureValue::Number(pct);
++        self.current_value.clone()
++    }
++}
++
++impl Default for CpuMeasure {
++    fn default() -> Self {
++        Self::new()
++    }
++}
++
++impl Measure for CpuMeasure {
++    fn update(&mut self) -> MeasureValue {
++        self.buffer.clear();
++        let mut file = match File::open(&self.stat_path) {
++            Ok(f) => f,
++            Err(_) => return self.current_value.clone(),
++        };
++
++        if file.read_to_string(&mut self.buffer).is_err() {
++            return self.current_value.clone();
++        }
++
++        let found_times = match self.processor {
++            None | Some(0) => {
++                let mut found = None;
++                for line in self.buffer.lines() {
++                    if line.starts_with("cpu ") {
++                        found = Some(parse_cpu_times(line));
++                        break;
++                    }
++                }
++                found
++            }
++            Some(n) => {
++                let core_idx = n.saturating_sub(1);
++                let mut found = None;
++                for line in self.buffer.lines() {
++                    if let Some(rest) = line.strip_prefix("cpu") {
++                        let mut digits = "";
++                        for (idx, ch) in rest.char_indices() {
++                            if ch == ' ' {
++                                digits = &rest[..idx];
++                                break;
++                            }
++                        }
++                        if let Ok(idx) = digits.parse::<usize>() {
++                            if idx == core_idx {
++                                found = Some(parse_cpu_times(line));
++                                break;
++                            }
++                        }
++                    }
++                }
++                found
++            }
++        };
++
++        if let Some(times) = found_times {
++            self.record_and_calculate_delta(times)
++        } else {
++            MeasureValue::Number(0.0)
++        }
++    }
++
++    fn get_value(&self) -> MeasureValue {
++        self.current_value.clone()
++    }
++}
++
++/// Linux memory measure parsing `/proc/meminfo`.
++#[derive(Debug)]
++pub struct MemoryMeasure {
++    meminfo_path: PathBuf,
++    metric: String,
++    buffer: String,
++    current_value: MeasureValue,
++}
++
++impl MemoryMeasure {
++    /// Create a memory measure for the specified metric (e.g. `"used_percent"`, `"total"`, `"used"`, `"free"`).
++    pub fn new(metric: &str) -> Self {
++        Self::with_path(PathBuf::from("/proc/meminfo"), metric)
++    }
++
++    /// Create with custom `/proc/meminfo` path.
++    pub fn with_path(meminfo_path: PathBuf, metric: &str) -> Self {
++        Self {
++            meminfo_path,
++            metric: metric.to_ascii_lowercase(),
++            buffer: String::with_capacity(2048),
++            current_value: MeasureValue::Number(0.0),
++        }
++    }
++
++    /// Set path to `/proc/meminfo`.
++    pub fn set_meminfo_path(&mut self, path: PathBuf) {
++        self.meminfo_path = path;
++    }
++
++    /// Instantiate from `MeasureConfig`.
++    pub fn from_config(config: &MeasureConfig) -> Self {
++        let is_swap = config.measure_type.eq_ignore_ascii_case("swapmemory");
++        let is_total = config.get("total").map(|s| s == "1").unwrap_or(false);
++        let is_percent = config
++            .get("percent")
++            .or_else(|| config.get("percentual"))
++            .map(|s| s == "1")
++            .unwrap_or(false);
++
++        let metric = if is_swap {
++            if is_total {
++                "swap_total"
++            } else if is_percent {
++                "swap_percent"
++            } else {
++                "swap_used"
++            }
++        } else if is_total {
++            "total"
++        } else if is_percent {
++            "used_percent"
++        } else {
++            "used"
++        };
++
++        Self::new(metric)
++    }
++}
++
++impl Measure for MemoryMeasure {
++    fn update(&mut self) -> MeasureValue {
++        self.buffer.clear();
++        let mut file = match File::open(&self.meminfo_path) {
++            Ok(f) => f,
++            Err(_) => return self.current_value.clone(),
++        };
++
++        if file.read_to_string(&mut self.buffer).is_err() {
++            return self.current_value.clone();
++        }
++
++        let mut mem_total: u64 = 0;
++        let mut mem_free: u64 = 0;
++        let mut mem_available: u64 = 0;
++        let mut buffers: u64 = 0;
++        let mut cached: u64 = 0;
++        let mut swap_total: u64 = 0;
++        let mut swap_free: u64 = 0;
++
++        for line in self.buffer.lines() {
++            if let Some((k, v)) = line.split_once(':') {
++                let key = k.trim();
++                let val_kb = v
++                    .split_whitespace()
++                    .next()
++                    .and_then(|s| s.parse::<u64>().ok())
++                    .unwrap_or(0);
++
++                match key {
++                    "MemTotal" => mem_total = val_kb * 1024,
++                    "MemFree" => mem_free = val_kb * 1024,
++                    "MemAvailable" => mem_available = val_kb * 1024,
++                    "Buffers" => buffers = val_kb * 1024,
++                    "Cached" => cached = val_kb * 1024,
++                    "SwapTotal" => swap_total = val_kb * 1024,
++                    "SwapFree" => swap_free = val_kb * 1024,
++                    _ => {}
++                }
++            }
++        }
++
++        let free_bytes = if mem_available > 0 {
++            mem_available
++        } else {
++            mem_free + buffers + cached
++        };
++        let used_bytes = mem_total.saturating_sub(free_bytes);
++        let used_percent = if mem_total > 0 {
++            (used_bytes as f64 / mem_total as f64) * 100.0
++        } else {
++            0.0
++        };
++
++        let swap_used_bytes = swap_total.saturating_sub(swap_free);
++        let swap_percent = if swap_total > 0 {
++            (swap_used_bytes as f64 / swap_total as f64) * 100.0
++        } else {
++            0.0
++        };
++
++        let val = match self.metric.as_str() {
++            "used_percent" | "percent" => used_percent,
++            "total" | "total_bytes" => mem_total as f64,
++            "used" | "used_bytes" => used_bytes as f64,
++            "free" | "free_bytes" => free_bytes as f64,
++            "free_percent" => (100.0 - used_percent).max(0.0),
++            "swap_total" => swap_total as f64,
++            "swap_used" => swap_used_bytes as f64,
++            "swap_free" => swap_free as f64,
++            "swap_percent" => swap_percent,
++            _ => used_percent,
++        };
++
++        self.current_value = MeasureValue::Number(val);
++        self.current_value.clone()
++    }
++
++    fn get_value(&self) -> MeasureValue {
++        self.current_value.clone()
++    }
++}
++
++/// Linux disk space measure using `statvfs`.
++#[derive(Debug, Clone)]
++pub struct DiskMeasure {
++    mount_path: String,
++    metric: String,
++    current_value: MeasureValue,
++}
++
++impl DiskMeasure {
++    /// Create a disk measure for a given mount point and metric (`"free"`, `"total"`, `"used"`, `"percent"`).
++    pub fn new(mount_path: &str, metric: &str) -> Self {
++        Self {
++            mount_path: mount_path.to_string(),
++            metric: metric.to_ascii_lowercase(),
++            current_value: MeasureValue::Number(0.0),
++        }
++    }
++
++    /// Instantiate from `MeasureConfig`.
++    pub fn from_config(config: &MeasureConfig) -> Self {
++        let drive = config
++            .get("drive")
++            .unwrap_or("/");
++
++        // Normalize Windows drive letters (C:, C) to Linux root "/"
++        let mount_path = if drive.is_empty() || drive.eq_ignore_ascii_case("c:") || drive.eq_ignore_ascii_case("c") {
++            "/"
++        } else {
++            drive
++        };
++
++        let is_total = config.get("total").map(|s| s == "1").unwrap_or(false);
++        let is_used = config.get("invertmeasure").map(|s| s == "1").unwrap_or(false);
++        let is_percent = config
++            .get("percent")
++            .or_else(|| config.get("percentual"))
++            .map(|s| s == "1")
++            .unwrap_or(false);
++
++        let metric = if is_total {
++            "total"
++        } else if is_percent {
++            "percent"
++        } else if is_used {
++            "used"
++        } else {
++            "free"
++        };
++
++        Self::new(mount_path, metric)
++    }
++}
++
++impl Measure for DiskMeasure {
++    fn update(&mut self) -> MeasureValue {
++        let c_path = match CString::new(self.mount_path.as_str()) {
++            Ok(p) => p,
++            Err(_) => return self.current_value.clone(),
++        };
++
++        let mut stat = MaybeUninit::<libc::statvfs>::uninit();
++        let res = unsafe { libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) };
++        if res != 0 {
++            return self.current_value.clone();
++        }
++
++        let stat = unsafe { stat.assume_init() };
++        let block_size = if stat.f_frsize > 0 {
++            stat.f_frsize
++        } else {
++            stat.f_bsize
++        } as u64;
++
++        let total_bytes = stat.f_blocks as u64 * block_size;
++        let free_bytes = stat.f_bavail as u64 * block_size;
++        let used_bytes = total_bytes.saturating_sub(free_bytes);
++        let used_percent = if total_bytes > 0 {
++            (used_bytes as f64 / total_bytes as f64) * 100.0
++        } else {
++            0.0
++        };
++
++        let val = match self.metric.as_str() {
++            "total" | "total_bytes" => total_bytes as f64,
++            "free" | "free_bytes" => free_bytes as f64,
++            "used" | "used_bytes" => used_bytes as f64,
++            "percent" | "used_percent" => used_percent,
++            "free_percent" => (100.0 - used_percent).max(0.0),
++            _ => free_bytes as f64,
++        };
++
++        self.current_value = MeasureValue::Number(val);
++        self.current_value.clone()
++    }
++
++    fn get_value(&self) -> MeasureValue {
++        self.current_value.clone()
++    }
++}
++
++/// Linux system uptime measure reading `/proc/uptime`.
++#[derive(Debug, Clone)]
++pub struct UptimeMeasure {
++    uptime_path: PathBuf,
++    format: Option<String>,
++    current_value: MeasureValue,
++}
++
++impl UptimeMeasure {
++    /// Create an uptime measure reading `/proc/uptime`.
++    pub fn new() -> Self {
++        Self {
++            uptime_path: PathBuf::from("/proc/uptime"),
++            format: None,
++            current_value: MeasureValue::Number(0.0),
++        }
++    }
++
++    /// Set format string.
++    pub fn with_format(mut self, format: &str) -> Self {
++        self.format = Some(format.to_string());
++        self
++    }
++
++    /// Set path to `/proc/uptime`.
++    pub fn with_path(path: PathBuf) -> Self {
++        Self {
++            uptime_path: path,
++            format: None,
++            current_value: MeasureValue::Number(0.0),
++        }
++    }
++
++    /// Instantiate from `MeasureConfig`.
++    pub fn from_config(config: &MeasureConfig) -> Self {
++        let format = config.format.clone().or_else(|| config.get("format").map(|s| s.to_string()));
++        Self {
++            uptime_path: PathBuf::from("/proc/uptime"),
++            format,
++            current_value: MeasureValue::Number(0.0),
++        }
++    }
++}
++
++impl Default for UptimeMeasure {
++    fn default() -> Self {
++        Self::new()
++    }
++}
++
++impl Measure for UptimeMeasure {
++    fn update(&mut self) -> MeasureValue {
++        let content = match std::fs::read_to_string(&self.uptime_path) {
++            Ok(c) => c,
++            Err(_) => return self.current_value.clone(),
++        };
++
++        let uptime_secs: f64 = content
++            .split_whitespace()
++            .next()
++            .and_then(|s| s.parse::<f64>().ok())
++            .unwrap_or(0.0);
++
++        if let Some(ref fmt) = self.format {
++            let total_secs = uptime_secs.floor() as u64;
++            let days = total_secs / 86400;
++            let hours = (total_secs % 86400) / 3600;
++            let mins = (total_secs % 3600) / 60;
++            let secs = total_secs % 60;
++
++            // Handle Rainmeter format specifiers: %4 = days, %3 = hours, %2 = mins, %1 = secs
++            let mut formatted = fmt.clone();
++            formatted = formatted.replace("%4!02d!", &format!("{:02}", days));
++            formatted = formatted.replace("%4!d!", &format!("{}", days));
++            formatted = formatted.replace("%3!02d!", &format!("{:02}", hours));
++            formatted = formatted.replace("%3!d!", &format!("{}", hours));
++            formatted = formatted.replace("%2!02d!", &format!("{:02}", mins));
++            formatted = formatted.replace("%2!d!", &format!("{}", mins));
++            formatted = formatted.replace("%1!02d!", &format!("{:02}", secs));
++            formatted = formatted.replace("%1!d!", &format!("{}", secs));
++
++            self.current_value = MeasureValue::String(formatted);
++        } else {
++            self.current_value = MeasureValue::Number(uptime_secs);
++        }
++
++        self.current_value.clone()
++    }
++
++    fn get_value(&self) -> MeasureValue {
++        self.current_value.clone()
++    }
++}
++
++/// Type of network bandwidth measurement.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum NetMeasureType {
++    In,
++    Out,
++    Total,
++}
++
++/// Linux network bandwidth delta measure reading `/proc/net/dev`.
++#[derive(Debug)]
++pub struct NetMeasure {
++    dev_path: PathBuf,
++    net_type: NetMeasureType,
++    interface: Option<String>,
++    prev_rx_bytes: u64,
++    prev_tx_bytes: u64,
++    prev_time: Option<Instant>,
++    buffer: String,
++    current_value: MeasureValue,
++}
++
++impl NetMeasure {
++    /// Create a new network measure for In, Out, or Total traffic.
++    pub fn new(net_type: NetMeasureType) -> Self {
++        Self::with_path(PathBuf::from("/proc/net/dev"), net_type, None)
++    }
++
++    /// Create with specific interface (e.g. `"eth0"` or `"wlan0"`).
++    pub fn with_interface(net_type: NetMeasureType, interface: Option<String>) -> Self {
++        Self::with_path(PathBuf::from("/proc/net/dev"), net_type, interface)
++    }
++
++    /// Create with custom path and interface.
++    pub fn with_path(
++        dev_path: PathBuf,
++        net_type: NetMeasureType,
++        interface: Option<String>,
++    ) -> Self {
++        Self {
++            dev_path,
++            net_type,
++            interface,
++            prev_rx_bytes: 0,
++            prev_tx_bytes: 0,
++            prev_time: None,
++            buffer: String::with_capacity(2048),
++            current_value: MeasureValue::Number(0.0),
++        }
++    }
++
++    /// Set path to `/proc/net/dev`.
++    pub fn set_dev_path(&mut self, path: PathBuf) {
++        self.dev_path = path;
++    }
++
++    /// Instantiate from `MeasureConfig`.
++    pub fn from_config(config: &MeasureConfig) -> Self {
++        let m_type = config.measure_type.to_ascii_lowercase();
++        let net_type = match m_type.as_str() {
++            "netin" => NetMeasureType::In,
++            "netout" => NetMeasureType::Out,
++            _ => NetMeasureType::Total,
++        };
++
++        let interface = config.get("interface").map(|s| s.to_string());
++        Self::with_interface(net_type, interface)
++    }
++}
++
++impl Measure for NetMeasure {
++    fn update(&mut self) -> MeasureValue {
++        self.buffer.clear();
++        let mut file = match File::open(&self.dev_path) {
++            Ok(f) => f,
++            Err(_) => return self.current_value.clone(),
++        };
++
++        if file.read_to_string(&mut self.buffer).is_err() {
++            return self.current_value.clone();
++        }
++
++        let mut total_rx: u64 = 0;
++        let mut total_tx: u64 = 0;
++
++        for line in self.buffer.lines().skip(2) {
++            if let Some((iface, stats)) = line.split_once(':') {
++                let iface_name = iface.trim();
++
++                // If specific interface requested, filter on it
++                if let Some(ref target) = self.interface {
++                    if !target.eq_ignore_ascii_case("all")
++                        && !target.eq_ignore_ascii_case("0")
++                        && !iface_name.eq_ignore_ascii_case(target)
++                    {
++                        continue;
++                    }
++                } else if iface_name == "lo" {
++                    // Default to ignoring loopback interface
++                    continue;
++                }
++
++                let mut fields = stats.split_whitespace();
++                let rx_bytes = fields.next().and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++                // Transmit bytes is field index 8 (9th field in numbers)
++                let tx_bytes = fields.nth(7).and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
++
++                total_rx += rx_bytes;
++                total_tx += tx_bytes;
++            }
++        }
++
++        let now = Instant::now();
++        if let Some(prev_instant) = self.prev_time {
++            let elapsed_secs = now.duration_since(prev_instant).as_secs_f64();
++            let delta_rx = total_rx.saturating_sub(self.prev_rx_bytes);
++            let delta_tx = total_tx.saturating_sub(self.prev_tx_bytes);
++
++            let delta_bytes = match self.net_type {
++                NetMeasureType::In => delta_rx,
++                NetMeasureType::Out => delta_tx,
++                NetMeasureType::Total => delta_rx + delta_tx,
++            };
++
++            let rate = if elapsed_secs > 0.0 {
++                delta_bytes as f64 / elapsed_secs
++            } else {
++                delta_bytes as f64
++            };
++
++            self.prev_rx_bytes = total_rx;
++            self.prev_tx_bytes = total_tx;
++            self.prev_time = Some(now);
++            self.current_value = MeasureValue::Number(rate);
++        } else {
++            self.prev_rx_bytes = total_rx;
++            self.prev_tx_bytes = total_tx;
++            self.prev_time = Some(now);
++            self.current_value = MeasureValue::Number(0.0);
++        }
++
++        self.current_value.clone()
++    }
++
++    fn get_value(&self) -> MeasureValue {
++        self.current_value.clone()
++    }
++}
+diff --git a/crates/pluvia-core/src/measures/time.rs b/crates/pluvia-core/src/measures/time.rs
+new file mode 100644
+index 0000000..b5a21f0
+--- /dev/null
++++ b/crates/pluvia-core/src/measures/time.rs
+@@ -0,0 +1,105 @@
++use crate::ini::MeasureConfig;
++use crate::measures::{Measure, MeasureValue};
++use chrono::{DateTime, Local};
++
++/// Measure that produces local or formatted time strings via strftime.
++#[derive(Debug, Clone)]
++pub struct TimeMeasure {
++    format: String,
++    time_zone: Option<String>,
++    current_value: MeasureValue,
++    custom_time: Option<DateTime<Local>>,
++}
++
++impl TimeMeasure {
++    /// Create a new `TimeMeasure` with the given strftime format string.
++    pub fn new(format: &str) -> Self {
++        Self {
++            format: format.to_string(),
++            time_zone: None,
++            current_value: MeasureValue::String(String::new()),
++            custom_time: None,
++        }
++    }
++
++    /// Instantiate a `TimeMeasure` from a parsed `MeasureConfig`.
++    pub fn from_config(config: &MeasureConfig) -> Self {
++        let format = config
++            .format
++            .as_deref()
++            .or_else(|| config.get("format"))
++            .unwrap_or("%H:%M:%S")
++            .to_string();
++
++        let time_zone = config.get("timezone").map(|s| s.to_string());
++
++        Self {
++            format,
++            time_zone,
++            current_value: MeasureValue::String(String::new()),
++            custom_time: None,
++        }
++    }
++
++    /// Return the configured timezone setting.
++    pub fn time_zone(&self) -> Option<&str> {
++        self.time_zone.as_deref()
++    }
++
++    /// Set timezone setting.
++    pub fn set_time_zone(&mut self, tz: Option<String>) {
++        self.time_zone = tz;
++    }
++
++    /// Provide a custom timestamp (useful for deterministic tests).
++    pub fn with_custom_time(mut self, dt: DateTime<Local>) -> Self {
++        self.custom_time = Some(dt);
++        self
++    }
++
++    /// Set or clear the custom timestamp.
++    pub fn set_custom_time(&mut self, dt: Option<DateTime<Local>>) {
++        self.custom_time = dt;
++    }
++
++    /// Update format string dynamically.
++    pub fn set_format(&mut self, format: &str) {
++        self.format = format.to_string();
++    }
++}
++
++impl Measure for TimeMeasure {
++    fn update(&mut self) -> MeasureValue {
++        let base = self.custom_time.unwrap_or_else(Local::now);
++
++        // Convert Windows-style non-padded specifiers (%#d, %#H, %#I, %#m, etc.) to chrono (%-d, %-H, etc.)
++        let chrono_fmt = self.format.replace("%#", "%-");
++
++        let formatted = if let Some(ref tz) = self.time_zone {
++            let lower = tz.trim().to_ascii_lowercase();
++            if lower == "utc" || lower == "gmt" || lower == "0" {
++                let utc_dt = base.naive_utc().and_utc();
++                utc_dt.format(&chrono_fmt).to_string()
++            } else if let Ok(offset_hours) = lower.parse::<f64>() {
++                let offset_secs = (offset_hours * 3600.0) as i32;
++                if let Some(offset) = chrono::FixedOffset::east_opt(offset_secs) {
++                    let dt = base.naive_utc().and_local_timezone(offset).unwrap();
++                    dt.format(&chrono_fmt).to_string()
++                } else {
++                    base.format(&chrono_fmt).to_string()
++                }
++            } else {
++                base.format(&chrono_fmt).to_string()
++            }
++        } else {
++            base.format(&chrono_fmt).to_string()
++        };
++
++        self.current_value = MeasureValue::String(formatted);
++        self.current_value.clone()
++    }
++
++    fn get_value(&self) -> MeasureValue {
++        self.current_value.clone()
++    }
++}
+diff --git a/crates/pluvia-core/tests/test_measures.rs b/crates/pluvia-core/tests/test_measures.rs
+new file mode 100644
+index 0000000..4d23a83
+--- /dev/null
++++ b/crates/pluvia-core/tests/test_measures.rs
+@@ -0,0 +1,355 @@
++use chrono::TimeZone;
++use pluvia_core::ini::MeasureConfig;
++use pluvia_core::measures::mpris::{NowPlayingData, NowPlayingMeasure, PlayerType};
++use pluvia_core::measures::system::{
++    CpuMeasure, DiskMeasure, MemoryMeasure, NetMeasure, NetMeasureType, UptimeMeasure,
++};
++use pluvia_core::measures::time::TimeMeasure;
++use pluvia_core::measures::{create_measure, Measure, MeasureValue};
++use std::collections::HashMap;
++use std::io::Write;
++use tempfile::NamedTempFile;
++
++#[test]
++fn test_measure_value_conversions() {
++    let str_val = MeasureValue::String("42.5".to_string());
++    assert_eq!(str_val.to_string_val(), "42.5");
++    assert_eq!(str_val.to_number_val(), 42.5);
++    assert_eq!(str_val.as_str(), Some("42.5"));
++    assert_eq!(str_val.as_f64(), None);
++
++    let num_val = MeasureValue::Number(100.0);
++    assert_eq!(num_val.to_string_val(), "100");
++    assert_eq!(num_val.to_number_val(), 100.0);
++    assert_eq!(num_val.as_str(), None);
++    assert_eq!(num_val.as_f64(), Some(100.0));
++
++    let float_val = MeasureValue::Number(3.1415);
++    assert_eq!(float_val.to_string_val(), "3.1415");
++    assert_eq!(float_val.to_number_val(), 3.1415);
++
++    // Display implementation
++    assert_eq!(format!("{}", str_val), "42.5");
++    assert_eq!(format!("{}", num_val), "100");
++}
++
++#[test]
++fn test_time_measure_formatting() {
++    let mut m = TimeMeasure::new("%Y-%m-%d");
++    let val = m.update();
++    if let MeasureValue::String(s) = val {
++        assert_eq!(s.len(), 10);
++        assert!(s.contains('-'));
++    } else {
++        panic!("Expected string value");
++    }
++
++    let mut m_time = TimeMeasure::new("%H:%M");
++    let val_time = m_time.update();
++    if let MeasureValue::String(s) = val_time {
++        assert_eq!(s.len(), 5);
++        assert!(s.contains(':'));
++    } else {
++        panic!("Expected string value");
++    }
++
++    // Windows %#d format code (strip leading zeros)
++    let mut m_win = TimeMeasure::new("%Y-%#m-%#d");
++    let dt = chrono::Local.with_ymd_and_hms(2026, 9, 5, 8, 30, 0).unwrap();
++    m_win.set_custom_time(Some(dt));
++    let val_win = m_win.update();
++    assert_eq!(val_win.to_string_val(), "2026-9-5");
++
++    // UTC timezone support
++    let mut m_utc = TimeMeasure::new("%H:%M");
++    m_utc.set_time_zone(Some("utc".to_string()));
++    m_utc.set_custom_time(Some(dt));
++    let val_utc = m_utc.update();
++    assert_eq!(val_utc.to_string_val(), dt.naive_utc().format("%H:%M").to_string());
++}
++
++#[test]
++fn test_cpu_measure_delta_calculation() {
++    // Test real system CPU read
++    let mut cpu = CpuMeasure::new();
++    let val1 = cpu.update();
++    assert!(val1.to_number_val() >= 0.0 && val1.to_number_val() <= 100.0);
++
++    // Test mocked /proc/stat delta calculation
++    let mut file1 = NamedTempFile::new().unwrap();
++    // Sample tick 1: total = 100, idle = 80 -> work = 20
++    writeln!(file1, "cpu  20 0 0 80 0 0 0 0 0 0").unwrap();
++    let mut mock_cpu = CpuMeasure::with_path(file1.path().to_path_buf(), None);
++    let initial = mock_cpu.update();
++    assert_eq!(initial.to_number_val(), 0.0); // No previous tick yet
++
++    // Tick 2: delta total = 100, delta idle = 50 -> delta work = 50 -> 50%
++    let mut file2 = NamedTempFile::new().unwrap();
++    writeln!(file2, "cpu  70 0 0 130 0 0 0 0 0 0").unwrap();
++    mock_cpu.set_stat_path(file2.path().to_path_buf());
++    let second = mock_cpu.update();
++    assert!((second.to_number_val() - 50.0).abs() < 1e-3);
++}
++
++#[test]
++fn test_cpu_measure_per_core() {
++    let mut file1 = NamedTempFile::new().unwrap();
++    writeln!(file1, "cpu  100 0 0 100 0 0 0 0 0 0").unwrap();
++    writeln!(file1, "cpu0 50 0 0 50 0 0 0 0 0 0").unwrap();
++    writeln!(file1, "cpu1 10 0 0 90 0 0 0 0 0 0").unwrap();
++
++    let mut core0 = CpuMeasure::with_path(file1.path().to_path_buf(), Some(1));
++    assert_eq!(core0.update().to_number_val(), 0.0);
++
++    let mut file2 = NamedTempFile::new().unwrap();
++    writeln!(file2, "cpu  200 0 0 200 0 0 0 0 0 0").unwrap();
++    writeln!(file2, "cpu0 80 0 0 70 0 0 0 0 0 0").unwrap(); // delta total = 50, delta idle = 20, delta work = 30 -> 60%
++    writeln!(file2, "cpu1 20 0 0 180 0 0 0 0 0 0").unwrap();
++
++    core0.set_stat_path(file2.path().to_path_buf());
++    let val = core0.update();
++    assert!((val.to_number_val() - 60.0).abs() < 1e-3);
++}
++
++#[test]
++fn test_system_memory_measure() {
++    let mut mem = MemoryMeasure::new("used_percent");
++    let val = mem.update();
++    if let MeasureValue::Number(pct) = val {
++        assert!(pct >= 0.0 && pct <= 100.0);
++    } else {
++        panic!("Expected numeric percent");
++    }
++
++    let mut mem_total = MemoryMeasure::new("total");
++    let total_val = mem_total.update();
++    assert!(total_val.to_number_val() > 0.0);
++
++    let mut mem_used = MemoryMeasure::new("used");
++    let used_val = mem_used.update();
++    assert!(used_val.to_number_val() > 0.0);
++}
++
++#[test]
++fn test_mocked_memory_measure() {
++    let mut file = NamedTempFile::new().unwrap();
++    writeln!(file, "MemTotal:       16000000 kB").unwrap();
++    writeln!(file, "MemFree:         4000000 kB").unwrap();
++    writeln!(file, "MemAvailable:    8000000 kB").unwrap();
++    writeln!(file, "SwapTotal:       8000000 kB").unwrap();
++    writeln!(file, "SwapFree:        6000000 kB").unwrap();
++
++    let mut mem_pct = MemoryMeasure::with_path(file.path().to_path_buf(), "used_percent");
++    // total = 16GB, available = 8GB -> used = 8GB -> 50%
++    assert_eq!(mem_pct.update().to_number_val(), 50.0);
++
++    let mut mem_free = MemoryMeasure::with_path(file.path().to_path_buf(), "free");
++    assert_eq!(mem_free.update().to_number_val(), 8000000.0 * 1024.0);
++
++    let mut swap_pct = MemoryMeasure::with_path(file.path().to_path_buf(), "swap_percent");
++    // swap total = 8GB, swap free = 6GB -> swap used = 2GB -> 25%
++    assert_eq!(swap_pct.update().to_number_val(), 25.0);
++}
++
++#[test]
++fn test_disk_measure() {
++    let mut disk_free = DiskMeasure::new("/", "free");
++    let free_bytes = disk_free.update().to_number_val();
++    assert!(free_bytes > 0.0);
++
++    let mut disk_total = DiskMeasure::new("/", "total");
++    let total_bytes = disk_total.update().to_number_val();
++    assert!(total_bytes >= free_bytes);
++
++    let mut disk_pct = DiskMeasure::new("/", "percent");
++    let pct = disk_pct.update().to_number_val();
++    assert!(pct >= 0.0 && pct <= 100.0);
++
++    // Non-existent path returns 0.0 gracefully
++    let mut invalid = DiskMeasure::new("/nonexistent_path_404", "free");
++    assert_eq!(invalid.update().to_number_val(), 0.0);
++}
++
++#[test]
++fn test_uptime_measure() {
++    let mut uptime = UptimeMeasure::new();
++    let val = uptime.update();
++    assert!(val.to_number_val() > 0.0);
++
++    // Mocked uptime with Rainmeter formatting
++    let mut file = NamedTempFile::new().unwrap();
++    // 90061.5 seconds = 1 day, 1 hour, 1 minute, 1 second
++    writeln!(file, "90061.50 12345.67").unwrap();
++    let mut formatted_uptime = UptimeMeasure::with_path(file.path().to_path_buf())
++        .with_format("%4!02d!:%3!02d!:%2!02d!:%1!02d!");
++    let val = formatted_uptime.update();
++    assert_eq!(val.to_string_val(), "01:01:01:01");
++}
++
++#[test]
++fn test_net_measure() {
++    let mut net_in = NetMeasure::new(NetMeasureType::In);
++    let val = net_in.update();
++    assert!(val.to_number_val() >= 0.0);
++
++    let mut net_out = NetMeasure::new(NetMeasureType::Out);
++    let val_out = net_out.update();
++    assert!(val_out.to_number_val() >= 0.0);
++}
++
++#[test]
++fn test_mpris_now_playing_measure_real_and_mock() {
++    // Real system query (falls back gracefully if no player running)
++    let mut np = NowPlayingMeasure::new(PlayerType::Title);
++    let val = np.update();
++    assert!(matches!(val, MeasureValue::String(_)));
++
++    // Mocked player data testing all PlayerTypes
++    let mock = NowPlayingData {
++        title: "Starboy".to_string(),
++        artist: "The Weeknd".to_string(),
++        album: "Starboy Album".to_string(),
++        cover: "file:///path/to/cover.jpg".to_string(),
++        state: 1, // Playing
++        status: 1,
++        duration: 230.0,
++        position: 115.0,
++    };
++
++    let mut m_title = NowPlayingMeasure::new(PlayerType::Title).with_mock_data(mock.clone());
++    assert_eq!(m_title.update().to_string_val(), "Starboy");
++
++    let mut m_artist = NowPlayingMeasure::new(PlayerType::Artist).with_mock_data(mock.clone());
++    assert_eq!(m_artist.update().to_string_val(), "The Weeknd");
++
++    let mut m_album = NowPlayingMeasure::new(PlayerType::Album).with_mock_data(mock.clone());
++    assert_eq!(m_album.update().to_string_val(), "Starboy Album");
++
++    let mut m_cover = NowPlayingMeasure::new(PlayerType::Cover).with_mock_data(mock.clone());
++    assert_eq!(m_cover.update().to_string_val(), "file:///path/to/cover.jpg");
++
++    let mut m_state = NowPlayingMeasure::new(PlayerType::State).with_mock_data(mock.clone());
++    assert_eq!(m_state.update().to_number_val(), 1.0);
++
++    let mut m_prog = NowPlayingMeasure::new(PlayerType::Progress).with_mock_data(mock.clone());
++    assert_eq!(m_prog.update().to_number_val(), 50.0);
++}
++
++#[test]
++fn test_measure_factory_from_config() {
++    // Time measure
++    let mut props = HashMap::new();
++    props.insert("format".to_string(), "%H:%M".to_string());
++    let cfg = MeasureConfig {
++        name: "MeasureTime".to_string(),
++        measure_type: "Time".to_string(),
++        plugin: None,
++        format: Some("%H:%M".to_string()),
++        formula: None,
++        update_divider: 1,
++        disabled: false,
++        dynamic_variables: false,
++        properties: props,
++    };
++    let mut measure = create_measure(&cfg).expect("Failed to create Time measure");
++    let val = measure.update();
++    assert!(matches!(val, MeasureValue::String(_)));
++
++    // CPU measure
++    let cpu_props = HashMap::new();
++    let cpu_cfg = MeasureConfig {
++        name: "MeasureCPU".to_string(),
++        measure_type: "CPU".to_string(),
++        plugin: None,
++        format: None,
++        formula: None,
++        update_divider: 1,
++        disabled: false,
++        dynamic_variables: false,
++        properties: cpu_props,
++    };
++    let mut cpu_measure = create_measure(&cpu_cfg).expect("Failed to create CPU measure");
++    let val = cpu_measure.update();
++    assert!(matches!(val, MeasureValue::Number(_)));
++
++    // Memory measure
++    let mut mem_props = HashMap::new();
++    mem_props.insert("percent".to_string(), "1".to_string());
++    let mem_cfg = MeasureConfig {
++        name: "MeasureMem".to_string(),
++        measure_type: "PhysicalMemory".to_string(),
++        plugin: None,
++        format: None,
++        formula: None,
++        update_divider: 1,
++        disabled: false,
++        dynamic_variables: false,
++        properties: mem_props,
++    };
++    let mut mem_measure = create_measure(&mem_cfg).expect("Failed to create Memory measure");
++    assert!(mem_measure.update().to_number_val() >= 0.0);
++
++    // FreeDiskSpace measure
++    let mut disk_props = HashMap::new();
++    disk_props.insert("drive".to_string(), "C:".to_string());
++    let disk_cfg = MeasureConfig {
++        name: "MeasureDisk".to_string(),
++        measure_type: "FreeDiskSpace".to_string(),
++        plugin: None,
++        format: None,
++        formula: None,
++        update_divider: 1,
++        disabled: false,
++        dynamic_variables: false,
++        properties: disk_props,
++    };
++    let mut disk_measure = create_measure(&disk_cfg).expect("Failed to create Disk measure");
++    assert!(disk_measure.update().to_number_val() > 0.0);
++
++    // Uptime measure
++    let uptime_cfg = MeasureConfig {
++        name: "MeasureUptime".to_string(),
++        measure_type: "Uptime".to_string(),
++        plugin: None,
++        format: None,
++        formula: None,
++        update_divider: 1,
++        disabled: false,
++        dynamic_variables: false,
++        properties: HashMap::new(),
++    };
++    let mut uptime_measure = create_measure(&uptime_cfg).expect("Failed to create Uptime measure");
++    assert!(uptime_measure.update().to_number_val() > 0.0);
++
++    // NetIn measure
++    let net_cfg = MeasureConfig {
++        name: "MeasureNet".to_string(),
++        measure_type: "NetIn".to_string(),
++        plugin: None,
++        format: None,
++        formula: None,
++        update_divider: 1,
++        disabled: false,
++        dynamic_variables: false,
++        properties: HashMap::new(),
++    };
++    let mut net_measure = create_measure(&net_cfg).expect("Failed to create Net measure");
++    assert!(net_measure.update().to_number_val() >= 0.0);
++
++    // NowPlaying plugin measure
++    let mut np_props = HashMap::new();
++    np_props.insert("playertype".to_string(), "artist".to_string());
++    let np_cfg = MeasureConfig {
++        name: "MeasureNP".to_string(),
++        measure_type: "Plugin".to_string(),
++        plugin: Some("NowPlaying.dll".to_string()),
++        format: None,
++        formula: None,
++        update_divider: 1,
++        disabled: false,
++        dynamic_variables: false,
++        properties: np_props,
++    };
++    let mut np_measure = create_measure(&np_cfg).expect("Failed to create NowPlaying measure");
++    assert!(matches!(np_measure.update(), MeasureValue::String(_)));
++}
