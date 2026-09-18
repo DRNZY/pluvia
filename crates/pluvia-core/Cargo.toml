@@ -6,3 +6,6 @@ edition = "2021"
 [dependencies]
 encoding_rs = "0.8"
 thiserror.workspace = true
+zip = "2.2"
+tempfile = "3.12"
+
