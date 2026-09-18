@@ -126,6 +126,9 @@ impl MeterRenderer {
                     "roundline" => self.render_roundline(&cr, meter, x, y, w, h, state)?,
                     "shape" => self.render_shape(&cr, meter, x, y)?,
                     "histogram" => self.render_histogram(&cr, meter, x, y, w, h, state)?,
+                    "rotator" => self.render_rotator(&cr, meter, x, y, w, h, state)?,
+                    "bitmap" => self.render_bitmap(&cr, meter, x, y, w, h, state)?,
+                    "line" => self.render_line(&cr, meter, x, y, w, h, state)?,
                     _ => Rect::new(x, y, w, h),
                 };
 
@@ -810,6 +813,197 @@ impl MeterRenderer {
             cr.line_to(last_x, y + h);
             cr.close_path();
             cr.fill()?;
+            cr.restore()?;
+        }
+
+        Ok(Rect::new(x, y, w, h))
+    }
+
+    fn render_rotator(
+        &self,
+        cr: &Context,
+        meter: &MeterConfig,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        state: &SkinState,
+    ) -> Result<Rect, RenderError> {
+        let image_raw = meter
+            .get("imagename")
+            .or_else(|| meter.get("image"))
+            .unwrap_or("");
+
+        let image_path = self.resolve_image_path(image_raw, &state.config.skin_dir);
+        let img = if let Some(p) = image_path {
+            self.load_cairo_image(&p, meter.get("imagetint"))?
+        } else {
+            return Ok(Rect::new(x, y, w, h));
+        };
+
+        let img_w = img.width() as f64;
+        let img_h = img.height() as f64;
+
+        let offset_x = meter
+            .get("offsetx")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(img_w / 2.0);
+        let offset_y = meter
+            .get("offsety")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(img_h / 2.0);
+
+        let start_angle = meter
+            .get("startangle")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(0.0);
+        let rotation_angle = meter
+            .get("rotationangle")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(std::f64::consts::TAU);
+
+        let val = meter
+            .measure_name
+            .as_deref()
+            .and_then(|m| state.get_measure_value(m))
+            .map(|v| v.to_number_val())
+            .unwrap_or(0.0);
+
+        let max_val = meter
+            .get("valueremainder")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(1.0);
+
+        let norm_val = if max_val != 0.0 { (val % max_val) / max_val } else { 0.0 };
+        let angle = start_angle + norm_val * rotation_angle;
+
+        cr.save()?;
+        cr.translate(x + offset_x, y + offset_y);
+        cr.rotate(angle);
+        cr.set_source_surface(&img, -offset_x, -offset_y)?;
+        cr.paint()?;
+        cr.restore()?;
+
+        Ok(Rect::new(x, y, img_w.max(w), img_h.max(h)))
+    }
+
+    fn render_bitmap(
+        &self,
+        cr: &Context,
+        meter: &MeterConfig,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        state: &SkinState,
+    ) -> Result<Rect, RenderError> {
+        let image_raw = meter
+            .get("bitmapimage")
+            .or_else(|| meter.get("imagename"))
+            .unwrap_or("");
+
+        let image_path = self.resolve_image_path(image_raw, &state.config.skin_dir);
+        let img = if let Some(p) = image_path {
+            self.load_cairo_image(&p, meter.get("imagetint"))?
+        } else {
+            return Ok(Rect::new(x, y, w, h));
+        };
+
+        let frames = meter
+            .get("bitmapframes")
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(1)
+            .max(1);
+
+        let val = meter
+            .measure_name
+            .as_deref()
+            .and_then(|m| state.get_measure_value(m))
+            .map(|v| v.to_number_val())
+            .unwrap_or(0.0);
+
+        let frame_idx = (val as usize).min(frames - 1);
+
+        let img_w = img.width() as f64;
+        let img_h = img.height() as f64;
+
+        let (frame_w, frame_h, src_x, src_y) = if img_w > img_h {
+            let fw = img_w / frames as f64;
+            (fw, img_h, frame_idx as f64 * fw, 0.0)
+        } else {
+            let fh = img_h / frames as f64;
+            (img_w, fh, 0.0, frame_idx as f64 * fh)
+        };
+
+        cr.save()?;
+        cr.rectangle(x, y, frame_w, frame_h);
+        cr.clip();
+        cr.set_source_surface(&img, x - src_x, y - src_y)?;
+        cr.paint()?;
+        cr.restore()?;
+
+        Ok(Rect::new(x, y, frame_w.max(w), frame_h.max(h)))
+    }
+
+    fn render_line(
+        &self,
+        cr: &Context,
+        meter: &MeterConfig,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        state: &SkinState,
+    ) -> Result<Rect, RenderError> {
+        let val = meter
+            .measure_name
+            .as_deref()
+            .and_then(|m| state.get_measure_value(m))
+            .map(|v| v.to_number_val())
+            .unwrap_or(0.0);
+
+        let color = meter
+            .get("linecolor")
+            .and_then(Color::parse)
+            .unwrap_or(Color::WHITE);
+
+        let line_width = meter
+            .get("linewidth")
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(1.0);
+
+        let mut map = self.histogram_history.lock().unwrap();
+        let history = map.entry(meter.name.to_ascii_lowercase()).or_default();
+        history.push_back(val);
+        while history.len() > 100 {
+            history.pop_front();
+        }
+
+        if history.len() >= 2 && w > 0.0 && h > 0.0 {
+            cr.save()?;
+            cr.set_source_rgba(color.r, color.g, color.b, color.a);
+            cr.set_line_width(line_width);
+
+            let max_val = meter
+                .get("maxvalue")
+                .and_then(|s| s.parse::<f64>().ok())
+                .unwrap_or(100.0)
+                .max(1.0);
+
+            let step = (w / 100.0).max(1.0);
+            let start_x = x + w - (history.len() - 1) as f64 * step;
+
+            let first_val = history[0];
+            let first_y = y + h - ((first_val / max_val).clamp(0.0, 1.0) * h);
+            cr.move_to(start_x, first_y);
+
+            for (i, &v) in history.iter().enumerate().skip(1) {
+                let px = start_x + i as f64 * step;
+                let py = y + h - ((v / max_val).clamp(0.0, 1.0) * h);
+                cr.line_to(px, py);
+            }
+
+            cr.stroke()?;
             cr.restore()?;
         }
 

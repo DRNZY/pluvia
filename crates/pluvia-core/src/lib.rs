@@ -1,3 +1,4 @@
+pub mod bangs;
 pub mod encoding;
 pub mod extractor;
 pub mod formulas;

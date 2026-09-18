@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Pluvia Studio
+Comment=Rainmeter Skin Manager and Customizer for Linux
+Exec=/home/darnell/Projects/pluvia/target/release/pluvia-studio
+Icon=preferences-desktop-wallpaper
+Terminal=false
+Type=Application
+Categories=Utility;Settings;DesktopSettings;
+Keywords=Rainmeter;Skin;Widget;Desktop;Clock;Pluvia;
+StartupNotify=true

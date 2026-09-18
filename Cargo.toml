@@ -3,6 +3,7 @@ members = [
     "crates/pluvia-core",
     "crates/pluvia-daemon",
     "crates/pluvia-cli",
+    "crates/pluvia-studio",
 ]
 resolver = "2"
 

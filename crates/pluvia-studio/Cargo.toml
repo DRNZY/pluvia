@@ -1,0 +1,13 @@
+[package]
+name = "pluvia-studio"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gtk4 = { version = "0.9", features = ["v4_14"] }
+libadwaita = { version = "0.7", features = ["v1_5"] }
+pluvia-core = { path = "../pluvia-core" }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

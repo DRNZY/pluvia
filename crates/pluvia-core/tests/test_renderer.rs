@@ -606,3 +606,70 @@ fn test_text_rotation_origin_and_bounds() {
     let mask = AlphaHitMask::from_surface(&rot_surface);
     assert!(!mask.is_empty());
 }
+
+#[test]
+fn test_meter_renderer_rotator_bitmap_and_line() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let img_path = temp_dir.path().join("dial.png");
+
+    // Create a dummy 40x40 red image
+    let dummy_img = image::RgbaImage::from_pixel(40, 40, image::Rgba([255, 0, 0, 255]));
+    dummy_img.save(&img_path).unwrap();
+
+    let ini = format!(r#"
+[Rainmeter]
+Update=1000
+
+[MeasureVal]
+Measure=Time
+
+[MeterRot]
+Meter=Rotator
+MeasureName=MeasureVal
+ImageName="{}"
+OffsetX=20
+OffsetY=20
+StartAngle=0.0
+RotationAngle=6.28
+ValueRemainder=60
+X=10
+Y=10
+W=50
+H=50
+
+[MeterBmp]
+Meter=Bitmap
+MeasureName=MeasureVal
+BitmapImage="{}"
+BitmapFrames=4
+X=70
+Y=10
+W=40
+H=40
+
+[MeterGraph]
+Meter=Line
+MeasureName=MeasureVal
+LineColor=0,255,0,255
+LineWidth=2
+X=10
+Y=70
+W=100
+H=40
+"#, img_path.to_str().unwrap(), img_path.to_str().unwrap());
+
+    let config = parse_skin_ini(&ini, temp_dir.path()).unwrap();
+    let mut measure_values = HashMap::new();
+    measure_values.insert("measureval".to_string(), MeasureValue::Number(15.0));
+
+    let state = SkinState {
+        config,
+        measure_values,
+    };
+
+    let surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
+    let renderer = MeterRenderer::new();
+    let mask = renderer.render_to_surface(&state, &surface).unwrap();
+
+    assert!(!mask.is_empty());
+}

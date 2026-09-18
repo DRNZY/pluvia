@@ -51,7 +51,7 @@ fn test_mond_clock_ini_structure() {
     // Variables
     assert_eq!(config.variables.get("fontname").unwrap(), "Anurati");
     assert_eq!(config.variables.get("fontname2").unwrap(), "Quicksand");
-    assert_eq!(config.variables.get("scale").unwrap(), "1.0");
+    assert_eq!(config.variables.get("scale").unwrap().parse::<f64>().unwrap(), 1.0);
 
     // Measures
     assert!(config.measures.contains_key("measureday"));
