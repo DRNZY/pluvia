@@ -111,7 +111,20 @@ impl SkinRuntime {
         }
         let w = (max_w.ceil() as u32).max(200);
         let h = (max_h.ceil() as u32).max(100);
-        SurfaceBounds::new(0, 0, w, h)
+
+        let rainmeter_sec = config.raw_sections.get("rainmeter");
+        let win_x = rainmeter_sec
+            .and_then(|s| s.get("windowx").or_else(|| s.get("skinx")))
+            .and_then(|v| v.parse::<i32>().ok())
+            .or_else(|| config.variables.get("skinx").and_then(|v| v.parse::<i32>().ok()))
+            .unwrap_or(0);
+        let win_y = rainmeter_sec
+            .and_then(|s| s.get("windowy").or_else(|| s.get("skiny")))
+            .and_then(|v| v.parse::<i32>().ok())
+            .or_else(|| config.variables.get("skiny").and_then(|v| v.parse::<i32>().ok()))
+            .unwrap_or(0);
+
+        SurfaceBounds::new(win_x, win_y, w, h)
     }
 
     fn create_surface(&self, id: &str, bounds: SurfaceBounds) -> Box<dyn DesktopSurface> {
@@ -126,7 +139,7 @@ impl SkinRuntime {
                 Anchor::TopLeft,
                 (0, 0),
             )),
-            BackendType::GnomeWayland => Box::new(GnomeBridgeSurface::new_extension(id, bounds)),
+            BackendType::GnomeWayland => Box::new(GnomeBridgeSurface::new_xwayland_fallback(id, bounds, 0)),
         }
     }
 
