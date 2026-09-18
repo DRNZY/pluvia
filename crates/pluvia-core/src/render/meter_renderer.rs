@@ -41,11 +41,17 @@ impl SkinState {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ImageCacheKey {
+    pub path: PathBuf,
+    pub tint: Option<String>,
+}
+
 /// 2D Meter Renderer driven by Pango and Cairo.
 pub struct MeterRenderer {
     text_renderer: PangoTextRenderer,
     vfs: VfsResolver,
-    image_cache: Mutex<HashMap<PathBuf, ImageSurface>>,
+    image_cache: Mutex<HashMap<ImageCacheKey, ImageSurface>>,
     histogram_history: Mutex<HashMap<String, VecDeque<f64>>>,
 }
 
@@ -534,7 +540,7 @@ impl MeterRenderer {
         cr.new_path();
 
         match kind.as_str() {
-            "rectangle" => {
+            "roundrectangle" | "rectangle" => {
                 if nums.len() >= 4 {
                     let rx_val = nums[0] + base_x;
                     let ry_val = nums[1] + base_y;
@@ -614,6 +620,73 @@ impl MeterRenderer {
                         (x2 - x1).abs().max((cx1 - x1).abs()),
                         (y2 - y1).abs().max((cy1 - y1).abs()),
                     ));
+                }
+            }
+            "path" => {
+                let raw_args = shape_decl
+                    .strip_prefix("path")
+                    .or_else(|| shape_decl.strip_prefix("Path"))
+                    .unwrap_or("")
+                    .trim();
+                let unquoted = raw_args.trim_matches('"').trim();
+                let has_svg = unquoted
+                    .chars()
+                    .any(|c| matches!(c, 'M' | 'm' | 'L' | 'l' | 'C' | 'c' | 'Z' | 'z'));
+
+                if has_svg {
+                    execute_svg_path(cr, unquoted, base_x, base_y)?;
+                } else {
+                    let start_nums: Vec<f64> = unquoted
+                        .split(&[' ', ','][..])
+                        .filter_map(|s| s.parse::<f64>().ok())
+                        .collect();
+                    if start_nums.len() >= 2 {
+                        cr.move_to(base_x + start_nums[0], base_y + start_nums[1]);
+                    }
+                }
+
+                for part in &parts[1..] {
+                    let p_trimmed = part.trim();
+                    let p_lower = p_trimmed.to_ascii_lowercase();
+                    if p_lower.starts_with("lineto") {
+                        let line_nums: Vec<f64> = p_trimmed["lineto".len()..]
+                            .split(&[' ', ','][..])
+                            .filter_map(|s| s.parse::<f64>().ok())
+                            .collect();
+                        if line_nums.len() >= 2 {
+                            cr.line_to(base_x + line_nums[0], base_y + line_nums[1]);
+                        }
+                    } else if p_lower.starts_with("curveto") {
+                        let curve_nums: Vec<f64> = p_trimmed["curveto".len()..]
+                            .split(&[' ', ','][..])
+                            .filter_map(|s| s.parse::<f64>().ok())
+                            .collect();
+                        if curve_nums.len() >= 6 {
+                            cr.curve_to(
+                                base_x + curve_nums[2],
+                                base_y + curve_nums[3],
+                                base_x + curve_nums[4],
+                                base_y + curve_nums[5],
+                                base_x + curve_nums[0],
+                                base_y + curve_nums[1],
+                            );
+                        } else if curve_nums.len() >= 4 {
+                            cr.curve_to(
+                                base_x + curve_nums[2],
+                                base_y + curve_nums[3],
+                                base_x + curve_nums[2],
+                                base_y + curve_nums[3],
+                                base_x + curve_nums[0],
+                                base_y + curve_nums[1],
+                            );
+                        }
+                    } else if p_lower.starts_with("closepath") || p_lower == "close" {
+                        cr.close_path();
+                    }
+                }
+
+                if let Ok((x1, y1, x2, y2)) = cr.path_extents() {
+                    bound = Some(Rect::new(x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0)));
                 }
             }
             _ => {}
@@ -728,14 +801,42 @@ impl MeterRenderer {
         path: &Path,
         tint: Option<&str>,
     ) -> Result<ImageSurface, RenderError> {
+        let cache_key = ImageCacheKey {
+            path: path.to_path_buf(),
+            tint: tint.map(str::to_string),
+        };
+
         let mut cache = self.image_cache.lock().unwrap();
-        if let Some(surf) = cache.get(path) {
+        if let Some(surf) = cache.get(&cache_key) {
             return Ok(surf.clone());
         }
 
-        let img = image::open(path).map_err(|e| RenderError::Image(e.to_string()))?;
-        let rgba = img.to_rgba8();
-        let (w, h) = rgba.dimensions();
+        let is_svg = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("svg"))
+            .unwrap_or(false);
+
+        let (w, h, rgba_bytes) = if is_svg {
+            let svg_data = std::fs::read(path).map_err(|e| RenderError::Image(e.to_string()))?;
+            let opt = resvg::usvg::Options::default();
+            let tree = resvg::usvg::Tree::from_data(&svg_data, &opt)
+                .map_err(|e| RenderError::Image(e.to_string()))?;
+            let pixmap_size = tree.size().to_int_size();
+            let mut pixmap = resvg::tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height())
+                .ok_or_else(|| RenderError::Image("Failed to allocate SVG pixmap".to_string()))?;
+            resvg::render(&tree, resvg::tiny_skia::Transform::default(), &mut pixmap.as_mut());
+            (
+                pixmap_size.width(),
+                pixmap_size.height(),
+                pixmap.take(),
+            )
+        } else {
+            let img = image::open(path).map_err(|e| RenderError::Image(e.to_string()))?;
+            let rgba = img.to_rgba8();
+            let (img_w, img_h) = rgba.dimensions();
+            (img_w, img_h, rgba.into_raw())
+        };
 
         let tint_col = tint.and_then(Color::parse);
 
@@ -746,12 +847,13 @@ impl MeterRenderer {
 
             for y in 0..h {
                 let row_offset = y as usize * stride;
+                let src_row_offset = (y * w) as usize * 4;
                 for x in 0..w {
-                    let pixel = rgba.get_pixel(x, y);
-                    let mut r = pixel[0] as f64 / 255.0;
-                    let mut g = pixel[1] as f64 / 255.0;
-                    let mut b = pixel[2] as f64 / 255.0;
-                    let mut a = pixel[3] as f64 / 255.0;
+                    let px_idx = src_row_offset + x as usize * 4;
+                    let mut r = rgba_bytes[px_idx] as f64 / 255.0;
+                    let mut g = rgba_bytes[px_idx + 1] as f64 / 255.0;
+                    let mut b = rgba_bytes[px_idx + 2] as f64 / 255.0;
+                    let mut a = rgba_bytes[px_idx + 3] as f64 / 255.0;
 
                     if let Some(t) = tint_col {
                         r *= t.r;
@@ -775,9 +877,181 @@ impl MeterRenderer {
             }
         }
 
-        cache.insert(path.to_path_buf(), surface.clone());
+        cache.insert(cache_key, surface.clone());
         Ok(surface)
     }
+}
+
+fn execute_svg_path(
+    cr: &Context,
+    path_str: &str,
+    base_x: f64,
+    base_y: f64,
+) -> Result<(), RenderError> {
+    let mut normalized = String::with_capacity(path_str.len() * 2);
+    let mut prev_char = ' ';
+    for ch in path_str.chars() {
+        if ch.is_ascii_alphabetic() {
+            normalized.push(' ');
+            normalized.push(ch);
+            normalized.push(' ');
+        } else if ch == ',' {
+            normalized.push(' ');
+        } else if ch == '-' && prev_char != 'e' && prev_char != 'E' {
+            normalized.push(' ');
+            normalized.push('-');
+        } else {
+            normalized.push(ch);
+        }
+        prev_char = ch;
+    }
+
+    let tokens: Vec<&str> = normalized.split_whitespace().collect();
+    let mut i = 0;
+    let mut current_cmd = ' ';
+    let mut cur_x = base_x;
+    let mut cur_y = base_y;
+
+    while i < tokens.len() {
+        let tok = tokens[i];
+        if tok.len() == 1 && tok.chars().next().unwrap().is_ascii_alphabetic() {
+            current_cmd = tok.chars().next().unwrap();
+            i += 1;
+        }
+
+        match current_cmd {
+            'M' => {
+                if i + 1 < tokens.len() {
+                    let x = tokens[i].parse::<f64>().unwrap_or(0.0);
+                    let y = tokens[i + 1].parse::<f64>().unwrap_or(0.0);
+                    cur_x = base_x + x;
+                    cur_y = base_y + y;
+                    cr.move_to(cur_x, cur_y);
+                    i += 2;
+                    current_cmd = 'L';
+                } else {
+                    break;
+                }
+            }
+            'm' => {
+                if i + 1 < tokens.len() {
+                    let dx = tokens[i].parse::<f64>().unwrap_or(0.0);
+                    let dy = tokens[i + 1].parse::<f64>().unwrap_or(0.0);
+                    cur_x += dx;
+                    cur_y += dy;
+                    cr.move_to(cur_x, cur_y);
+                    i += 2;
+                    current_cmd = 'l';
+                } else {
+                    break;
+                }
+            }
+            'L' => {
+                if i + 1 < tokens.len() {
+                    let x = tokens[i].parse::<f64>().unwrap_or(0.0);
+                    let y = tokens[i + 1].parse::<f64>().unwrap_or(0.0);
+                    cur_x = base_x + x;
+                    cur_y = base_y + y;
+                    cr.line_to(cur_x, cur_y);
+                    i += 2;
+                } else {
+                    break;
+                }
+            }
+            'l' => {
+                if i + 1 < tokens.len() {
+                    let dx = tokens[i].parse::<f64>().unwrap_or(0.0);
+                    let dy = tokens[i + 1].parse::<f64>().unwrap_or(0.0);
+                    cur_x += dx;
+                    cur_y += dy;
+                    cr.line_to(cur_x, cur_y);
+                    i += 2;
+                } else {
+                    break;
+                }
+            }
+            'H' => {
+                if i < tokens.len() {
+                    let x = tokens[i].parse::<f64>().unwrap_or(0.0);
+                    cur_x = base_x + x;
+                    cr.line_to(cur_x, cur_y);
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            'h' => {
+                if i < tokens.len() {
+                    let dx = tokens[i].parse::<f64>().unwrap_or(0.0);
+                    cur_x += dx;
+                    cr.line_to(cur_x, cur_y);
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            'V' => {
+                if i < tokens.len() {
+                    let y = tokens[i].parse::<f64>().unwrap_or(0.0);
+                    cur_y = base_y + y;
+                    cr.line_to(cur_x, cur_y);
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            'v' => {
+                if i < tokens.len() {
+                    let dy = tokens[i].parse::<f64>().unwrap_or(0.0);
+                    cur_y += dy;
+                    cr.line_to(cur_x, cur_y);
+                    i += 1;
+                } else {
+                    break;
+                }
+            }
+            'C' => {
+                if i + 5 < tokens.len() {
+                    let cx1 = base_x + tokens[i].parse::<f64>().unwrap_or(0.0);
+                    let cy1 = base_y + tokens[i + 1].parse::<f64>().unwrap_or(0.0);
+                    let cx2 = base_x + tokens[i + 2].parse::<f64>().unwrap_or(0.0);
+                    let cy2 = base_y + tokens[i + 3].parse::<f64>().unwrap_or(0.0);
+                    let x = base_x + tokens[i + 4].parse::<f64>().unwrap_or(0.0);
+                    let y = base_y + tokens[i + 5].parse::<f64>().unwrap_or(0.0);
+                    cur_x = x;
+                    cur_y = y;
+                    cr.curve_to(cx1, cy1, cx2, cy2, cur_x, cur_y);
+                    i += 6;
+                } else {
+                    break;
+                }
+            }
+            'c' => {
+                if i + 5 < tokens.len() {
+                    let cx1 = cur_x + tokens[i].parse::<f64>().unwrap_or(0.0);
+                    let cy1 = cur_y + tokens[i + 1].parse::<f64>().unwrap_or(0.0);
+                    let cx2 = cur_x + tokens[i + 2].parse::<f64>().unwrap_or(0.0);
+                    let cy2 = cur_y + tokens[i + 3].parse::<f64>().unwrap_or(0.0);
+                    let x = cur_x + tokens[i + 4].parse::<f64>().unwrap_or(0.0);
+                    let y = cur_y + tokens[i + 5].parse::<f64>().unwrap_or(0.0);
+                    cur_x = x;
+                    cur_y = y;
+                    cr.curve_to(cx1, cy1, cx2, cy2, cur_x, cur_y);
+                    i += 6;
+                } else {
+                    break;
+                }
+            }
+            'Z' | 'z' => {
+                cr.close_path();
+            }
+            _ => {
+                i += 1;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn draw_rounded_rect(

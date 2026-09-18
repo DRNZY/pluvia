@@ -377,3 +377,232 @@ Y=0r
     // Meter2 is X=70..110, Y=10..40
     assert!(mask.contains(80, 20));
 }
+
+#[test]
+fn test_meter_renderer_shape_path_and_round_rectangle() {
+    let ini = r#"
+[Rainmeter]
+Update=1000
+
+[MeterShapes]
+Meter=Shape
+Shape=RoundRectangle 10, 10, 80, 40, 6, 6 | Fill Color 255,0,0,255 | StrokeWidth 0
+Shape2=Path 100, 10 | LineTo 160, 10 | LineTo 160, 60 | ClosePath 1 | Fill Color 0,255,0,255 | StrokeWidth 0
+Shape3=Path "M 10 70 L 60 70 L 60 110 Z" | Fill Color 0,0,255,255 | StrokeWidth 0
+X=0
+Y=0
+"#;
+
+    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
+    let state = SkinState {
+        config,
+        measure_values: HashMap::new(),
+    };
+
+    let surface = ImageSurface::create(Format::ARgb32, 200, 150).unwrap();
+    let renderer = MeterRenderer::new();
+    let mask = renderer.render_to_surface(&state, &surface).unwrap();
+
+    // RoundRectangle inside at (50, 30)
+    assert!(mask.contains(50, 30));
+    // Rainmeter pipe Path inside at (130, 30)
+    assert!(mask.contains(130, 30));
+    // SVG Path inside at (35, 90)
+    assert!(mask.contains(35, 90));
+
+    // Outside bounds
+    assert!(!mask.contains(5, 5));
+    assert!(!mask.contains(90, 30));
+    assert!(!mask.contains(180, 30));
+}
+
+#[test]
+fn test_meter_renderer_webp_and_svg_images() {
+    let tmp = tempdir().unwrap();
+
+    // 1. Create a 32x32 WebP image
+    let webp_path = tmp.path().join("test.webp");
+    let img = image::RgbaImage::from_pixel(32, 32, image::Rgba([255, 128, 0, 255]));
+    img.save(&webp_path).unwrap();
+
+    // 2. Create an SVG file
+    let svg_path = tmp.path().join("test.svg");
+    let svg_content = r#"<svg width="40" height="40" xmlns="http://www.w3.org/2000/svg">
+        <rect width="40" height="40" fill="purple" />
+    </svg>"#;
+    std::fs::write(&svg_path, svg_content).unwrap();
+
+    let ini = format!(
+        r#"
+[Rainmeter]
+Update=1000
+
+[MeterWebp]
+Meter=Image
+ImageName="{}"
+W=32
+H=32
+X=10
+Y=10
+
+[MeterSvg]
+Meter=Image
+ImageName="{}"
+W=40
+H=40
+X=10R
+Y=10
+"#,
+        webp_path.display(),
+        svg_path.display()
+    );
+
+    let config = parse_skin_ini(&ini, tmp.path()).unwrap();
+    let state = SkinState {
+        config,
+        measure_values: HashMap::new(),
+    };
+
+    let surface = ImageSurface::create(Format::ARgb32, 120, 70).unwrap();
+    let renderer = MeterRenderer::new();
+    let mask = renderer.render_to_surface(&state, &surface).unwrap();
+
+    // WebP at (10, 10) size 32x32 -> (20, 20) hit
+    assert!(mask.contains(20, 20));
+    // SVG at (10+32+10=52, 10) size 40x40 -> (70, 25) hit
+    assert!(mask.contains(70, 25));
+    // Blank gaps
+    assert!(!mask.contains(5, 5));
+    assert!(!mask.contains(45, 20));
+}
+
+#[test]
+fn test_image_cache_distinct_tints() {
+    let tmp = tempdir().unwrap();
+    let img_path = tmp.path().join("white_box.png");
+
+    // Pure white 16x16 image
+    let img = image::RgbaImage::from_pixel(16, 16, image::Rgba([255, 255, 255, 255]));
+    img.save(&img_path).unwrap();
+
+    let ini = format!(
+        r#"
+[Rainmeter]
+Update=1000
+
+[MeterRed]
+Meter=Image
+ImageName="{}"
+ImageTint=255,0,0,255
+W=16
+H=16
+X=0
+Y=0
+
+[MeterGreen]
+Meter=Image
+ImageName="{}"
+ImageTint=0,255,0,255
+W=16
+H=16
+X=30
+Y=0
+"#,
+        img_path.display(),
+        img_path.display()
+    );
+
+    let config = parse_skin_ini(&ini, tmp.path()).unwrap();
+    let state = SkinState {
+        config,
+        measure_values: HashMap::new(),
+    };
+
+    let surface = ImageSurface::create(Format::ARgb32, 60, 30).unwrap();
+    let renderer = MeterRenderer::new();
+    let mask = renderer.render_to_surface(&state, &surface).unwrap();
+
+    assert!(mask.contains(8, 8));
+    assert!(mask.contains(38, 8));
+
+    // Verify distinct colors in the surface data
+    let stride = surface.stride() as usize;
+    surface.flush();
+    let data_ptr = unsafe { cairo::ffi::cairo_image_surface_get_data(surface.to_raw_none()) };
+    assert!(!data_ptr.is_null());
+    let data = unsafe { std::slice::from_raw_parts(data_ptr, 30 * stride) };
+
+    // At (8, 8): Red meter -> [B=0, G=0, R=255, A=255]
+    let red_offset = 8 * stride + 8 * 4;
+    assert_eq!(data[red_offset], 0); // B
+    assert_eq!(data[red_offset + 1], 0); // G
+    assert_eq!(data[red_offset + 2], 255); // R
+    assert_eq!(data[red_offset + 3], 255); // A
+
+    // At (38, 8): Green meter -> [B=0, G=255, R=0, A=255]
+    let green_offset = 8 * stride + 38 * 4;
+    assert_eq!(data[green_offset], 0); // B
+    assert_eq!(data[green_offset + 1], 255); // G
+    assert_eq!(data[green_offset + 2], 0); // R
+    assert_eq!(data[green_offset + 3], 255); // A
+}
+
+#[test]
+fn test_text_rotation_origin_and_bounds() {
+    let surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
+    let cr = Context::new(&surface).unwrap();
+    let text_renderer = PangoTextRenderer::new();
+
+    // 1. Render normal horizontal text at (50, 50)
+    let normal_rect = text_renderer
+        .render_text_to_context(
+            &cr,
+            "TESTING ROTATION",
+            "Sans",
+            16.0,
+            pluvia_core::render::Color::WHITE,
+            50.0,
+            50.0,
+            TextAlign::Left,
+            TextStyle::Normal,
+            TextCase::None,
+            true,
+            0.0,
+        )
+        .unwrap();
+
+    // Normal text is wider than tall
+    assert!(normal_rect.width > normal_rect.height);
+    assert!(normal_rect.x >= 50.0);
+    assert!(normal_rect.y >= 50.0);
+
+    // 2. Render 90-degree rotated text at (50, 50)
+    let rot_surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
+    let rot_cr = Context::new(&rot_surface).unwrap();
+    let rot_rect = text_renderer
+        .render_text_to_context(
+            &rot_cr,
+            "TESTING ROTATION",
+            "Sans",
+            16.0,
+            pluvia_core::render::Color::WHITE,
+            50.0,
+            50.0,
+            TextAlign::Left,
+            TextStyle::Normal,
+            TextCase::None,
+            true,
+            std::f64::consts::FRAC_PI_2, // 90 degrees
+        )
+        .unwrap();
+
+    // Rotated 90 degrees: height is roughly original width, width is roughly original height
+    assert!(rot_rect.height > rot_rect.width);
+    // Bounding box must cover (50, 50)
+    assert!(rot_rect.x <= 50.0);
+    assert!(rot_rect.y <= 50.0);
+    assert!(rot_rect.y + rot_rect.height >= 50.0 + normal_rect.width * 0.8);
+
+    let mask = AlphaHitMask::from_surface(&rot_surface);
+    assert!(!mask.is_empty());
+}

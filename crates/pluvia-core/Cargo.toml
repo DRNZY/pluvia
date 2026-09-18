@@ -15,7 +15,8 @@ regex = "1.10"
 cairo-rs = "0.20"
 pango = "0.20"
 pangocairo = "0.20"
-image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+resvg = "0.43"
 
 [dev-dependencies]
 tempfile = "3.12"

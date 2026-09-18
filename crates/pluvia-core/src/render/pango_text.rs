@@ -221,10 +221,12 @@ impl PangoTextRenderer {
         };
         let render_y = y;
 
-        cr.move_to(render_x, render_y);
-
         if angle != 0.0 {
+            cr.translate(render_x, render_y);
             cr.rotate(angle);
+            cr.move_to(0.0, 0.0);
+        } else {
+            cr.move_to(render_x, render_y);
         }
 
         cr.set_source_rgba(color.r, color.g, color.b, color.a);
@@ -232,16 +234,52 @@ impl PangoTextRenderer {
 
         cr.restore()?;
 
-        let bound_x = render_x + ink_rect.x() as f64;
-        let bound_y = render_y + ink_rect.y() as f64;
-        let bound_w = (ink_rect.width() as f64).max(text_w);
-        let bound_h = (ink_rect.height() as f64).max(text_h);
+        let bound = if angle != 0.0 {
+            let cos_a = angle.cos();
+            let sin_a = angle.sin();
 
-        Ok(Rect {
-            x: bound_x,
-            y: bound_y,
-            width: bound_w,
-            height: bound_h,
-        })
+            // 4 corners in local space relative to (render_x, render_y)
+            let corners = [
+                (0.0, 0.0),
+                (text_w, 0.0),
+                (0.0, text_h),
+                (text_w, text_h),
+            ];
+
+            let mut min_x = f64::INFINITY;
+            let mut min_y = f64::INFINITY;
+            let mut max_x = f64::NEG_INFINITY;
+            let mut max_y = f64::NEG_INFINITY;
+
+            for (cx, cy) in corners {
+                let rx = render_x + cx * cos_a - cy * sin_a;
+                let ry = render_y + cx * sin_a + cy * cos_a;
+                min_x = min_x.min(rx);
+                min_y = min_y.min(ry);
+                max_x = max_x.max(rx);
+                max_y = max_y.max(ry);
+            }
+
+            Rect {
+                x: min_x,
+                y: min_y,
+                width: (max_x - min_x).max(1.0),
+                height: (max_y - min_y).max(1.0),
+            }
+        } else {
+            let bound_x = render_x + ink_rect.x() as f64;
+            let bound_y = render_y + ink_rect.y() as f64;
+            let bound_w = (ink_rect.width() as f64).max(text_w);
+            let bound_h = (ink_rect.height() as f64).max(text_h);
+
+            Rect {
+                x: bound_x,
+                y: bound_y,
+                width: bound_w,
+                height: bound_h,
+            }
+        };
+
+        Ok(bound)
     }
 }
