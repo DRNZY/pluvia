@@ -321,4 +321,7 @@ pub trait DesktopSurface: Send + Sync {
 
     /// Returns true if the surface has been destroyed.
     fn is_destroyed(&self) -> bool;
+
+    /// Clears any accumulated frame damage rectangles.
+    fn clear_damage(&mut self);
 }

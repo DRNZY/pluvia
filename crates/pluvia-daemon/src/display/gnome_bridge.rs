@@ -176,4 +176,10 @@ impl DesktopSurface for GnomeBridgeSurface {
     fn is_destroyed(&self) -> bool {
         self.destroyed
     }
+
+    fn clear_damage(&mut self) {
+        if let Some(x11) = &mut self.fallback_x11 {
+            x11.clear_damage();
+        }
+    }
 }

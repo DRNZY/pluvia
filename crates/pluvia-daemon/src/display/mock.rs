@@ -115,4 +115,8 @@ impl DesktopSurface for MockDesktopSurface {
     fn is_destroyed(&self) -> bool {
         self.destroyed
     }
+
+    fn clear_damage(&mut self) {
+        self.damage_history.clear();
+    }
 }

@@ -55,6 +55,9 @@ pub struct MeterRenderer {
     histogram_history: Mutex<HashMap<String, VecDeque<f64>>>,
 }
 
+unsafe impl Send for MeterRenderer {}
+unsafe impl Sync for MeterRenderer {}
+
 impl Default for MeterRenderer {
     fn default() -> Self {
         Self::new()

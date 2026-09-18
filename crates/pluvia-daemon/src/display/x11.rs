@@ -134,4 +134,8 @@ impl DesktopSurface for X11Surface {
     fn is_destroyed(&self) -> bool {
         self.destroyed
     }
+
+    fn clear_damage(&mut self) {
+        self.damage_rects.clear();
+    }
 }
