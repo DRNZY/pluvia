@@ -332,8 +332,8 @@ async fn test_runtime_tick_clears_damage() {
     let mut runtime = SkinRuntime::new(BackendType::Mock);
     let info = runtime.load_skin(&skin_path).expect("Failed to load skin");
 
-    // Perform a tick
-    runtime.tick_skin(&info.id).expect("Failed to tick skin");
+    // Perform a forced tick
+    runtime.force_tick_skin(&info.id).expect("Failed to tick skin");
 
     // Verify damage rects / damage history was cleared on surface
     let skin = runtime.get_skin(&info.id).expect("Skin instance should exist");
@@ -342,4 +342,30 @@ async fn test_runtime_tick_clears_damage() {
     assert_eq!(mock.is_visible(), true);
     // Since tick clears damage, damage history should be empty after tick
     // (mock surface damage_history cleared by clear_damage)
+}
+
+#[tokio::test]
+async fn test_skin_update_interval_throttling() {
+    let tmp = tempdir().unwrap();
+    let skin_path = create_sample_skin(tmp.path(), "ThrottledSkin");
+
+    let mut runtime = SkinRuntime::new(BackendType::Mock);
+    let info = runtime.load_skin(&skin_path).expect("Failed to load skin");
+
+    // Initially tick_count is 0
+    assert_eq!(runtime.get_skin(&info.id).unwrap().tick_count, 0);
+
+    // Call tick_skin immediately (1000ms has not passed)
+    runtime.tick_skin(&info.id).unwrap();
+    assert_eq!(runtime.get_skin(&info.id).unwrap().tick_count, 0);
+
+    // Repeated tick_skin calls within the interval do not advance tick_count
+    for _ in 0..5 {
+        runtime.tick_skin(&info.id).unwrap();
+    }
+    assert_eq!(runtime.get_skin(&info.id).unwrap().tick_count, 0);
+
+    // Force tick bypasses the throttling interval
+    runtime.force_tick_skin(&info.id).unwrap();
+    assert_eq!(runtime.get_skin(&info.id).unwrap().tick_count, 1);
 }

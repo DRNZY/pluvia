@@ -56,6 +56,7 @@ pub struct SkinInstance {
     pub measure_values: HashMap<String, MeasureValue>,
     pub surface: Box<dyn DesktopSurface>,
     pub tick_count: u64,
+    pub last_tick: Instant,
 }
 
 pub struct SkinRuntime {
@@ -180,6 +181,7 @@ impl SkinRuntime {
             measure_values,
             surface,
             tick_count: 0,
+            last_tick: Instant::now(),
         };
 
         // Render initial frame
@@ -230,6 +232,7 @@ impl SkinRuntime {
         }
 
         skin.tick_count = 0;
+        skin.last_tick = Instant::now();
         Self::render_instance(&self.renderer, skin)?;
         Ok(())
     }
@@ -261,6 +264,7 @@ impl SkinRuntime {
             sec.insert(key.to_ascii_lowercase(), value.to_string());
         }
 
+        skin.last_tick = Instant::now();
         Self::render_instance(&self.renderer, skin)?;
         Ok(())
     }
@@ -296,12 +300,8 @@ impl SkinRuntime {
         self.skins.get_mut(id)
     }
 
-    pub fn tick_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
-        let skin = self
-            .skins
-            .get_mut(id)
-            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
-
+    fn execute_tick(renderer: &MeterRenderer, skin: &mut SkinInstance) -> Result<(), RuntimeError> {
+        skin.last_tick = Instant::now();
         skin.tick_count = skin.tick_count.wrapping_add(1);
 
         // Update measures based on update_divider
@@ -320,8 +320,34 @@ impl SkinRuntime {
             }
         }
 
-        Self::render_instance(&self.renderer, skin)?;
+        Self::render_instance(renderer, skin)?;
         Ok(())
+    }
+
+    pub fn force_tick_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
+        let skin = self
+            .skins
+            .get_mut(id)
+            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
+
+        Self::execute_tick(&self.renderer, skin)
+    }
+
+    pub fn tick_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
+        let skin = self
+            .skins
+            .get_mut(id)
+            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
+
+        if skin.config.update_rate_ms == 0 {
+            return Ok(());
+        }
+
+        if skin.last_tick.elapsed().as_millis() < skin.config.update_rate_ms as u128 {
+            return Ok(());
+        }
+
+        Self::execute_tick(&self.renderer, skin)
     }
 
     pub fn tick_all(&mut self) -> Result<(), RuntimeError> {
