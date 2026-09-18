@@ -159,6 +159,12 @@ impl SkinRuntime {
             return Err(RuntimeError::SkinAlreadyLoaded(id));
         }
 
+        // Register bundled fonts from @Resources/Fonts
+        Self::register_skin_fonts(&config.skin_dir);
+        if let Some(parent) = config.skin_dir.parent() {
+            Self::register_skin_fonts(parent);
+        }
+
         let mut measures: HashMap<String, Box<dyn Measure>> = HashMap::new();
         let mut measure_values: HashMap<String, MeasureValue> = HashMap::new();
 
@@ -217,6 +223,11 @@ impl SkinRuntime {
 
         let new_config = parse_skin_file(&skin.path)?;
         skin.config = new_config;
+
+        Self::register_skin_fonts(&skin.config.skin_dir);
+        if let Some(parent) = skin.config.skin_dir.parent() {
+            Self::register_skin_fonts(parent);
+        }
 
         // Recreate measures
         skin.measures.clear();
@@ -379,6 +390,29 @@ impl SkinRuntime {
         instance.surface.clear_damage();
 
         Ok(())
+    }
+
+    fn register_skin_fonts(base_dir: &Path) {
+        let vfs = pluvia_core::vfs::VfsResolver::new();
+        if let Some(fonts_dir) = vfs.resolve(base_dir, "@Resources/Fonts") {
+            if fonts_dir.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(&fonts_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                            let ext_lower = ext.to_ascii_lowercase();
+                            if ext_lower == "otf"
+                                || ext_lower == "ttf"
+                                || ext_lower == "woff"
+                                || ext_lower == "woff2"
+                            {
+                                pluvia_core::render::add_application_font(&path);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
