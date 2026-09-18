@@ -254,3 +254,108 @@ Text=Hello; World
     let meter = config.meters.get("metera").unwrap();
     assert_eq!(meter.text.as_deref(), Some("Hello; World"));
 }
+
+#[test]
+fn test_diamond_dependency_includes() {
+    let tmp = tempdir().unwrap();
+    let res_dir = tmp.path().join("@Resources");
+    fs::create_dir_all(&res_dir).unwrap();
+
+    // Common leaf: SharedVars.inc
+    let shared_file = res_dir.join("SharedVars.inc");
+    let mut f_shared = File::create(&shared_file).unwrap();
+    f_shared.write_all(b"[Variables]\nSharedConst=42\n").unwrap();
+
+    // Branch 1: BranchA.inc (includes SharedVars.inc)
+    let branch_a = res_dir.join("BranchA.inc");
+    let mut f_a = File::create(&branch_a).unwrap();
+    f_a.write_all(b"[Variables]\n@Include=#@#SharedVars.inc\nVarA=10\n").unwrap();
+
+    // Branch 2: BranchB.inc (includes SharedVars.inc)
+    let branch_b = res_dir.join("BranchB.inc");
+    let mut f_b = File::create(&branch_b).unwrap();
+    f_b.write_all(b"[Variables]\n@Include=#@#SharedVars.inc\nVarB=20\n").unwrap();
+
+    // Main skin includes both BranchA and BranchB (diamond dependency on SharedVars.inc)
+    let main_ini = r#"
+[Rainmeter]
+Update=1000
+
+[Variables]
+@IncludeA=#@#BranchA.inc
+@IncludeB=#@#BranchB.inc
+
+[MeterTest]
+Meter=String
+Text="A=#VarA#, B=#VarB#, Shared=#SharedConst#"
+"#;
+
+    let config = parse_skin_ini(main_ini, tmp.path()).unwrap();
+    assert_eq!(config.variables.get("sharedconst").unwrap(), "42");
+    assert_eq!(config.variables.get("vara").unwrap(), "10");
+    assert_eq!(config.variables.get("varb").unwrap(), "20");
+    let meter = config.meters.get("metertest").unwrap();
+    assert_eq!(meter.text.as_deref(), Some("A=10, B=20, Shared=42"));
+}
+
+#[test]
+fn test_meter_style_override_precedence() {
+    let ini = r#"
+[Rainmeter]
+Update=1000
+
+[StyleBase]
+FontFace=Arial
+FontSize=12
+FontColor=100,100,100
+
+[StyleOverride]
+FontSize=18
+FontColor=200,200,200
+
+[MeterStyled]
+Meter=String
+MeterStyle=StyleBase | StyleOverride
+FontColor=255,255,255
+"#;
+
+    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
+    let meter = config.meters.get("meterstyled").unwrap();
+    // FontFace comes from StyleBase
+    assert_eq!(meter.font_face.as_deref(), Some("Arial"));
+    // FontSize from StyleOverride supersedes StyleBase (rightmost style wins)
+    assert_eq!(meter.font_size, Some(18.0));
+    // Explicit FontColor on meter supersedes all styles
+    assert_eq!(meter.font_color.as_deref(), Some("255,255,255"));
+}
+
+#[test]
+fn test_meter_multi_measure_ordering() {
+    let ini = r#"
+[Rainmeter]
+Update=1000
+
+[MeasureOne]
+Measure=Time
+
+[MeasureTwo]
+Measure=Time
+
+[MeasureThree]
+Measure=Time
+
+[MeterMulti]
+Meter=String
+MeasureName3=MeasureThree
+MeasureName=MeasureOne
+MeasureName2=MeasureTwo
+"#;
+
+    let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
+    let meter = config.meters.get("metermulti").unwrap();
+    assert_eq!(meter.measure_name.as_deref(), Some("MeasureOne"));
+    assert_eq!(
+        meter.measure_names,
+        vec!["MeasureOne", "MeasureTwo", "MeasureThree"]
+    );
+}

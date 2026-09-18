@@ -2,7 +2,7 @@ use crate::encoding::decode_ini_bytes;
 use crate::formulas::{eval_formula, FormulaError};
 use crate::variables::VariableMap;
 use crate::vfs::VfsResolver;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -108,7 +108,7 @@ impl SkinConfig {
 struct ParserState<'a> {
     skin_dir: &'a Path,
     vfs: VfsResolver,
-    visited_files: HashSet<PathBuf>,
+    include_stack: Vec<PathBuf>,
     variables: VariableMap,
     // (original_name, properties) keyed by lowercase section name
     raw_sections: HashMap<String, (String, HashMap<String, String>)>,
@@ -229,19 +229,22 @@ fn parse_content_recursive(
                     .canonicalize()
                     .unwrap_or_else(|_| inc_path.clone());
 
-                if state.visited_files.contains(&canonical) {
+                // Check active call stack for circular dependencies (A -> B -> A)
+                if state.include_stack.contains(&canonical) {
                     return Err(ParseError::CircularInclude(inc_path.display().to_string()));
                 }
-                state.visited_files.insert(canonical);
+                state.include_stack.push(canonical);
 
                 let bytes = fs::read(&inc_path)?;
                 let decoded = decode_ini_bytes(&bytes)?;
-                parse_content_recursive(
+                let res = parse_content_recursive(
                     &decoded,
                     &inc_path,
                     state,
                     current_section.clone(),
-                )?;
+                );
+                state.include_stack.pop();
+                res?;
                 continue;
             }
 
@@ -264,8 +267,13 @@ fn apply_meter_styles(
     raw_sections: &HashMap<String, (String, HashMap<String, String>)>,
 ) {
     if let Some(styles_str) = props.get("meterstyle").cloned() {
-        for style_name in styles_str.split('|') {
-            let lower_style = style_name.trim().to_ascii_lowercase();
+        // Rainmeter precedence: rightmost style supersedes earlier styles.
+        // Reverse iteration with or_insert_with ensures:
+        // 1. Meter's explicit options take highest precedence (already in props).
+        // 2. The rightmost style inserts missing keys first.
+        // 3. Earlier styles cannot overwrite keys from later styles.
+        for style_name in styles_str.split('|').map(str::trim).rev() {
+            let lower_style = style_name.to_ascii_lowercase();
             if let Some((_, style_props)) = raw_sections.get(&lower_style) {
                 for (sk, sv) in style_props {
                     props.entry(sk.clone()).or_insert_with(|| sv.clone());
@@ -279,11 +287,14 @@ fn apply_meter_styles(
 pub fn parse_skin_ini<P: AsRef<Path>>(content: &str, skin_dir: P) -> Result<SkinConfig, ParseError> {
     let skin_dir_ref = skin_dir.as_ref();
     let dummy_main = skin_dir_ref.join("main.ini");
+    let canon_main = dummy_main
+        .canonicalize()
+        .unwrap_or_else(|_| dummy_main.clone());
 
     let mut state = ParserState {
         skin_dir: skin_dir_ref,
         vfs: VfsResolver::new(),
-        visited_files: HashSet::new(),
+        include_stack: vec![canon_main],
         variables: VariableMap::with_skin_dir(skin_dir_ref),
         raw_sections: HashMap::new(),
         section_order: Vec::new(),
@@ -386,16 +397,26 @@ pub fn parse_skin_ini<P: AsRef<Path>>(content: &str, skin_dir: P) -> Result<Skin
                 apply_meter_styles(&mut props, &state.raw_sections);
 
                 let meter_type = props.get("meter").cloned().unwrap_or_default();
-                let measure_name = props
-                    .get("measurename")
-                    .map(|s| state.variables.expand(s));
 
-                let mut measure_names = Vec::new();
+                // Deterministic measure ordering by index:
+                // measurename -> index 1
+                // measurename<N> -> index N
+                let mut indexed_measures: Vec<(usize, String)> = Vec::new();
                 for (k, v) in &props {
-                    if k.starts_with("measurename") {
-                        measure_names.push(state.variables.expand(v));
+                    if k == "measurename" {
+                        indexed_measures.push((1, state.variables.expand(v)));
+                    } else if let Some(suffix) = k.strip_prefix("measurename") {
+                        if let Ok(idx) = suffix.parse::<usize>() {
+                            indexed_measures.push((idx, state.variables.expand(v)));
+                        }
                     }
                 }
+                indexed_measures.sort_by_key(|(idx, _)| *idx);
+                let measure_names: Vec<String> = indexed_measures
+                    .into_iter()
+                    .map(|(_, val)| strip_quotes(&val).to_string())
+                    .collect();
+                let measure_name = measure_names.first().cloned();
 
                 let font_face = props
                     .get("fontface")
