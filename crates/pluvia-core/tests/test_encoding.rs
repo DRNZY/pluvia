@@ -1,4 +1,4 @@
-use pluvia_core::encoding::decode_ini_bytes;
+use pluvia_core::encoding::{decode_ini_bytes, EncodingError};
 
 #[test]
 fn test_decode_utf8_with_and_without_bom() {
@@ -31,14 +31,38 @@ fn test_decode_utf16_be_with_bom() {
 
 #[test]
 fn test_decode_windows_1252_ansi() {
-    // 0x93 and 0x94 are smart quotes in CP1252, invalid in UTF-8
+    // 0x93 and 0x94 are smart quotes in CP1252 (“ and ”), invalid in UTF-8
     let cp1252_bytes = vec![b'T', b'e', b'x', b't', b'=', 0x93, b'H', b'i', 0x94];
     let decoded = decode_ini_bytes(&cp1252_bytes).unwrap();
     assert!(decoded.starts_with("Text="));
-    assert!(decoded.contains('“') || decoded.contains('"'));
+    assert!(decoded.contains('“'));
+    assert!(decoded.contains('”'));
+    assert_eq!(decoded, "Text=“Hi”");
 }
 
 #[test]
 fn test_decode_empty_bytes() {
     assert_eq!(decode_ini_bytes(b"").unwrap(), "");
+}
+
+#[test]
+fn test_decode_malformed_utf16_le() {
+    // UTF-16 LE BOM followed by an odd number of bytes (truncated code unit)
+    let malformed_le = vec![0xFF, 0xFE, 0x41];
+    assert_eq!(decode_ini_bytes(&malformed_le), Err(EncodingError::DecodingFailed));
+
+    // UTF-16 LE BOM followed by unpaired surrogate
+    let unpaired_surrogate_le = vec![0xFF, 0xFE, 0x00, 0xD8];
+    assert_eq!(decode_ini_bytes(&unpaired_surrogate_le), Err(EncodingError::DecodingFailed));
+}
+
+#[test]
+fn test_decode_malformed_utf16_be() {
+    // UTF-16 BE BOM followed by an odd number of bytes (truncated code unit)
+    let malformed_be = vec![0xFE, 0xFF, 0x41];
+    assert_eq!(decode_ini_bytes(&malformed_be), Err(EncodingError::DecodingFailed));
+
+    // UTF-16 BE BOM followed by unpaired surrogate
+    let unpaired_surrogate_be = vec![0xFE, 0xFF, 0xD8, 0x00];
+    assert_eq!(decode_ini_bytes(&unpaired_surrogate_be), Err(EncodingError::DecodingFailed));
 }

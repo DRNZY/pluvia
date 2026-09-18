@@ -14,17 +14,19 @@ pub fn decode_ini_bytes(raw: &[u8]) -> Result<String, EncodingError> {
     // 1. Check for UTF-16 LE BOM: 0xFF, 0xFE
     if raw.len() >= 2 && raw[0] == 0xFF && raw[1] == 0xFE {
         let (cow, _, malformed) = encoding_rs::UTF_16LE.decode(&raw[2..]);
-        if !malformed {
-            return Ok(cow.into_owned());
+        if malformed {
+            return Err(EncodingError::DecodingFailed);
         }
+        return Ok(cow.into_owned());
     }
 
     // 2. Check for UTF-16 BE BOM: 0xFE, 0xFF
     if raw.len() >= 2 && raw[0] == 0xFE && raw[1] == 0xFF {
         let (cow, _, malformed) = encoding_rs::UTF_16BE.decode(&raw[2..]);
-        if !malformed {
-            return Ok(cow.into_owned());
+        if malformed {
+            return Err(EncodingError::DecodingFailed);
         }
+        return Ok(cow.into_owned());
     }
 
     // 3. Check for UTF-8 BOM: 0xEF, 0xBB, 0xBF

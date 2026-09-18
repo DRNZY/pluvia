@@ -6,4 +6,3 @@ edition = "2021"
 [dependencies]
 encoding_rs = "0.8"
 thiserror.workspace = true
-anyhow.workspace = true
