@@ -52,6 +52,48 @@ impl IpcClient {
         self.ping().is_ok()
     }
 
+    /// Automatically starts the pluvia-daemon background engine if not already running.
+    pub fn start_daemon(&self) -> Result<(), String> {
+        if self.is_daemon_running() {
+            return Ok(());
+        }
+
+        // Clean up stale socket file if daemon isn't alive
+        let _ = std::fs::remove_file(&self.socket_path);
+
+        let bin = find_daemon_binary();
+        let mut cmd = std::process::Command::new(&bin);
+        cmd.stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+
+        let _ = cmd.spawn().map_err(|e| format!("Failed to start daemon from {:?}: {}", bin, e))?;
+
+        // Wait up to 2.5 seconds for daemon to initialize
+        for _ in 0..25 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if self.is_daemon_running() {
+                return Ok(());
+            }
+        }
+
+        if self.is_daemon_running() {
+            Ok(())
+        } else {
+            Err("Engine launched but socket connection timed out".to_string())
+        }
+    }
+
+    /// Stops the pluvia-daemon process.
+    pub fn stop_daemon(&self) -> Result<(), String> {
+        let _ = std::process::Command::new("pkill")
+            .arg("-f")
+            .arg("pluvia-daemon")
+            .output();
+        let _ = std::fs::remove_file(&self.socket_path);
+        Ok(())
+    }
+
     pub fn ping(&self) -> Result<String, String> {
         let resp = self.call("pluvia.ping", json!({}))?;
         resp.as_str()
@@ -96,6 +138,23 @@ impl IpcClient {
             "id": id,
             "key": key,
             "value": value
+        }))?;
+        Ok(())
+    }
+
+    pub fn set_position(&self, id: &str, x: i32, y: i32) -> Result<(), String> {
+        self.call("pluvia.setPosition", json!({
+            "id": id,
+            "x": x,
+            "y": y
+        }))?;
+        Ok(())
+    }
+
+    pub fn set_opacity(&self, id: &str, opacity: f64) -> Result<(), String> {
+        self.call("pluvia.setOpacity", json!({
+            "id": id,
+            "opacity": opacity
         }))?;
         Ok(())
     }
@@ -170,3 +229,25 @@ pub fn default_socket_path() -> PathBuf {
     }
     PathBuf::from("/tmp/pluvia.sock")
 }
+
+pub fn find_daemon_binary() -> PathBuf {
+    // 1. Same directory as current running executable
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let candidate = parent.join("pluvia-daemon");
+            if candidate.exists() {
+                return candidate;
+            }
+        }
+    }
+    // 2. ~/.local/bin/pluvia-daemon
+    if let Ok(home) = std::env::var("HOME") {
+        let candidate = PathBuf::from(home).join(".local/bin/pluvia-daemon");
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+    // 3. System-wide in PATH
+    PathBuf::from("pluvia-daemon")
+}
+

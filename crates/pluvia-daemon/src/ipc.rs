@@ -407,6 +407,53 @@ async fn execute_method(
             }))
         }
 
+        "pluvia.setPosition" => {
+            let id = params
+                .get("id")
+                .and_then(|p| p.as_str())
+                .ok_or_else(|| RpcError::invalid_params("Parameter 'id' is required"))?;
+            let x = params
+                .get("x")
+                .and_then(|p| p.as_i64())
+                .ok_or_else(|| RpcError::invalid_params("Parameter 'x' is required"))? as i32;
+            let y = params
+                .get("y")
+                .and_then(|p| p.as_i64())
+                .ok_or_else(|| RpcError::invalid_params("Parameter 'y' is required"))? as i32;
+
+            let mut rt = runtime.write().await;
+            rt.set_position(id, x, y)
+                .map_err(|e| RpcError::server_error(e.to_string()))?;
+
+            Ok(json!({
+                "success": true,
+                "id": id,
+                "x": x,
+                "y": y
+            }))
+        }
+
+        "pluvia.setOpacity" => {
+            let id = params
+                .get("id")
+                .and_then(|p| p.as_str())
+                .ok_or_else(|| RpcError::invalid_params("Parameter 'id' is required"))?;
+            let opacity = params
+                .get("opacity")
+                .and_then(|p| p.as_f64())
+                .ok_or_else(|| RpcError::invalid_params("Parameter 'opacity' is required"))?;
+
+            let mut rt = runtime.write().await;
+            rt.set_opacity(id, opacity)
+                .map_err(|e| RpcError::server_error(e.to_string()))?;
+
+            Ok(json!({
+                "success": true,
+                "id": id,
+                "opacity": opacity
+            }))
+        }
+
         "pluvia.importPackage" => {
             let archive_path = params
                 .get("archive_path")

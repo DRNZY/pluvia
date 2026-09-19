@@ -4,7 +4,7 @@ use pluvia_core::formulas::{eval_formula, FormulaError};
 use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
 #[test]
@@ -358,4 +358,70 @@ MeasureName2=MeasureTwo
         meter.measure_names,
         vec!["MeasureOne", "MeasureTwo", "MeasureThree"]
     );
+}
+
+#[test]
+fn test_ancestor_resource_include_resolution() {
+    let tmp = tempdir().unwrap();
+    let suite_dir = tmp.path().join("Suite");
+    let res_dir = suite_dir.join("@Resources");
+    let vars_dir = res_dir.join("Variables");
+    let skin_dir = suite_dir.join("Widgets").join("Calendar");
+    fs::create_dir_all(&vars_dir).unwrap();
+    fs::create_dir_all(&skin_dir).unwrap();
+
+    let inc_file = vars_dir.join("Calendar.inc");
+    let mut f = File::create(&inc_file).unwrap();
+    f.write_all(b"[Variables]\nSundayWeek=0\n").unwrap();
+
+    let main_file = skin_dir.join("Medium.ini");
+    let mut f_main = File::create(&main_file).unwrap();
+    f_main
+        .write_all(b"[Variables]\n@Include1=#@#Variables\\Calendar.inc\n[MeterTest]\nMeter=String\nText=#SundayWeek#\n")
+        .unwrap();
+
+    let config = pluvia_core::ini::parse_skin_file(&main_file).unwrap();
+    assert_eq!(config.variables.get("sundayweek").unwrap(), "0");
+}
+
+#[test]
+fn test_monterey_calendar_medium_ini_if_present() {
+    if let Ok(home) = std::env::var("HOME") {
+        let monterey_path = PathBuf::from(&home).join(".config/pluvia/skins/Skins/Monterey/Widgets/Calendar/Medium.ini");
+        if monterey_path.exists() {
+            let res = pluvia_core::ini::parse_skin_file(&monterey_path);
+            assert!(res.is_ok(), "Failed to parse Monterey Medium.ini: {:?}", res.err());
+        }
+        let settings_path = PathBuf::from(&home).join(".config/pluvia/skins/Skins/Monterey/Settings.ini");
+        if settings_path.exists() {
+            let res = pluvia_core::ini::parse_skin_file(&settings_path);
+            assert!(res.is_ok(), "Failed to parse Monterey Settings.ini: {:?}", res.err());
+        }
+        let clock_path = PathBuf::from(&home).join(".config/pluvia/skins/Monterey/Widgets/Clock/Medium.ini");
+        if clock_path.exists() {
+            let res = pluvia_core::ini::parse_skin_file(&clock_path);
+            assert!(res.is_ok(), "Failed to parse Monterey Clock Medium.ini: {:?}", res.err());
+            let config = res.unwrap();
+            println!("Parsed {} meters, {} measures", config.meters.len(), config.measures.len());
+            for (name, meter) in &config.meters {
+                println!("METER: {} -> type={}, x={:?}, y={:?}, w={:?}, h={:?}, props={:?}", name, meter.meter_type, meter.x, meter.y, meter.w, meter.h, meter.properties);
+            }
+            for (name, measure) in &config.measures {
+                println!("MEASURE: {} -> type={}, props={:?}", name, measure.measure_type, measure.properties);
+            }
+            for (k, v) in config.variables.iter() {
+                if k.contains("background") || k.contains("dark") || k.contains("theme") || k.contains("size") || k.contains("widget") {
+                    println!("VAR: {} = {}", k, v);
+                }
+            }
+
+            let renderer = pluvia_core::render::MeterRenderer::new();
+            let state = pluvia_core::render::meter_renderer::SkinState::new(config, std::collections::HashMap::new());
+            let surface = cairo::ImageSurface::create(cairo::Format::ARgb32, 200, 200).unwrap();
+            let res = renderer.render_to_surface(&state, &surface);
+            println!("render_to_surface result: {:?}", res.is_ok());
+            let mut out = std::fs::File::create("/tmp/test_clock_render.png").unwrap();
+            surface.write_to_png(&mut out).unwrap();
+        }
+    }
 }

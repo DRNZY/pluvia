@@ -7,7 +7,7 @@ use crate::render::{Color, Rect};
 use crate::variables::VariableMap;
 use crate::vfs::VfsResolver;
 use cairo::{Context, Format, ImageSurface};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -88,7 +88,19 @@ impl MeterRenderer {
         let mut prev_w = 0.0;
         let mut prev_h = 0.0;
 
+        // Collect all meters referenced as a Container
+        let mut container_meters = HashSet::new();
+        for meter in state.config.meters.values() {
+            if let Some(c) = meter.properties.get("container") {
+                container_meters.insert(c.trim().to_ascii_lowercase());
+            }
+        }
+
         for meter_name_lower in &state.config.meter_order {
+            if container_meters.contains(meter_name_lower) {
+                continue;
+            }
+
             if let Some(meter) = state.config.meters.get(meter_name_lower) {
                 if meter.hidden {
                     continue;
@@ -106,36 +118,61 @@ impl MeterRenderer {
                     prev_h,
                     &state.config.variables,
                 );
-                let w = meter.w.unwrap_or(0.0);
-                let h = meter.h.unwrap_or(0.0);
+                let w = meter.w.or_else(|| {
+                    meter.get("w").and_then(|s| {
+                        let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                        eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+                    })
+                }).unwrap_or(0.0);
+                let h = meter.h.or_else(|| {
+                    meter.get("h").and_then(|s| {
+                        let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                        eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+                    })
+                }).unwrap_or(0.0);
+
+                let pad = meter
+                    .properties
+                    .get("padding")
+                    .map(|p| parse_padding(p, &state.config.variables))
+                    .unwrap_or((0.0, 0.0, 0.0, 0.0));
+                let render_x = x + pad.0;
+                let render_y = y + pad.1;
 
                 // Optional SolidColor background for meter box
                 if let Some(sc) = meter.solid_color.as_deref().and_then(Color::parse) {
                     if w > 0.0 && h > 0.0 {
                         cr.set_source_rgba(sc.r, sc.g, sc.b, sc.a);
-                        cr.rectangle(x, y, w, h);
+                        cr.rectangle(render_x, render_y, w, h);
                         cr.fill()?;
                     }
                 }
 
                 let m_type = meter.meter_type.to_ascii_lowercase();
                 let rect = match m_type.as_str() {
-                    "string" => self.render_string(&cr, meter, x, y, w, h, state)?,
-                    "image" => self.render_image(&cr, meter, x, y, w, h, state)?,
-                    "bar" => self.render_bar(&cr, meter, x, y, w, h, state)?,
-                    "roundline" => self.render_roundline(&cr, meter, x, y, w, h, state)?,
-                    "shape" => self.render_shape(&cr, meter, x, y)?,
-                    "histogram" => self.render_histogram(&cr, meter, x, y, w, h, state)?,
-                    "rotator" => self.render_rotator(&cr, meter, x, y, w, h, state)?,
-                    "bitmap" => self.render_bitmap(&cr, meter, x, y, w, h, state)?,
-                    "line" => self.render_line(&cr, meter, x, y, w, h, state)?,
-                    _ => Rect::new(x, y, w, h),
+                    "string" => self.render_string(&cr, meter, render_x, render_y, w, h, state)?,
+                    "image" => self.render_image(&cr, meter, render_x, render_y, w, h, state)?,
+                    "bar" => self.render_bar(&cr, meter, render_x, render_y, w, h, state)?,
+                    "roundline" => self.render_roundline(&cr, meter, render_x, render_y, w, h, state)?,
+                    "shape" => self.render_shape(&cr, meter, render_x, render_y, state)?,
+                    "histogram" => self.render_histogram(&cr, meter, render_x, render_y, w, h, state)?,
+                    "rotator" => self.render_rotator(&cr, meter, render_x, render_y, w, h, state)?,
+                    "bitmap" => self.render_bitmap(&cr, meter, render_x, render_y, w, h, state)?,
+                    "line" => self.render_line(&cr, meter, render_x, render_y, w, h, state)?,
+                    _ => Rect::new(render_x, render_y, w, h),
                 };
 
-                prev_x = rect.x;
-                prev_y = rect.y;
-                prev_w = if w > 0.0 { w } else { rect.width };
-                prev_h = if h > 0.0 { h } else { rect.height };
+                let effective_rect = Rect::new(
+                    rect.x - pad.0,
+                    rect.y - pad.1,
+                    rect.width + pad.0 + pad.2,
+                    rect.height + pad.1 + pad.3,
+                );
+
+                prev_x = effective_rect.x;
+                prev_y = effective_rect.y;
+                prev_w = if w > 0.0 { w + pad.0 + pad.2 } else { effective_rect.width };
+                prev_h = if h > 0.0 { h + pad.1 + pad.3 } else { effective_rect.height };
             }
         }
 
@@ -251,7 +288,12 @@ impl MeterRenderer {
             return Ok(Rect::new(x, y, w, h));
         }
 
-        let resolved_path = self.resolve_image_path(raw_img_name, &state.config.skin_dir);
+        let exp_img_name = state.config.variables.expand_with_context(
+            raw_img_name,
+            Some(&meter.name),
+            Some(&state.measure_values),
+        );
+        let resolved_path = self.resolve_image_path(&exp_img_name, &state.config.skin_dir);
         let img_surface = match resolved_path {
             Some(ref path) => self.load_cairo_image(path, meter.get("imagetint"))?,
             None => return Ok(Rect::new(x, y, w, h)),
@@ -490,23 +532,51 @@ impl MeterRenderer {
         meter: &MeterConfig,
         base_x: f64,
         base_y: f64,
+        state: &SkinState,
     ) -> Result<Rect, RenderError> {
-        let mut shape_keys: Vec<(usize, String)> = Vec::new();
+        let mut shape_keys: Vec<(usize, String, String)> = Vec::new();
         for (k, v) in &meter.properties {
-            if k == "shape" {
-                shape_keys.push((1, v.clone()));
-            } else if let Some(suffix) = k.strip_prefix("shape") {
+            let k_lower = k.to_ascii_lowercase();
+            if k_lower == "shape" {
+                shape_keys.push((1, "shape".to_string(), v.clone()));
+            } else if let Some(suffix) = k_lower.strip_prefix("shape") {
                 if let Ok(idx) = suffix.parse::<usize>() {
-                    shape_keys.push((idx, v.clone()));
+                    shape_keys.push((idx, k_lower.clone(), v.clone()));
                 }
             }
         }
-        shape_keys.sort_by_key(|(idx, _)| *idx);
+        shape_keys.sort_by_key(|(idx, _, _)| *idx);
+
+        // Find which shapes are referenced by Combine or Union/Intersect/Exclude modifiers
+        let mut combined_keys = HashSet::new();
+        for (_, _, shape_def) in &shape_keys {
+            let parts: Vec<&str> = shape_def.split('|').map(str::trim).collect();
+            if let Some(first) = parts.first() {
+                let first_lower = first.to_ascii_lowercase();
+                if first_lower.starts_with("combine") {
+                    let combined_target = first["combine".len()..].trim().to_ascii_lowercase();
+                    combined_keys.insert(combined_target);
+                    for modifier in &parts[1..] {
+                        let m_lower = modifier.to_ascii_lowercase();
+                        for op in &["union", "intersect", "xor", "exclude"] {
+                            if m_lower.starts_with(op) {
+                                let sub_target = modifier[op.len()..].trim().to_ascii_lowercase();
+                                combined_keys.insert(sub_target);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         let mut total_rect = Rect::new(base_x, base_y, 0.0, 0.0);
 
-        for (_, shape_def) in shape_keys {
-            if let Some(r) = self.render_single_shape(cr, &shape_def, base_x, base_y)? {
+        for (_, key_name, shape_def) in &shape_keys {
+            if combined_keys.contains(key_name) {
+                continue;
+            }
+
+            if let Some(r) = self.render_single_shape(cr, meter, shape_def, base_x, base_y, state)? {
                 total_rect = total_rect.union(&r);
             }
         }
@@ -517,60 +587,162 @@ impl MeterRenderer {
     fn render_single_shape(
         &self,
         cr: &Context,
+        meter: &MeterConfig,
         def: &str,
         base_x: f64,
         base_y: f64,
+        state: &SkinState,
     ) -> Result<Option<Rect>, RenderError> {
         let parts: Vec<&str> = def.split('|').map(str::trim).collect();
         if parts.is_empty() {
             return Ok(None);
         }
 
+        let vars = &state.config.variables;
+        let measures = &state.measure_values;
+
         let shape_decl = parts[0];
         let mut fill_color = Some(Color::WHITE);
         let mut stroke_color = None;
         let mut stroke_width = 0.0;
+        let mut rotate: Option<(f64, f64, f64)> = None;
 
         for modifier in &parts[1..] {
             let lower = modifier.to_ascii_lowercase();
             if lower.starts_with("fill color") {
                 let col_str = modifier["fill color".len()..].trim();
-                fill_color = Color::parse(col_str);
+                let expanded = vars.expand_with_context(col_str, Some(&meter.name), Some(measures));
+                fill_color = Color::parse(&expanded);
             } else if lower.starts_with("fill none") {
                 fill_color = None;
             } else if lower.starts_with("stroke color") {
                 let col_str = modifier["stroke color".len()..].trim();
-                stroke_color = Color::parse(col_str);
+                let expanded = vars.expand_with_context(col_str, Some(&meter.name), Some(measures));
+                stroke_color = Color::parse(&expanded);
             } else if lower.starts_with("stroke none") {
                 stroke_color = None;
             } else if lower.starts_with("strokewidth") {
                 let num_str = modifier["strokewidth".len()..].trim();
-                stroke_width = num_str.parse::<f64>().unwrap_or(1.0);
+                let expanded = vars.expand_with_context(num_str, Some(&meter.name), Some(measures));
+                stroke_width = eval_formula(&expanded, vars)
+                    .unwrap_or_else(|_| expanded.parse::<f64>().unwrap_or(1.0));
+            } else if lower.starts_with("rotate") {
+                let rest = modifier["rotate".len()..].trim();
+                let (_, rot_nums) = tokenize_shape_declaration(&format!("dummy {}", rest), vars, Some(&meter.name), Some(measures));
+                if !rot_nums.is_empty() {
+                    let angle = rot_nums[0];
+                    let cx = if rot_nums.len() >= 2 { rot_nums[1] } else { base_x };
+                    let cy = if rot_nums.len() >= 3 { rot_nums[2] } else { base_y };
+                    rotate = Some((angle, cx, cy));
+                }
             }
         }
 
-        let tokens: Vec<&str> = shape_decl
-            .split(&[' ', ','][..])
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .collect();
-
-        if tokens.is_empty() {
-            return Ok(None);
+        cr.save()?;
+        if let Some((angle_deg, cx, cy)) = rotate {
+            let rad = angle_deg.to_radians();
+            cr.translate(cx, cy);
+            cr.rotate(rad);
+            cr.translate(-cx, -cy);
         }
 
-        let kind = tokens[0].to_ascii_lowercase();
-        let nums: Vec<f64> = tokens[1..]
-            .iter()
-            .filter_map(|s| s.parse::<f64>().ok())
-            .collect();
-
+        cr.new_path();
         let mut bound = None;
 
-        cr.save()?;
-        cr.new_path();
+        let lower_decl = shape_decl.to_ascii_lowercase();
+        if lower_decl.starts_with("combine") {
+            let mut sub_shapes = Vec::new();
+            let base_target = shape_decl["combine".len()..].trim();
+            sub_shapes.push(base_target);
+            for modifier in &parts[1..] {
+                let m_lower = modifier.to_ascii_lowercase();
+                for op in &["union", "intersect", "xor", "exclude"] {
+                    if m_lower.starts_with(op) {
+                        let sub_target = modifier[op.len()..].trim();
+                        sub_shapes.push(sub_target);
+                    }
+                }
+            }
 
-        match kind.as_str() {
+            for sub_name in sub_shapes {
+                if let Some(sub_def) = meter.properties.get(&sub_name.to_ascii_lowercase()) {
+                    let sub_parts: Vec<&str> = sub_def.split('|').map(str::trim).collect();
+                    if !sub_parts.is_empty() {
+                        let sub_decl = sub_parts[0];
+                        let (kind, nums) = tokenize_shape_declaration(sub_decl, vars, Some(&meter.name), Some(measures));
+                        self.append_shape_path(cr, &kind, &nums, base_x, base_y, sub_decl, &sub_parts[1..])?;
+
+                        // Inherit sub_shape color/stroke if parent combine didn't override
+                        if fill_color.is_none() || fill_color == Some(Color::WHITE) {
+                            for smod in &sub_parts[1..] {
+                                let sm_lower = smod.to_ascii_lowercase();
+                                if sm_lower.starts_with("fill color") {
+                                    let col = smod["fill color".len()..].trim();
+                                    let exp = vars.expand_with_context(col, Some(&meter.name), Some(measures));
+                                    if let Some(c) = Color::parse(&exp) {
+                                        fill_color = Some(c);
+                                    }
+                                } else if sm_lower.starts_with("fill none") {
+                                    fill_color = None;
+                                } else if sm_lower.starts_with("stroke color") {
+                                    let col = smod["stroke color".len()..].trim();
+                                    let exp = vars.expand_with_context(col, Some(&meter.name), Some(measures));
+                                    if let Some(c) = Color::parse(&exp) {
+                                        stroke_color = Some(c);
+                                    }
+                                } else if sm_lower.starts_with("strokewidth") {
+                                    let num_str = smod["strokewidth".len()..].trim();
+                                    let exp = vars.expand_with_context(num_str, Some(&meter.name), Some(measures));
+                                    if let Ok(w) = eval_formula(&exp, vars) {
+                                        stroke_width = w;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if let Ok((x1, y1, x2, y2)) = cr.path_extents() {
+                bound = Some(Rect::new(x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0)));
+            }
+        } else {
+            let (kind, nums) = tokenize_shape_declaration(shape_decl, vars, Some(&meter.name), Some(measures));
+            bound = self.append_shape_path(cr, &kind, &nums, base_x, base_y, shape_decl, &parts[1..])?;
+        }
+
+        if let Some(fill) = fill_color {
+            cr.set_source_rgba(fill.r, fill.g, fill.b, fill.a);
+            if stroke_color.is_some() && stroke_width > 0.0 {
+                cr.fill_preserve()?;
+            } else {
+                cr.fill()?;
+            }
+        }
+
+        if let Some(stroke) = stroke_color {
+            if stroke_width > 0.0 {
+                cr.set_source_rgba(stroke.r, stroke.g, stroke.b, stroke.a);
+                cr.set_line_width(stroke_width);
+                cr.stroke()?;
+            }
+        }
+
+        cr.restore()?;
+        Ok(bound)
+    }
+
+    fn append_shape_path(
+        &self,
+        cr: &Context,
+        kind: &str,
+        nums: &[f64],
+        base_x: f64,
+        base_y: f64,
+        shape_decl: &str,
+        modifiers: &[&str],
+    ) -> Result<Option<Rect>, RenderError> {
+        let mut bound = None;
+        match kind {
             "roundrectangle" | "rectangle" => {
                 if nums.len() >= 4 {
                     let rx_val = nums[0] + base_x;
@@ -578,11 +750,7 @@ impl MeterRenderer {
                     let rw = nums[2];
                     let rh = nums[3];
                     let radius_x = if nums.len() >= 5 { nums[4] } else { 0.0 };
-                    let radius_y = if nums.len() >= 6 {
-                        nums[5]
-                    } else {
-                        radius_x
-                    };
+                    let radius_y = if nums.len() >= 6 { nums[5] } else { radius_x };
 
                     if radius_x > 0.0 && radius_y > 0.0 {
                         draw_rounded_rect(cr, rx_val, ry_val, rw, rh, radius_x, radius_y);
@@ -676,7 +844,7 @@ impl MeterRenderer {
                     }
                 }
 
-                for part in &parts[1..] {
+                for part in modifiers {
                     let p_trimmed = part.trim();
                     let p_lower = p_trimmed.to_ascii_lowercase();
                     if p_lower.starts_with("lineto") {
@@ -722,25 +890,6 @@ impl MeterRenderer {
             }
             _ => {}
         }
-
-        if let Some(fill) = fill_color {
-            cr.set_source_rgba(fill.r, fill.g, fill.b, fill.a);
-            if stroke_color.is_some() && stroke_width > 0.0 {
-                cr.fill_preserve()?;
-            } else {
-                cr.fill()?;
-            }
-        }
-
-        if let Some(stroke) = stroke_color {
-            if stroke_width > 0.0 {
-                cr.set_source_rgba(stroke.r, stroke.g, stroke.b, stroke.a);
-                cr.set_line_width(stroke_width);
-                cr.stroke()?;
-            }
-        }
-
-        cr.restore()?;
         Ok(bound)
     }
 
@@ -1015,7 +1164,19 @@ impl MeterRenderer {
         if p.is_absolute() && p.exists() {
             return Some(p.to_path_buf());
         }
-        self.vfs.resolve(skin_dir, raw)
+        let norm = VfsResolver::normalize_rel_path(raw);
+        let mut curr = Some(skin_dir);
+        while let Some(dir) = curr {
+            if let Some(path) = self.vfs.resolve(dir, &norm) {
+                return Some(path);
+            }
+            let direct = dir.join(&norm);
+            if direct.exists() {
+                return Some(direct);
+            }
+            curr = dir.parent();
+        }
+        None
     }
 
     fn load_cairo_image(
@@ -1359,4 +1520,96 @@ fn substitute_measures(template: &str, meter: &MeterConfig, state: &SkinState) -
         result = result.replace("%0", &val0);
     }
     result
+}
+
+fn tokenize_shape_declaration(
+    decl: &str,
+    vars: &VariableMap,
+    current_section: Option<&str>,
+    measures: Option<&HashMap<String, MeasureValue>>,
+) -> (String, Vec<f64>) {
+    let trimmed = decl.trim();
+    if trimmed.is_empty() {
+        return (String::new(), Vec::new());
+    }
+    let mut chars = trimmed.char_indices().peekable();
+    let mut kind_end = trimmed.len();
+    while let Some(&(i, ch)) = chars.peek() {
+        if ch.is_whitespace() || ch == ',' || ch == '(' {
+            kind_end = i;
+            break;
+        }
+        chars.next();
+    }
+    let kind = trimmed[..kind_end].trim().to_ascii_lowercase();
+
+    let mut nums = Vec::new();
+    let rest = &trimmed[kind_end..];
+    let mut i = 0;
+    let bytes = rest.as_bytes();
+    while i < bytes.len() {
+        while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b',' || bytes[i] == b'\t') {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        if bytes[i] == b'(' {
+            let start = i;
+            let mut depth = 0;
+            while i < bytes.len() {
+                if bytes[i] == b'(' {
+                    depth += 1;
+                } else if bytes[i] == b')' {
+                    depth -= 1;
+                    if depth == 0 {
+                        i += 1;
+                        break;
+                    }
+                }
+                i += 1;
+            }
+            let formula = &rest[start..i];
+            let expanded = if let Some(m) = measures {
+                vars.expand_with_context(formula, current_section, Some(m))
+            } else {
+                vars.expand(formula)
+            };
+            let val = eval_formula(&expanded, vars).unwrap_or(0.0);
+            nums.push(val);
+        } else {
+            let start = i;
+            while i < bytes.len()
+                && bytes[i] != b' '
+                && bytes[i] != b','
+                && bytes[i] != b'\t'
+                && bytes[i] != b'('
+            {
+                i += 1;
+            }
+            let token = &rest[start..i];
+            let expanded = if let Some(m) = measures {
+                vars.expand_with_context(token, current_section, Some(m))
+            } else {
+                vars.expand(token)
+            };
+            if let Ok(v) = eval_formula(&expanded, vars) {
+                nums.push(v);
+            } else if let Ok(v) = expanded.trim().parse::<f64>() {
+                nums.push(v);
+            }
+        }
+    }
+    (kind, nums)
+}
+
+fn parse_padding(raw: &str, vars: &VariableMap) -> (f64, f64, f64, f64) {
+    let (_, nums) = tokenize_shape_declaration(&format!("dummy {}", raw), vars, None, None);
+    if nums.len() >= 4 {
+        (nums[0], nums[1], nums[2], nums[3])
+    } else if nums.len() == 1 {
+        (nums[0], nums[0], nums[0], nums[0])
+    } else {
+        (0.0, 0.0, 0.0, 0.0)
+    }
 }

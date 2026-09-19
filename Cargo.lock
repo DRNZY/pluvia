@@ -1837,6 +1837,7 @@ dependencies = [
  "libc",
  "pluvia-cli",
  "pluvia-core",
+ "regex",
  "serde",
  "serde_json",
  "tempfile",

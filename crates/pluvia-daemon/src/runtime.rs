@@ -89,52 +89,145 @@ impl SkinRuntime {
     fn calculate_bounds(&self, config: &SkinConfig) -> SurfaceBounds {
         let mut max_w: f64 = 0.0;
         let mut max_h: f64 = 0.0;
+
         for meter in config.meters.values() {
             let x = meter
                 .properties
                 .get("x")
-                .and_then(|s| s.parse::<f64>().ok())
+                .map(|s| config.variables.expand(s))
+                .and_then(|s| {
+                    pluvia_core::formulas::eval_formula(&s, &config.variables)
+                        .ok()
+                        .or_else(|| s.trim().parse::<f64>().ok())
+                })
                 .unwrap_or(0.0);
+
             let y = meter
                 .properties
                 .get("y")
-                .and_then(|s| s.parse::<f64>().ok())
+                .map(|s| config.variables.expand(s))
+                .and_then(|s| {
+                    pluvia_core::formulas::eval_formula(&s, &config.variables)
+                        .ok()
+                        .or_else(|| s.trim().parse::<f64>().ok())
+                })
                 .unwrap_or(0.0);
-            let w = meter.w.unwrap_or(100.0);
-            let h = meter.h.unwrap_or(40.0);
+
+            let w = meter.w.unwrap_or(0.0);
+            let h = meter.h.unwrap_or(0.0);
+
+            let mut shape_w: f64 = 0.0;
+            let mut shape_h: f64 = 0.0;
+            if meter.meter_type.eq_ignore_ascii_case("shape") {
+                for (k, v) in &meter.properties {
+                    if k.starts_with("shape") {
+                        let parts: Vec<&str> = v.split('|').collect();
+                        if let Some(first) = parts.first() {
+                            let exp = config.variables.expand(first);
+                            let nums: Vec<f64> = exp
+                                .split(&[' ', ','][..])
+                                .map(str::trim)
+                                .filter(|t| !t.is_empty())
+                                .filter_map(|t| {
+                                    pluvia_core::formulas::eval_formula(t, &config.variables)
+                                        .ok()
+                                        .or_else(|| t.parse::<f64>().ok())
+                                })
+                                .collect();
+                            if exp.to_ascii_lowercase().contains("rectangle") && nums.len() >= 4 {
+                                shape_w = shape_w.max(nums[0] + nums[2]);
+                                shape_h = shape_h.max(nums[1] + nums[3]);
+                            } else if exp.to_ascii_lowercase().contains("ellipse") && nums.len() >= 3 {
+                                let rx = nums[2];
+                                let ry = if nums.len() >= 4 { nums[3] } else { rx };
+                                shape_w = shape_w.max(nums[0] + rx);
+                                shape_h = shape_h.max(nums[1] + ry);
+                            }
+                        }
+                    }
+                }
+            }
+
+            let eff_w = if w > 0.0 { w } else { shape_w.max(100.0) };
+            let eff_h = if h > 0.0 { h } else { shape_h.max(40.0) };
+
             let align = meter
                 .get("stringalign")
                 .map(pluvia_core::render::TextAlign::parse)
                 .unwrap_or(pluvia_core::render::TextAlign::Left);
 
             let right = match align {
-                pluvia_core::render::TextAlign::Center => (x + w / 2.0).max(w).max(x),
-                pluvia_core::render::TextAlign::Right => x.max(w),
-                _ => x + w,
+                pluvia_core::render::TextAlign::Center => (x + eff_w / 2.0).max(eff_w).max(x),
+                pluvia_core::render::TextAlign::Right => x.max(eff_w),
+                _ => x + eff_w,
             };
 
             if right > max_w {
                 max_w = right;
             }
-            if y + h > max_h {
-                max_h = y + h;
+            if y + eff_h > max_h {
+                max_h = y + eff_h;
             }
+        }
+
+        // Check widget/skin size variables
+        for var_key in &["widgetwidth", "skinwidth", "width"] {
+            if let Some(val_str) = config.variables.get(var_key) {
+                let exp = config.variables.expand(val_str);
+                if let Ok(v) = pluvia_core::formulas::eval_formula(&exp, &config.variables) {
+                    max_w = max_w.max(v);
+                } else if let Ok(v) = exp.trim().parse::<f64>() {
+                    max_w = max_w.max(v);
+                }
+            }
+        }
+        for var_key in &["widgetheight", "skinheight", "height"] {
+            if let Some(val_str) = config.variables.get(var_key) {
+                let exp = config.variables.expand(val_str);
+                if let Ok(v) = pluvia_core::formulas::eval_formula(&exp, &config.variables) {
+                    max_h = max_h.max(v);
+                } else if let Ok(v) = exp.trim().parse::<f64>() {
+                    max_h = max_h.max(v);
+                }
+            }
+        }
+
+        let pad = config
+            .variables
+            .get("widgetpadding")
+            .or_else(|| config.variables.get("paddingbase"))
+            .and_then(|s| {
+                pluvia_core::formulas::eval_formula(s, &config.variables)
+                    .ok()
+                    .or_else(|| s.trim().parse::<f64>().ok())
+            })
+            .unwrap_or(0.0);
+        if pad > 0.0 {
+            max_w += pad * 2.0;
+            max_h += pad * 2.0;
         }
 
         let rainmeter_sec = config.raw_sections.get("rainmeter");
         if let Some(sec) = rainmeter_sec {
-            if let Some(sw) = sec.get("skinwidth").or_else(|| sec.get("windoww")).and_then(|v| v.parse::<f64>().ok()) {
+            if let Some(sw) = sec
+                .get("skinwidth")
+                .or_else(|| sec.get("windoww"))
+                .and_then(|v| v.parse::<f64>().ok())
+            {
                 max_w = max_w.max(sw);
             }
-            if let Some(sh) = sec.get("skinheight").or_else(|| sec.get("windowh")).and_then(|v| v.parse::<f64>().ok()) {
+            if let Some(sh) = sec
+                .get("skinheight")
+                .or_else(|| sec.get("windowh"))
+                .and_then(|v| v.parse::<f64>().ok())
+            {
                 max_h = max_h.max(sh);
             }
         }
 
         let w = (max_w.ceil() as u32).max(200);
-        let h = (max_h.ceil() as u32).max(100);
+        let h = (max_h.ceil() as u32).max(180);
 
-        let rainmeter_sec = config.raw_sections.get("rainmeter");
         let win_x = rainmeter_sec
             .and_then(|s| s.get("windowx").or_else(|| s.get("skinx")))
             .and_then(|v| v.parse::<i32>().ok())
@@ -175,20 +268,35 @@ impl SkinRuntime {
 
         let config = parse_skin_file(&path_buf)?;
 
-        // Derive skin ID from parent folder name or file stem
-        let id = path_buf
+        // Derive skin ID from relative path components to prevent collisions between suites
+        let stem = path_buf
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Skin");
+        let parent = path_buf
             .parent()
             .and_then(|p| p.file_name())
             .and_then(|n| n.to_str())
-            .filter(|s| !s.is_empty())
-            .or_else(|| {
-                path_buf
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .filter(|s| !s.is_empty())
-            })
-            .unwrap_or("Skin")
-            .to_string();
+            .unwrap_or("");
+        let grand = path_buf
+            .parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+
+        let base_id = if parent.is_empty() || parent.eq_ignore_ascii_case("skins") {
+            stem.to_string()
+        } else if stem.eq_ignore_ascii_case(parent) {
+            parent.to_string()
+        } else {
+            format!("{}/{}", parent, stem)
+        };
+
+        let mut id = base_id;
+        if self.skins.contains_key(&id) && !grand.is_empty() && !grand.eq_ignore_ascii_case("skins") {
+            id = format!("{}/{}", grand, id);
+        }
 
         if self.skins.contains_key(&id) {
             return Err(RuntimeError::SkinAlreadyLoaded(id));
@@ -203,11 +311,13 @@ impl SkinRuntime {
         let mut measures: HashMap<String, Box<dyn Measure>> = HashMap::new();
         let mut measure_values: HashMap<String, MeasureValue> = HashMap::new();
 
-        for measure_cfg in config.measures.values() {
-            if let Some(mut m) = create_measure(measure_cfg) {
-                let val = m.update();
-                measures.insert(measure_cfg.name.to_ascii_lowercase(), m);
-                measure_values.insert(measure_cfg.name.to_ascii_lowercase(), val);
+        for name in &config.measure_order {
+            if let Some(measure_cfg) = config.measures.get(name) {
+                if let Some(mut m) = create_measure(measure_cfg) {
+                    let val = m.update_with_context(&config.variables, &measure_values);
+                    measures.insert(name.clone(), m);
+                    measure_values.insert(name.clone(), val);
+                }
             }
         }
 
@@ -224,6 +334,14 @@ impl SkinRuntime {
             tick_count: 0,
             last_tick: Instant::now(),
         };
+
+        // Apply initial measure actions (e.g. OnUpdateAction, IfMatchAction) in definition order
+        let initial_order = instance.config.measure_order.clone();
+        for name in &initial_order {
+            if let Some(val) = instance.measure_values.get(name).cloned() {
+                Self::apply_measure_actions(&mut instance, name, &val, None);
+            }
+        }
 
         // Render initial frame
         Self::render_instance(&self.renderer, &mut instance)?;
@@ -242,7 +360,9 @@ impl SkinRuntime {
     }
 
     pub fn unload_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
-        if let Some(mut skin) = self.skins.remove(id) {
+        let key = Self::find_skin_key(&self.skins, id)
+            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
+        if let Some(mut skin) = self.skins.remove(&key) {
             skin.surface.destroy()?;
             Ok(())
         } else {
@@ -251,10 +371,9 @@ impl SkinRuntime {
     }
 
     pub fn refresh_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
-        let skin = self
-            .skins
-            .get_mut(id)
+        let key = Self::find_skin_key(&self.skins, id)
             .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
+        let skin = self.skins.get_mut(&key).unwrap();
 
         let new_config = parse_skin_file(&skin.path)?;
         skin.config = new_config;
@@ -264,16 +383,16 @@ impl SkinRuntime {
             Self::register_skin_fonts(parent);
         }
 
-        // Recreate measures
+        // Recreate measures in definition order
         skin.measures.clear();
         skin.measure_values.clear();
-        for measure_cfg in skin.config.measures.values() {
-            if let Some(mut m) = create_measure(measure_cfg) {
-                let val = m.update();
-                skin.measures
-                    .insert(measure_cfg.name.to_ascii_lowercase(), m);
-                skin.measure_values
-                    .insert(measure_cfg.name.to_ascii_lowercase(), val);
+        for name in &skin.config.measure_order {
+            if let Some(measure_cfg) = skin.config.measures.get(name) {
+                if let Some(mut m) = create_measure(measure_cfg) {
+                    let val = m.update_with_context(&skin.config.variables, &skin.measure_values);
+                    skin.measures.insert(name.clone(), m);
+                    skin.measure_values.insert(name.clone(), val);
+                }
             }
         }
 
@@ -294,15 +413,48 @@ impl SkinRuntime {
         Ok(count)
     }
 
+    pub fn find_skin_key(skins: &HashMap<String, SkinInstance>, query: &str) -> Option<String> {
+        let q = query.trim();
+        if skins.contains_key(q) {
+            return Some(q.to_string());
+        }
+        for (key, instance) in skins {
+            if key.eq_ignore_ascii_case(q) {
+                return Some(key.clone());
+            }
+            let path_str = instance.path.to_string_lossy();
+            if path_str == q || path_str.ends_with(q) {
+                return Some(key.clone());
+            }
+            let q_norm = q.replace(" / ", "/").replace('\\', "/").to_ascii_lowercase();
+            let path_norm = path_str.replace('\\', "/").to_ascii_lowercase();
+            if path_norm.contains(&q_norm) || path_norm.ends_with(&q_norm) {
+                return Some(key.clone());
+            }
+            if let Some(stem) = instance.path.file_stem().and_then(|s| s.to_str()) {
+                if stem.eq_ignore_ascii_case(q) {
+                    return Some(key.clone());
+                }
+            }
+        }
+        None
+    }
+
+    fn find_skin_mut<'a>(
+        skins: &'a mut HashMap<String, SkinInstance>,
+        id: &str,
+    ) -> Option<&'a mut SkinInstance> {
+        let key = Self::find_skin_key(skins, id)?;
+        skins.get_mut(&key)
+    }
+
     pub fn set_variable(
         &mut self,
         id: &str,
         key: &str,
         value: &str,
     ) -> Result<(), RuntimeError> {
-        let skin = self
-            .skins
-            .get_mut(id)
+        let skin = Self::find_skin_mut(&mut self.skins, id)
             .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
 
         skin.config.variables.set(key, value);
@@ -312,6 +464,34 @@ impl SkinRuntime {
 
         skin.last_tick = Instant::now();
         Self::render_instance(&self.renderer, skin)?;
+        Ok(())
+    }
+
+    pub fn set_position(
+        &mut self,
+        id: &str,
+        x: i32,
+        y: i32,
+    ) -> Result<(), RuntimeError> {
+        let skin = Self::find_skin_mut(&mut self.skins, id)
+            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
+
+        let mut bounds = skin.surface.bounds();
+        bounds.x = x;
+        bounds.y = y;
+        skin.surface.set_bounds(bounds)?;
+        Ok(())
+    }
+
+    pub fn set_opacity(
+        &mut self,
+        id: &str,
+        opacity: f64,
+    ) -> Result<(), RuntimeError> {
+        let skin = Self::find_skin_mut(&mut self.skins, id)
+            .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
+
+        skin.surface.set_opacity(opacity)?;
         Ok(())
     }
 
@@ -339,30 +519,37 @@ impl SkinRuntime {
     }
 
     pub fn get_skin(&self, id: &str) -> Option<&SkinInstance> {
-        self.skins.get(id)
+        let key = Self::find_skin_key(&self.skins, id)?;
+        self.skins.get(&key)
     }
 
     pub fn get_skin_mut(&mut self, id: &str) -> Option<&mut SkinInstance> {
-        self.skins.get_mut(id)
+        Self::find_skin_mut(&mut self.skins, id)
     }
 
     fn execute_tick(renderer: &MeterRenderer, skin: &mut SkinInstance) -> Result<(), RuntimeError> {
         skin.last_tick = Instant::now();
         skin.tick_count = skin.tick_count.wrapping_add(1);
 
-        // Update measures based on update_divider
-        for (name, measure) in &mut skin.measures {
+        let measure_names: Vec<String> = skin.config.measure_order.clone();
+        for name in measure_names {
             let divider = skin
                 .config
                 .measures
-                .get(name)
+                .get(&name)
                 .map(|m| m.update_divider)
                 .unwrap_or(1)
                 .max(1);
 
             if skin.tick_count % (divider as u64) == 0 {
-                let val = measure.update();
-                skin.measure_values.insert(name.clone(), val);
+                let old_val = skin.measure_values.get(&name).cloned();
+                let new_val = if let Some(m) = skin.measures.get_mut(&name) {
+                    m.update_with_context(&skin.config.variables, &skin.measure_values)
+                } else {
+                    continue;
+                };
+                skin.measure_values.insert(name.clone(), new_val.clone());
+                Self::apply_measure_actions(skin, &name, &new_val, old_val.as_ref());
             }
         }
 
@@ -370,19 +557,138 @@ impl SkinRuntime {
         Ok(())
     }
 
+    fn apply_measure_actions(
+        skin: &mut SkinInstance,
+        name: &str,
+        new_val: &MeasureValue,
+        old_val: Option<&MeasureValue>,
+    ) {
+        let props = match skin.config.measures.get(name) {
+            Some(m) => m.properties.clone(),
+            None => return,
+        };
+
+        // 1. OnUpdateAction
+        if let Some(action) = props.get("onupdateaction") {
+            let expanded = skin.config.variables.expand_with_context(
+                action,
+                Some(name),
+                Some(&skin.measure_values),
+            );
+            Self::execute_bangs(skin, &expanded);
+        }
+
+        // 2. OnChangeAction
+        if let Some(action) = props.get("onchangeaction") {
+            if old_val.map(|o| o.to_string_val()) != Some(new_val.to_string_val()) {
+                let expanded = skin.config.variables.expand_with_context(
+                    action,
+                    Some(name),
+                    Some(&skin.measure_values),
+                );
+                Self::execute_bangs(skin, &expanded);
+            }
+        }
+
+        // 3. IfMatch
+        if let Some(pattern) = props.get("ifmatch") {
+            let exp_pattern = skin.config.variables.expand_with_context(
+                pattern,
+                Some(name),
+                Some(&skin.measure_values),
+            );
+            let val_str = new_val.to_string_val();
+            let is_match = val_str == exp_pattern
+                || regex::Regex::new(&exp_pattern)
+                    .map(|r| r.is_match(&val_str))
+                    .unwrap_or(false);
+
+            if is_match {
+                if let Some(match_act) = props.get("ifmatchaction") {
+                    let expanded = skin.config.variables.expand_with_context(
+                        match_act,
+                        Some(name),
+                        Some(&skin.measure_values),
+                    );
+                    Self::execute_bangs(skin, &expanded);
+                }
+            } else if let Some(not_match_act) = props.get("ifnotmatchaction") {
+                let expanded = skin.config.variables.expand_with_context(
+                    not_match_act,
+                    Some(name),
+                    Some(&skin.measure_values),
+                );
+                Self::execute_bangs(skin, &expanded);
+            }
+        }
+    }
+
+    fn execute_bangs(skin: &mut SkinInstance, bang_str: &str) {
+        let bangs = pluvia_core::bangs::parse_bangs(bang_str);
+        for bang in bangs {
+            match bang {
+                pluvia_core::bangs::Bang::SetVariable { name, value, .. } => {
+                    let exp = skin.config.variables.expand_with_context(
+                        &value,
+                        None,
+                        Some(&skin.measure_values),
+                    );
+                    let final_val = if let Ok(n) =
+                        pluvia_core::formulas::eval_formula(&exp, &skin.config.variables)
+                    {
+                        format!("{}", n)
+                    } else {
+                        exp
+                    };
+                    skin.config.variables.set(&name, &final_val);
+                    if let Some(sec) = skin.config.raw_sections.get_mut("variables") {
+                        sec.insert(name.to_ascii_lowercase(), final_val);
+                    }
+                }
+                pluvia_core::bangs::Bang::SetOption {
+                    section,
+                    key,
+                    value,
+                    ..
+                } => {
+                    let exp = skin.config.variables.expand_with_context(
+                        &value,
+                        None,
+                        Some(&skin.measure_values),
+                    );
+                    let sec_lower = section.to_ascii_lowercase();
+                    let key_lower = key.to_ascii_lowercase();
+                    if let Some(meter) = skin.config.meters.get_mut(&sec_lower) {
+                        meter.properties.insert(key_lower.clone(), exp.clone());
+                        if key_lower == "text" {
+                            meter.text = Some(exp.clone());
+                        } else if key_lower == "x" {
+                            meter.x = Some(exp.clone());
+                        } else if key_lower == "y" {
+                            meter.y = Some(exp.clone());
+                        } else if key_lower == "w" {
+                            meter.w = exp.parse::<f64>().ok();
+                        } else if key_lower == "h" {
+                            meter.h = exp.parse::<f64>().ok();
+                        } else if key_lower == "fontcolor" {
+                            meter.font_color = Some(exp.clone());
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     pub fn force_tick_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
-        let skin = self
-            .skins
-            .get_mut(id)
+        let skin = Self::find_skin_mut(&mut self.skins, id)
             .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
 
         Self::execute_tick(&self.renderer, skin)
     }
 
     pub fn tick_skin(&mut self, id: &str) -> Result<(), RuntimeError> {
-        let skin = self
-            .skins
-            .get_mut(id)
+        let skin = Self::find_skin_mut(&mut self.skins, id)
             .ok_or_else(|| RuntimeError::SkinNotFound(id.to_string()))?;
 
         if skin.config.update_rate_ms == 0 {
@@ -397,6 +703,10 @@ impl SkinRuntime {
     }
 
     pub fn tick_all(&mut self) -> Result<(), RuntimeError> {
+        for skin in self.skins.values_mut() {
+            skin.surface.poll_events();
+        }
+
         let ids: Vec<String> = self.skins.keys().cloned().collect();
         for id in ids {
             let _ = self.tick_skin(&id);
@@ -429,24 +739,29 @@ impl SkinRuntime {
 
     fn register_skin_fonts(base_dir: &Path) {
         let vfs = pluvia_core::vfs::VfsResolver::new();
-        if let Some(fonts_dir) = vfs.resolve(base_dir, "@Resources/Fonts") {
-            if fonts_dir.is_dir() {
-                if let Ok(entries) = std::fs::read_dir(&fonts_dir) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                            let ext_lower = ext.to_ascii_lowercase();
-                            if ext_lower == "otf"
-                                || ext_lower == "ttf"
-                                || ext_lower == "woff"
-                                || ext_lower == "woff2"
-                            {
-                                pluvia_core::render::add_application_font(&path);
+        let mut curr = Some(base_dir);
+        while let Some(dir) = curr {
+            if let Some(fonts_dir) = vfs.resolve(dir, "@Resources/Fonts") {
+                if fonts_dir.is_dir() {
+                    if let Ok(entries) = std::fs::read_dir(&fonts_dir) {
+                        for entry in entries.flatten() {
+                            let path = entry.path();
+                            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                                let ext_lower = ext.to_ascii_lowercase();
+                                if ext_lower == "otf"
+                                    || ext_lower == "ttf"
+                                    || ext_lower == "woff"
+                                    || ext_lower == "woff2"
+                                {
+                                    pluvia_core::render::add_application_font(&path);
+                                }
                             }
                         }
                     }
+                    break;
                 }
             }
+            curr = dir.parent();
         }
     }
 }
@@ -458,6 +773,11 @@ pub fn start_background_ticker(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_millis(50));
+        let mut env_check_counter = 0u32;
+        let mut is_game_fullscreen = false;
+        // (skin_id -> was_auto_hidden_by_window)
+        let mut auto_hidden: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
+
         loop {
             tokio::select! {
                 _ = shutdown_rx.changed() => {
@@ -466,6 +786,60 @@ pub fn start_background_ticker(
                     }
                 }
                 _ = interval.tick() => {
+                    env_check_counter = env_check_counter.wrapping_add(1);
+
+                    // Every ~500ms: check fullscreen state and auto-hide overlapping windows
+                    if env_check_counter % 10 == 0 {
+                        // Run blocking X11 queries off the async runtime thread
+                        let (fullscreen, covering_rects) = tokio::task::spawn_blocking(|| {
+                            let fs = crate::display::x11::is_fullscreen_window_active();
+                            let rects = crate::display::x11::get_visible_normal_window_rects();
+                            (fs, rects)
+                        })
+                        .await
+                        .unwrap_or((false, Vec::new()));
+
+                        is_game_fullscreen = fullscreen;
+
+                        let mut rt = runtime.write().await;
+                        let skin_ids: Vec<String> = rt.skins.keys().cloned().collect();
+
+                        // Compute visibility changes (read pass)
+                        let mut visibility_changes: Vec<(String, bool)> = Vec::new();
+                        for id in &skin_ids {
+                            if let Some(skin) = rt.skins.get(id) {
+                                let sb = skin.surface.bounds();
+                                let is_covered = covering_rects.iter().any(|wr| {
+                                    wr.x <= sb.x
+                                        && wr.y <= sb.y
+                                        && wr.x + wr.width as i32 >= sb.x + sb.width as i32
+                                        && wr.y + wr.height as i32 >= sb.y + sb.height as i32
+                                });
+                                let was_hidden = auto_hidden.get(id).copied().unwrap_or(false);
+                                if is_covered && !was_hidden {
+                                    visibility_changes.push((id.clone(), false)); // hide
+                                } else if !is_covered && was_hidden {
+                                    visibility_changes.push((id.clone(), true)); // show
+                                }
+                            }
+                        }
+
+                        // Apply visibility changes (write pass)
+                        for (id, visible) in visibility_changes {
+                            auto_hidden.insert(id.clone(), !visible);
+                            if let Some(skin) = rt.skins.get_mut(&id) {
+                                let _ = skin.surface.set_visible(visible);
+                            }
+                        }
+
+                        // Cleanup entries for unloaded skins
+                        auto_hidden.retain(|k, _| rt.skins.contains_key(k));
+                    }
+
+                    if is_game_fullscreen {
+                        continue;
+                    }
+
                     let mut rt = runtime.write().await;
                     let _ = rt.tick_all();
                 }

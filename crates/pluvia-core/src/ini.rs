@@ -152,27 +152,36 @@ fn resolve_include_path(
         return Ok(path);
     }
 
-    // 2. Try VFS resolve relative to skin_dir
-    if let Some(path) = vfs.resolve(skin_dir, &norm) {
-        return Ok(path);
-    }
-
-    // 3. Try VFS resolve relative to skin_dir parent (e.g. skin suite root)
-    if let Some(parent) = skin_dir.parent() {
-        if let Some(path) = vfs.resolve(parent, &norm) {
-            return Ok(path);
-        }
-    }
-
-    // 4. Direct relative checks
+    // 2. Direct relative check
     let direct_curr = current_dir.join(&norm);
     if direct_curr.exists() {
         return Ok(direct_curr);
     }
 
-    let direct_skin = skin_dir.join(&norm);
-    if direct_skin.exists() {
-        return Ok(direct_skin);
+    // 3. Try VFS resolve and direct relative on skin_dir and all ancestors
+    let mut check_dir = Some(skin_dir);
+    while let Some(dir) = check_dir {
+        if let Some(path) = vfs.resolve(dir, &norm) {
+            return Ok(path);
+        }
+        let direct = dir.join(&norm);
+        if direct.exists() {
+            return Ok(direct);
+        }
+        check_dir = dir.parent();
+    }
+
+    // 4. Also walk up from current_dir in case it is in a different sub-tree
+    let mut curr_ancestor = current_dir.parent();
+    while let Some(dir) = curr_ancestor {
+        if let Some(path) = vfs.resolve(dir, &norm) {
+            return Ok(path);
+        }
+        let direct = dir.join(&norm);
+        if direct.exists() {
+            return Ok(direct);
+        }
+        curr_ancestor = dir.parent();
     }
 
     // 5. Absolute path check
@@ -219,32 +228,34 @@ fn parse_content_recursive(
             // Check for @Include directive
             if lower_key.starts_with("@include") {
                 let inc_path_str = state.variables.expand(val);
-                let inc_path = resolve_include_path(
+                if let Ok(inc_path) = resolve_include_path(
                     state.skin_dir,
                     current_file_path,
                     &inc_path_str,
                     &state.vfs,
-                )?;
-                let canonical = inc_path
-                    .canonicalize()
-                    .unwrap_or_else(|_| inc_path.clone());
+                ) {
+                    let canonical = inc_path
+                        .canonicalize()
+                        .unwrap_or_else(|_| inc_path.clone());
 
-                // Check active call stack for circular dependencies (A -> B -> A)
-                if state.include_stack.contains(&canonical) {
-                    return Err(ParseError::CircularInclude(inc_path.display().to_string()));
+                    // Check active call stack for circular dependencies (A -> B -> A)
+                    if state.include_stack.contains(&canonical) {
+                        return Err(ParseError::CircularInclude(inc_path.display().to_string()));
+                    }
+                    state.include_stack.push(canonical);
+
+                    if let Ok(bytes) = fs::read(&inc_path) {
+                        if let Ok(decoded) = decode_ini_bytes(&bytes) {
+                            parse_content_recursive(
+                                &decoded,
+                                &inc_path,
+                                state,
+                                current_section.clone(),
+                            )?;
+                        }
+                    }
+                    state.include_stack.pop();
                 }
-                state.include_stack.push(canonical);
-
-                let bytes = fs::read(&inc_path)?;
-                let decoded = decode_ini_bytes(&bytes)?;
-                let res = parse_content_recursive(
-                    &decoded,
-                    &inc_path,
-                    state,
-                    current_section.clone(),
-                );
-                state.include_stack.pop();
-                res?;
                 continue;
             }
 

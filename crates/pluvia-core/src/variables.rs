@@ -127,6 +127,66 @@ impl VariableMap {
 
         output
     }
+
+    /// Expands variables with optional context: `#CURRENTSECTION#`, `#VarName#`, and `[MeasureName]` / `[MeasureName:]` dynamic section variables.
+    pub fn expand_with_context(
+        &self,
+        input: &str,
+        current_section: Option<&str>,
+        measures: Option<&HashMap<String, crate::measures::MeasureValue>>,
+    ) -> String {
+        let mut text = input.to_string();
+        if let Some(sec) = current_section {
+            let sec_upper = "#CURRENTSECTION#";
+            while let Some(pos) = text.to_ascii_uppercase().find(sec_upper) {
+                text.replace_range(pos..pos + sec_upper.len(), sec);
+            }
+        }
+
+        // Expand standard variables
+        text = self.expand(&text);
+
+        // Expand dynamic section variables if measures provided
+        if let Some(m_map) = measures {
+            let mut result = String::with_capacity(text.len());
+            let mut i = 0;
+            let bytes = text.as_bytes();
+            while i < bytes.len() {
+                if bytes[i] == b'[' {
+                    if let Some(close) = text[i..].find(']') {
+                        let inner = &text[i + 1..i + close];
+                        if !inner.starts_with('!')
+                            && !inner.starts_with('"')
+                            && !inner.starts_with('\'')
+                            && !inner.contains(' ')
+                            && !inner.is_empty()
+                        {
+                            let (name, is_num) = if inner.ends_with(':') {
+                                (&inner[..inner.len() - 1], true)
+                            } else {
+                                (inner, false)
+                            };
+                            let clean_name = name.strip_prefix('&').unwrap_or(name);
+                            if let Some(val) = m_map.get(&clean_name.to_ascii_lowercase()) {
+                                if is_num {
+                                    result.push_str(&val.to_number_val().to_string());
+                                } else {
+                                    result.push_str(&val.to_string_val());
+                                }
+                                i += close + 1;
+                                continue;
+                            }
+                        }
+                    }
+                }
+                result.push(bytes[i] as char);
+                i += 1;
+            }
+            text = result;
+        }
+
+        text
+    }
 }
 
 fn is_valid_var_char(c: char) -> bool {

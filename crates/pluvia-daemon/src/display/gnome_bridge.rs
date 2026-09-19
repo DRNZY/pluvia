@@ -177,6 +177,13 @@ impl DesktopSurface for GnomeBridgeSurface {
         self.destroyed
     }
 
+    fn poll_events(&mut self) {
+        if let Some(x11) = &mut self.fallback_x11 {
+            x11.poll_events();
+            self.bounds = x11.bounds();
+        }
+    }
+
     fn clear_damage(&mut self) {
         if let Some(x11) = &mut self.fallback_x11 {
             x11.clear_damage();

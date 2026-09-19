@@ -324,4 +324,12 @@ pub trait DesktopSurface: Send + Sync {
 
     /// Clears any accumulated frame damage rectangles.
     fn clear_damage(&mut self);
+
+    /// Sets the window opacity (0.0 = fully transparent, 1.0 = fully opaque).
+    fn set_opacity(&mut self, _opacity: f64) -> Result<(), DisplayError> {
+        Ok(())
+    }
+
+    /// Polls display events (e.g. mouse clicks, window dragging).
+    fn poll_events(&mut self) {}
 }

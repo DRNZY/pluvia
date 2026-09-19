@@ -1,8 +1,14 @@
+pub mod calc_measure;
 pub mod mpris;
+pub mod plugin_fallback;
+pub mod string_measure;
+pub mod substitute;
 pub mod system;
 pub mod time;
 
 use crate::ini::MeasureConfig;
+use crate::variables::VariableMap;
+use std::collections::HashMap;
 
 /// Value produced by a telemetry measure.
 #[derive(Debug, Clone, PartialEq)]
@@ -30,7 +36,27 @@ impl MeasureValue {
     pub fn to_number_val(&self) -> f64 {
         match self {
             MeasureValue::Number(n) => *n,
-            MeasureValue::String(s) => s.trim().parse::<f64>().unwrap_or(0.0),
+            MeasureValue::String(s) => {
+                let trimmed = s.trim();
+                if let Ok(val) = trimmed.parse::<f64>() {
+                    return val;
+                }
+                let parts: Vec<&str> = trimmed.split(':').collect();
+                if parts.len() == 3 {
+                    if let (Ok(h), Ok(m), Ok(sec)) = (
+                        parts[0].parse::<f64>(),
+                        parts[1].parse::<f64>(),
+                        parts[2].parse::<f64>(),
+                    ) {
+                        return h * 3600.0 + m * 60.0 + sec;
+                    }
+                } else if parts.len() == 2 {
+                    if let (Ok(h), Ok(m)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
+                        return h * 3600.0 + m * 60.0;
+                    }
+                }
+                0.0
+            }
         }
     }
 
@@ -94,6 +120,15 @@ pub trait Measure: Send + Sync {
 
     /// Get the current/cached value without updating.
     fn get_value(&self) -> MeasureValue;
+
+    /// Update with skin context (variables and other measures).
+    fn update_with_context(
+        &mut self,
+        _vars: &VariableMap,
+        _measures: &HashMap<String, MeasureValue>,
+    ) -> MeasureValue {
+        self.update()
+    }
 }
 
 /// Factory function to instantiate a measure from a parsed `MeasureConfig`.
@@ -101,6 +136,8 @@ pub fn create_measure(config: &MeasureConfig) -> Option<Box<dyn Measure>> {
     let m_type = config.measure_type.to_ascii_lowercase();
     match m_type.as_str() {
         "time" => Some(Box::new(time::TimeMeasure::from_config(config))),
+        "string" => Some(Box::new(string_measure::StringMeasure::from_config(config))),
+        "calc" => Some(Box::new(calc_measure::CalcMeasure::from_config(config))),
         "cpu" => Some(Box::new(system::CpuMeasure::from_config(config))),
         "physicalmemory" | "memory" | "swapmemory" => {
             Some(Box::new(system::MemoryMeasure::from_config(config)))
@@ -126,7 +163,7 @@ pub fn create_measure(config: &MeasureConfig) -> Option<Box<dyn Measure>> {
                 "win7audio" => Some(Box::new(crate::plugins::win7_audio::Win7AudioPlugin::from_config(config))),
                 "process" => Some(Box::new(crate::plugins::process::ProcessPlugin::from_config(config))),
                 "webparser" => Some(Box::new(crate::plugins::web_parser::WebParserPlugin::from_config(config))),
-                _ => None,
+                _ => Some(Box::new(plugin_fallback::FallbackPluginMeasure::from_config(config))),
             }
         }
         _ => None,

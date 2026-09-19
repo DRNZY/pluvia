@@ -45,6 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let runtime = Arc::new(RwLock::new(SkinRuntime::new(backend)));
 
+    // Enable X11 multi-threading support (required for spawn_blocking X11 queries)
+    pluvia_daemon::display::x11::init_threads();
+
     // Background ticker loop
     let (shutdown_ticker_tx, shutdown_ticker_rx) = watch::channel(false);
     let _ticker_handle = start_background_ticker(runtime.clone(), shutdown_ticker_rx);

@@ -123,17 +123,20 @@ impl Color {
             return None;
         }
 
-        if let Some(hex) = trimmed.strip_prefix('#') {
-            if hex.len() == 6 {
-                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        let hex_candidate = trimmed.strip_prefix('#').unwrap_or(trimmed);
+        if (hex_candidate.len() == 6 || hex_candidate.len() == 8)
+            && hex_candidate.chars().all(|c| c.is_ascii_hexdigit())
+        {
+            if hex_candidate.len() == 6 {
+                let r = u8::from_str_radix(&hex_candidate[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&hex_candidate[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&hex_candidate[4..6], 16).ok()?;
                 return Some(Self::from_u8(r, g, b, 255));
-            } else if hex.len() == 8 {
-                let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
-                let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
-                let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-                let a = u8::from_str_radix(&hex[6..8], 16).ok()?;
+            } else if hex_candidate.len() == 8 {
+                let r = u8::from_str_radix(&hex_candidate[0..2], 16).ok()?;
+                let g = u8::from_str_radix(&hex_candidate[2..4], 16).ok()?;
+                let b = u8::from_str_radix(&hex_candidate[4..6], 16).ok()?;
+                let a = u8::from_str_radix(&hex_candidate[6..8], 16).ok()?;
                 return Some(Self::from_u8(r, g, b, a));
             }
         }
