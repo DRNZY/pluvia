@@ -1,10 +1,10 @@
 # Pluvia
 
-A native Rainmeter desktop widget runtime and management tool for Linux.
+A native Rainmeter desktop widget runtime and management tool for Linux. Basically Rainmeter for linux lol
 
 ## Disclaimer
 
-This software is currently in early alpha (`v0.1.0-alpha`). It is experimental, actively evolving, and likely to have bugs or unexpected crashes. Use at your own risk.
+This software is currently in early alpha (`v0.1.0-alpha`). It's experimental, dont get ya hopes up.
 
 ## Features
 
