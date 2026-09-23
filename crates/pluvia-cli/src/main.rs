@@ -64,6 +64,14 @@ enum Commands {
         #[arg(short, long)]
         dest: Option<PathBuf>,
     },
+
+    /// Package a skin directory into a .rmskin archive
+    Pack {
+        /// Path to the source skin directory
+        source: PathBuf,
+        /// Destination path for the .rmskin archive
+        output: PathBuf,
+    },
 }
 
 #[tokio::main]
@@ -164,6 +172,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let bytes = res.get("total_bytes").and_then(|v| v.as_u64()).unwrap_or(0);
                 let destination = res.get("destination").and_then(|v| v.as_str()).unwrap_or("skins");
                 println!("Successfully imported package to {}: {} files extracted ({} bytes)", destination, files, bytes);
+            }
+        }
+        Commands::Pack { source, output } => {
+            let report = pluvia_core::extractor::pack_rmskin_package(&source, &output)?;
+            if cli.json {
+                let res = serde_json::json!({
+                    "source": source.to_string_lossy(),
+                    "output": output.to_string_lossy(),
+                    "files_packaged": report.files_packaged,
+                    "total_uncompressed_bytes": report.total_uncompressed_bytes,
+                    "package_size": report.package_size,
+                });
+                println!("{}", serde_json::to_string_pretty(&res)?);
+            } else {
+                println!(
+                    "Successfully packaged '{}' -> '{}': {} files ({} bytes uncompressed, {} bytes package)",
+                    source.display(),
+                    output.display(),
+                    report.files_packaged,
+                    report.total_uncompressed_bytes,
+                    report.package_size
+                );
             }
         }
     }

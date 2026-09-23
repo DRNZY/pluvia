@@ -363,4 +363,8 @@ impl Measure for ActionTimerPlugin {
     fn get_value(&self) -> MeasureValue {
         self.current_value.clone()
     }
+
+    fn command(&mut self, cmd: &str) {
+        self.command(cmd);
+    }
 }

@@ -435,4 +435,8 @@ impl Measure for AudioLevelPlugin {
     fn get_value(&self) -> MeasureValue {
         self.current_value.clone()
     }
+
+    fn feed_audio(&mut self, samples: &[f32]) {
+        self.feed_samples(samples);
+    }
 }

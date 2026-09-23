@@ -1613,3 +1613,142 @@ fn parse_padding(raw: &str, vars: &VariableMap) -> (f64, f64, f64, f64) {
         (0.0, 0.0, 0.0, 0.0)
     }
 }
+
+/// Interactive bounding box for a meter containing mouse action strings.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MeterHitBox {
+    pub meter_name: String,
+    pub rect: Rect,
+    pub left_mouse_up_action: Option<String>,
+    pub left_mouse_down_action: Option<String>,
+    pub left_mouse_double_click_action: Option<String>,
+    pub right_mouse_up_action: Option<String>,
+    pub middle_mouse_up_action: Option<String>,
+    pub mouse_over_action: Option<String>,
+    pub mouse_leave_action: Option<String>,
+    pub mouse_scroll_up_action: Option<String>,
+    pub mouse_scroll_down_action: Option<String>,
+}
+
+impl MeterHitBox {
+    /// Returns true if the coordinate (x, y) lies inside this meter's bounding box.
+    pub fn contains(&self, x: f64, y: f64) -> bool {
+        x >= self.rect.x
+            && x <= self.rect.x + self.rect.width
+            && y >= self.rect.y
+            && y <= self.rect.y + self.rect.height
+    }
+}
+
+impl MeterRenderer {
+    /// Computes interactive hit boxes with associated mouse action bangs for all rendered meters.
+    pub fn get_interactive_hit_boxes(&self, state: &SkinState) -> Vec<MeterHitBox> {
+        let mut hit_boxes = Vec::new();
+        let mut prev_x = 0.0;
+        let mut prev_y = 0.0;
+        let mut prev_w = 0.0;
+        let mut prev_h = 0.0;
+
+        let mut container_meters = HashSet::new();
+        for meter in state.config.meters.values() {
+            if let Some(c) = meter.properties.get("container") {
+                container_meters.insert(c.trim().to_ascii_lowercase());
+            }
+        }
+
+        for meter_name_lower in &state.config.meter_order {
+            if container_meters.contains(meter_name_lower) {
+                continue;
+            }
+
+            if let Some(meter) = state.config.meters.get(meter_name_lower) {
+                if meter.hidden {
+                    continue;
+                }
+
+                let x = resolve_coordinate(
+                    meter.x.as_deref(),
+                    prev_x,
+                    prev_w,
+                    &state.config.variables,
+                );
+                let y = resolve_coordinate(
+                    meter.y.as_deref(),
+                    prev_y,
+                    prev_h,
+                    &state.config.variables,
+                );
+                let w = meter.w.or_else(|| {
+                    meter.get("w").and_then(|s| {
+                        let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                        eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+                    })
+                }).unwrap_or(0.0);
+                let h = meter.h.or_else(|| {
+                    meter.get("h").and_then(|s| {
+                        let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                        eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+                    })
+                }).unwrap_or(0.0);
+
+                let pad = meter
+                    .properties
+                    .get("padding")
+                    .map(|p| parse_padding(p, &state.config.variables))
+                    .unwrap_or((0.0, 0.0, 0.0, 0.0));
+
+                let eff_w = if w > 0.0 { w } else { 50.0 };
+                let eff_h = if h > 0.0 { h } else { 20.0 };
+
+                let effective_rect = Rect::new(
+                    x,
+                    y,
+                    eff_w + pad.0 + pad.2,
+                    eff_h + pad.1 + pad.3,
+                );
+
+                prev_x = effective_rect.x;
+                prev_y = effective_rect.y;
+                prev_w = effective_rect.width;
+                prev_h = effective_rect.height;
+
+                let left_up = meter.get("leftmouseupaction").map(str::to_string);
+                let left_down = meter.get("leftmousedownaction").map(str::to_string);
+                let left_dbl = meter.get("leftmousedoubleclickaction").map(str::to_string);
+                let right_up = meter.get("rightmouseupaction").map(str::to_string);
+                let middle_up = meter.get("middlemouseupaction").map(str::to_string);
+                let over = meter.get("mouseoveraction").map(str::to_string);
+                let leave = meter.get("mouseleaveaction").map(str::to_string);
+                let scroll_up = meter.get("mousescrollupaction").map(str::to_string);
+                let scroll_down = meter.get("mousescrolldownaction").map(str::to_string);
+
+                if left_up.is_some()
+                    || left_down.is_some()
+                    || left_dbl.is_some()
+                    || right_up.is_some()
+                    || middle_up.is_some()
+                    || over.is_some()
+                    || leave.is_some()
+                    || scroll_up.is_some()
+                    || scroll_down.is_some()
+                {
+                    hit_boxes.push(MeterHitBox {
+                        meter_name: meter.name.clone(),
+                        rect: effective_rect,
+                        left_mouse_up_action: left_up,
+                        left_mouse_down_action: left_down,
+                        left_mouse_double_click_action: left_dbl,
+                        right_mouse_up_action: right_up,
+                        middle_mouse_up_action: middle_up,
+                        mouse_over_action: over,
+                        mouse_leave_action: leave,
+                        mouse_scroll_up_action: scroll_up,
+                        mouse_scroll_down_action: scroll_down,
+                    });
+                }
+            }
+        }
+
+        hit_boxes
+    }
+}

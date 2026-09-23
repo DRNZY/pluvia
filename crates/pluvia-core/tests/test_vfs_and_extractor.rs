@@ -1,5 +1,6 @@
 use pluvia_core::extractor::{
-    extract_rmskin_package, extract_rmskin_package_with_limit, ExtractionError,
+    extract_rmskin_package, extract_rmskin_package_with_limit, pack_rmskin_package,
+    ExtractionError,
 };
 use pluvia_core::vfs::VfsResolver;
 use std::fs::{self, File};
@@ -257,4 +258,39 @@ fn test_valid_zip_extraction_and_report() {
     assert!(extracted_font.exists());
     assert_eq!(fs::read(&extracted_ini).unwrap(), content1);
     assert_eq!(fs::read(&extracted_font).unwrap(), content2);
+}
+
+#[test]
+fn test_pack_and_extract_roundtrip() {
+    let tmp = tempdir().unwrap();
+    let skin_root = tmp.path().join("SourceSkin");
+    let res_dir = skin_root.join("@Resources").join("Images");
+    fs::create_dir_all(&res_dir).unwrap();
+
+    let ini_content = b"[Rainmeter]\nUpdate=500\n[MeterText]\nMeter=String\nText=Pluvia";
+    fs::write(skin_root.join("Skin.ini"), ini_content).unwrap();
+
+    let img_content = b"PNG_FAKE_IMAGE_DATA_12345";
+    fs::write(res_dir.join("bg.png"), img_content).unwrap();
+
+    let output_rmskin = tmp.path().join("packaged.rmskin");
+    let pack_report = pack_rmskin_package(&skin_root, &output_rmskin).unwrap();
+
+    assert_eq!(pack_report.files_packaged, 2);
+    assert_eq!(
+        pack_report.total_uncompressed_bytes,
+        (ini_content.len() + img_content.len()) as u64
+    );
+    assert!(output_rmskin.exists());
+    assert!(pack_report.package_size > 0);
+
+    let unpack_dir = tmp.path().join("unpacked");
+    let extract_report = extract_rmskin_package(&output_rmskin, &unpack_dir).unwrap();
+
+    assert_eq!(extract_report.files_extracted, 2);
+    assert_eq!(fs::read(unpack_dir.join("Skin.ini")).unwrap(), ini_content);
+    assert_eq!(
+        fs::read(unpack_dir.join("@Resources/Images/bg.png")).unwrap(),
+        img_content
+    );
 }

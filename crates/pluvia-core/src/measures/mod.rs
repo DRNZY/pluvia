@@ -1,9 +1,12 @@
 pub mod calc_measure;
+pub mod gpu;
 pub mod mpris;
 pub mod plugin_fallback;
+pub mod power;
 pub mod string_measure;
 pub mod substitute;
 pub mod system;
+pub mod thermal;
 pub mod time;
 
 use crate::ini::MeasureConfig;
@@ -129,6 +132,12 @@ pub trait Measure: Send + Sync {
     ) -> MeasureValue {
         self.update()
     }
+
+    /// Dispatch an interactive command to this measure (e.g. from !CommandMeasure).
+    fn command(&mut self, _cmd: &str) {}
+
+    /// Feed audio samples for spectrum analysis (e.g. AudioLevel measures).
+    fn feed_audio(&mut self, _samples: &[f32]) {}
 }
 
 /// Factory function to instantiate a measure from a parsed `MeasureConfig`.
@@ -147,6 +156,15 @@ pub fn create_measure(config: &MeasureConfig) -> Option<Box<dyn Measure>> {
         "netin" | "netout" | "nettotal" | "net" => {
             Some(Box::new(system::NetMeasure::from_config(config)))
         }
+        "thermal" | "temperature" | "coretemp" | "speedfan" => {
+            Some(Box::new(thermal::ThermalMeasure::from_config(config)))
+        }
+        "power" | "battery" | "powerstate" | "powerstatus" | "powerplugin" => {
+            Some(Box::new(power::PowerMeasure::from_config(config)))
+        }
+        "gpu" | "gpumonitor" | "msiafterburner" | "hwinfo" => {
+            Some(Box::new(gpu::GpuMeasure::from_config(config)))
+        }
         "nowplaying" => Some(Box::new(mpris::NowPlayingMeasure::from_config(config))),
         "actiontimer" => Some(Box::new(crate::plugins::action_timer::ActionTimerPlugin::from_config(config))),
         "audiolevel" => Some(Box::new(crate::plugins::audio_level::AudioLevelPlugin::from_config(config))),
@@ -163,6 +181,19 @@ pub fn create_measure(config: &MeasureConfig) -> Option<Box<dyn Measure>> {
                 "win7audio" => Some(Box::new(crate::plugins::win7_audio::Win7AudioPlugin::from_config(config))),
                 "process" => Some(Box::new(crate::plugins::process::ProcessPlugin::from_config(config))),
                 "webparser" => Some(Box::new(crate::plugins::web_parser::WebParserPlugin::from_config(config))),
+                "coretemp" | "speedfan" => Some(Box::new(thermal::ThermalMeasure::from_config(config))),
+                "powerplugin" | "batteryplugin" | "battery" => Some(Box::new(power::PowerMeasure::from_config(config))),
+                "msiafterburner" | "hwinfo" | "gpumonitor" => Some(Box::new(gpu::GpuMeasure::from_config(config))),
+                "usagemonitor" | "perfmon" => {
+                    let cat = config.get("category").unwrap_or("").to_ascii_lowercase();
+                    if cat.contains("gpu") {
+                        Some(Box::new(gpu::GpuMeasure::from_config(config)))
+                    } else if cat.contains("memory") || cat.contains("ram") {
+                        Some(Box::new(system::MemoryMeasure::from_config(config)))
+                    } else {
+                        Some(Box::new(system::CpuMeasure::from_config(config)))
+                    }
+                }
                 _ => Some(Box::new(plugin_fallback::FallbackPluginMeasure::from_config(config))),
             }
         }

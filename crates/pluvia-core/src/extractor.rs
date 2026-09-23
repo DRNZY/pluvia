@@ -192,3 +192,104 @@ pub fn extract_rmskin_package_with_limit<P: AsRef<Path>, Q: AsRef<Path>>(
         total_bytes,
     })
 }
+
+/// Statistics about a completed skin packaging operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageReport {
+    pub files_packaged: usize,
+    pub total_uncompressed_bytes: u64,
+    pub package_size: u64,
+}
+
+/// Packs a Rainmeter skin directory into a `.rmskin` (or standard `.zip`) archive.
+///
+/// Walks `source_dir` recursively and writes all non-symlink regular files into `output_archive`.
+/// Path separators in the archive are normalized to forward slashes.
+pub fn pack_rmskin_package<P: AsRef<Path>, Q: AsRef<Path>>(
+    source_dir: P,
+    output_archive: Q,
+) -> Result<PackageReport, ExtractionError> {
+    let source_dir = source_dir.as_ref();
+    let output_archive = output_archive.as_ref();
+
+    if !source_dir.is_dir() {
+        return Err(ExtractionError::IoError(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Source directory '{}' does not exist or is not a directory", source_dir.display()),
+        )));
+    }
+
+    if let Some(parent) = output_archive.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let file = File::create(output_archive)?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+
+    let mut files_packaged = 0;
+    let mut total_uncompressed_bytes = 0;
+
+    fn walk_dir_and_pack(
+        root: &Path,
+        current: &Path,
+        zip: &mut zip::ZipWriter<File>,
+        options: &zip::write::SimpleFileOptions,
+        files_count: &mut usize,
+        uncompressed_bytes: &mut u64,
+    ) -> Result<(), ExtractionError> {
+        let entries = fs::read_dir(current)?;
+        for entry in entries {
+            let entry = entry?;
+            let path = entry.path();
+            let meta = fs::symlink_metadata(&path)?;
+
+            if meta.file_type().is_symlink() {
+                continue;
+            }
+
+            if meta.is_dir() {
+                walk_dir_and_pack(root, &path, zip, options, files_count, uncompressed_bytes)?;
+            } else if meta.is_file() {
+                let rel_path = path.strip_prefix(root).map_err(|e| {
+                    io::Error::new(io::ErrorKind::InvalidInput, e.to_string())
+                })?;
+                let rel_str = rel_path.to_string_lossy().replace('\\', "/");
+                if rel_str.is_empty() {
+                    continue;
+                }
+
+                zip.start_file(rel_str, *options)?;
+                let mut f = File::open(&path)?;
+                let mut buffer = Vec::new();
+                let bytes = f.read_to_end(&mut buffer)?;
+                use std::io::Write;
+                zip.write_all(&buffer)?;
+
+                *files_count += 1;
+                *uncompressed_bytes += bytes as u64;
+            }
+        }
+        Ok(())
+    }
+
+    walk_dir_and_pack(
+        source_dir,
+        source_dir,
+        &mut zip,
+        &options,
+        &mut files_packaged,
+        &mut total_uncompressed_bytes,
+    )?;
+
+    zip.finish()?;
+
+    let package_size = fs::metadata(output_archive)?.len();
+
+    Ok(PackageReport {
+        files_packaged,
+        total_uncompressed_bytes,
+        package_size,
+    })
+}

@@ -52,6 +52,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_ticker_tx, shutdown_ticker_rx) = watch::channel(false);
     let _ticker_handle = start_background_ticker(runtime.clone(), shutdown_ticker_rx);
 
+    // Audio capture worker
+    let (shutdown_audio_tx, shutdown_audio_rx) = watch::channel(false);
+    let _audio_handle = pluvia_daemon::AudioCaptureWorker::start(runtime.clone(), shutdown_audio_rx);
+
     // IPC server
     let server = IpcServer::new(&socket_path, runtime);
     let handle = server.spawn()?;
@@ -63,6 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nShutdown signal received. Stopping daemon...");
 
     let _ = shutdown_ticker_tx.send(true);
+    let _ = shutdown_audio_tx.send(true);
     handle.stop();
 
     println!("Pluvia daemon shut down cleanly.");

@@ -675,7 +675,111 @@ impl SkinRuntime {
                         }
                     }
                 }
+                pluvia_core::bangs::Bang::CommandMeasure { measure, command, .. } => {
+                    let m_lower = measure.to_ascii_lowercase();
+                    if let Some(m) = skin.measures.get_mut(&m_lower) {
+                        m.command(&command);
+                    }
+                }
+                pluvia_core::bangs::Bang::UpdateMeasure { name, .. } => {
+                    let m_lower = name.to_ascii_lowercase();
+                    if m_lower == "*" {
+                        for (k, m) in skin.measures.iter_mut() {
+                            let val = m.update_with_context(&skin.config.variables, &skin.measure_values);
+                            skin.measure_values.insert(k.clone(), val);
+                        }
+                    } else if let Some(m) = skin.measures.get_mut(&m_lower) {
+                        let val = m.update_with_context(&skin.config.variables, &skin.measure_values);
+                        skin.measure_values.insert(m_lower, val);
+                    }
+                }
+                pluvia_core::bangs::Bang::ShowMeter { name, .. } => {
+                    let m_lower = name.to_ascii_lowercase();
+                    if let Some(meter) = skin.config.meters.get_mut(&m_lower) {
+                        meter.hidden = false;
+                    }
+                }
+                pluvia_core::bangs::Bang::HideMeter { name, .. } => {
+                    let m_lower = name.to_ascii_lowercase();
+                    if let Some(meter) = skin.config.meters.get_mut(&m_lower) {
+                        meter.hidden = true;
+                    }
+                }
+                pluvia_core::bangs::Bang::ToggleMeter { name, .. } => {
+                    let m_lower = name.to_ascii_lowercase();
+                    if let Some(meter) = skin.config.meters.get_mut(&m_lower) {
+                        meter.hidden = !meter.hidden;
+                    }
+                }
+                pluvia_core::bangs::Bang::WriteKeyValue { section, key, value, file } => {
+                    let target_path = file.unwrap_or_else(|| skin.path.clone());
+                    let exp = skin.config.variables.expand_with_context(&value, None, Some(&skin.measure_values));
+                    let _ = pluvia_core::bangs::write_key_value_to_file(target_path, &section, &key, &exp);
+                }
+                pluvia_core::bangs::Bang::Execute(cmd) => {
+                    let _ = pluvia_core::bangs::execute_command(&cmd);
+                }
                 _ => {}
+            }
+        }
+    }
+
+    /// Handles mouse click at (x, y) relative to skin canvas, executing any matched meter bangs.
+    pub fn handle_mouse_click(
+        &mut self,
+        id: &str,
+        x: f64,
+        y: f64,
+        button: u32,
+    ) -> Result<bool, RuntimeError> {
+        let key = match Self::find_skin_key(&self.skins, id) {
+            Some(k) => k,
+            None => return Ok(false),
+        };
+
+        let hit_boxes = {
+            let skin = self.skins.get(&key).unwrap();
+            let state = SkinState::new(skin.config.clone(), skin.measure_values.clone());
+            self.renderer.get_interactive_hit_boxes(&state)
+        };
+
+        let mut action_to_execute = None;
+        for hb in hit_boxes.iter().rev() {
+            if hb.contains(x, y) {
+                let action = match button {
+                    1 => hb.left_mouse_up_action.as_ref().or(hb.left_mouse_down_action.as_ref()),
+                    2 => hb.middle_mouse_up_action.as_ref(),
+                    3 => hb.right_mouse_up_action.as_ref(),
+                    _ => None,
+                };
+                if let Some(act) = action {
+                    action_to_execute = Some((hb.meter_name.clone(), act.clone()));
+                    break;
+                }
+            }
+        }
+
+        if let Some((meter_name, act_str)) = action_to_execute {
+            if let Some(skin) = self.skins.get_mut(&key) {
+                let expanded = skin.config.variables.expand_with_context(
+                    &act_str,
+                    Some(&meter_name),
+                    Some(&skin.measure_values),
+                );
+                Self::execute_bangs(skin, &expanded);
+                let _ = Self::render_instance(&self.renderer, skin);
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
+    }
+
+    /// Feeds live audio PCM buffer into all active audio level measures across loaded skins.
+    pub fn feed_audio_samples(&mut self, samples: &[f32]) {
+        for skin in self.skins.values_mut() {
+            for measure in skin.measures.values_mut() {
+                measure.feed_audio(samples);
             }
         }
     }

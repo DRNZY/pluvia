@@ -203,4 +203,8 @@ impl Measure for WebParserPlugin {
     fn get_value(&self) -> MeasureValue {
         self.current_value.clone()
     }
+
+    fn command(&mut self, _cmd: &str) {
+        self.update();
+    }
 }

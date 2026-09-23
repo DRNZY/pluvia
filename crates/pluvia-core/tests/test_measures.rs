@@ -260,6 +260,7 @@ fn test_mpris_now_playing_measure_real_and_mock() {
         status: 1,
         duration: 230.0,
         position: 115.0,
+        volume: 100.0,
     };
 
     let mut m_title = NowPlayingMeasure::new(PlayerType::Title).with_mock_data(mock.clone());
@@ -398,4 +399,172 @@ fn test_measure_factory_from_config() {
     };
     let mut np_measure = create_measure(&np_cfg).expect("Failed to create NowPlaying measure");
     assert!(matches!(np_measure.update(), MeasureValue::String(_)));
+
+    // CoreTemp plugin measure
+    let mut temp_props = HashMap::new();
+    temp_props.insert("coretemptype".to_string(), "maxtemperature".to_string());
+    let temp_cfg = MeasureConfig {
+        name: "MeasureTemp".to_string(),
+        measure_type: "Plugin".to_string(),
+        plugin: Some("CoreTemp.dll".to_string()),
+        format: None,
+        formula: None,
+        update_divider: 1,
+        disabled: false,
+        dynamic_variables: false,
+        properties: temp_props,
+    };
+    let mut temp_measure = create_measure(&temp_cfg).expect("Failed to create CoreTemp measure");
+    assert!(temp_measure.update().to_number_val() >= 0.0);
+
+    // PowerPlugin measure
+    let mut power_props = HashMap::new();
+    power_props.insert("powerstate".to_string(), "percent".to_string());
+    let power_cfg = MeasureConfig {
+        name: "MeasurePower".to_string(),
+        measure_type: "Plugin".to_string(),
+        plugin: Some("PowerPlugin.dll".to_string()),
+        format: None,
+        formula: None,
+        update_divider: 1,
+        disabled: false,
+        dynamic_variables: false,
+        properties: power_props,
+    };
+    let mut power_measure = create_measure(&power_cfg).expect("Failed to create PowerPlugin measure");
+    let p_val = power_measure.update().to_number_val();
+    assert!(p_val >= 0.0 && p_val <= 100.0);
+
+    // MSIAfterburner GPU measure
+    let mut gpu_props = HashMap::new();
+    gpu_props.insert("gputype".to_string(), "usage".to_string());
+    let gpu_cfg = MeasureConfig {
+        name: "MeasureGPU".to_string(),
+        measure_type: "Plugin".to_string(),
+        plugin: Some("MSIAfterburner.dll".to_string()),
+        format: None,
+        formula: None,
+        update_divider: 1,
+        disabled: false,
+        dynamic_variables: false,
+        properties: gpu_props,
+    };
+    let mut gpu_measure = create_measure(&gpu_cfg).expect("Failed to create MSIAfterburner measure");
+    assert!(gpu_measure.update().to_number_val() >= 0.0);
 }
+
+#[test]
+fn test_thermal_measure_celsius_fahrenheit_and_mock() {
+    use pluvia_core::measures::thermal::{TemperatureScale, ThermalMeasure, ThermalMetric};
+
+    let mut m_c = ThermalMeasure::new()
+        .with_metric(ThermalMetric::Temperature)
+        .with_scale(TemperatureScale::Celsius)
+        .with_mock_temp(50.0)
+        .with_mock_name("Intel Core i7");
+
+    assert_eq!(m_c.update().to_number_val(), 50.0);
+
+    let mut m_f = ThermalMeasure::new()
+        .with_metric(ThermalMetric::Temperature)
+        .with_scale(TemperatureScale::Fahrenheit)
+        .with_mock_temp(50.0);
+
+    // 50 * 1.8 + 32 = 122.0
+    assert_eq!(m_f.update().to_number_val(), 122.0);
+
+    let mut m_name = ThermalMeasure::new()
+        .with_metric(ThermalMetric::Name)
+        .with_mock_temp(50.0)
+        .with_mock_name("AMD Ryzen 9");
+
+    assert_eq!(m_name.update().to_string_val(), "AMD Ryzen 9");
+}
+
+#[test]
+fn test_power_measure_battery_and_ac() {
+    use pluvia_core::measures::power::{PowerMeasure, PowerMetric};
+
+    let mut m_pct = PowerMeasure::new()
+        .with_metric(PowerMetric::Percent)
+        .with_mock_percent(85.0)
+        .with_mock_ac(true);
+
+    assert_eq!(m_pct.update().to_number_val(), 85.0);
+
+    let mut m_ac = PowerMeasure::new()
+        .with_metric(PowerMetric::ACLine)
+        .with_mock_percent(85.0)
+        .with_mock_ac(true);
+
+    assert_eq!(m_ac.update().to_number_val(), 1.0);
+
+    let mut m_status = PowerMeasure::new()
+        .with_metric(PowerMetric::StateText)
+        .with_mock_percent(85.0)
+        .with_mock_ac(true)
+        .with_mock_status("Charging");
+
+    assert_eq!(m_status.update().to_string_val(), "Charging");
+}
+
+#[test]
+fn test_gpu_measure_metrics_and_mock() {
+    use pluvia_core::measures::gpu::{GpuMeasure, GpuMetric};
+
+    let mut m_usage = GpuMeasure::new()
+        .with_metric(GpuMetric::Usage)
+        .with_mock(65.0, 2048.0, 8192.0, 55.0, "NVIDIA RTX 3080");
+
+    assert_eq!(m_usage.update().to_number_val(), 65.0);
+
+    let mut m_vram = GpuMeasure::new()
+        .with_metric(GpuMetric::MemoryPercent)
+        .with_mock(65.0, 2048.0, 8192.0, 55.0, "NVIDIA RTX 3080");
+
+    // 2048 / 8192 = 25%
+    assert_eq!(m_vram.update().to_number_val(), 25.0);
+
+    let mut m_temp = GpuMeasure::new()
+        .with_metric(GpuMetric::Temperature)
+        .with_mock(65.0, 2048.0, 8192.0, 55.0, "NVIDIA RTX 3080");
+
+    assert_eq!(m_temp.update().to_number_val(), 55.0);
+
+    let mut m_name = GpuMeasure::new()
+        .with_metric(GpuMetric::Name)
+        .with_mock(65.0, 2048.0, 8192.0, 55.0, "NVIDIA RTX 3080");
+
+    assert_eq!(m_name.update().to_string_val(), "NVIDIA RTX 3080");
+}
+
+#[test]
+fn test_mpris_command_execution() {
+    let mock = NowPlayingData {
+        title: "Song 1".to_string(),
+        artist: "Artist 1".to_string(),
+        album: "Album 1".to_string(),
+        cover: "".to_string(),
+        state: 1, // Playing
+        status: 1,
+        duration: 180.0,
+        position: 30.0,
+        volume: 80.0,
+    };
+
+    let mut m_state = NowPlayingMeasure::new(PlayerType::State).with_mock_data(mock);
+    assert_eq!(m_state.update().to_number_val(), 1.0);
+
+    // Issue Pause command via Measure::command
+    m_state.command("Pause");
+    assert_eq!(m_state.update().to_number_val(), 2.0);
+
+    // Issue Play command
+    m_state.command("Play");
+    assert_eq!(m_state.update().to_number_val(), 1.0);
+
+    // Issue PlayPause toggle
+    m_state.command("PlayPause");
+    assert_eq!(m_state.update().to_number_val(), 2.0);
+}
+

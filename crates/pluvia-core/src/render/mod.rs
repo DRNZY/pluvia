@@ -3,7 +3,7 @@ pub mod meter_renderer;
 pub mod pango_text;
 
 pub use hit_mask::AlphaHitMask;
-pub use meter_renderer::{MeterRenderer, RenderError, SkinState};
+pub use meter_renderer::{MeterHitBox, MeterRenderer, RenderError, SkinState};
 pub use pango_text::{add_application_font, PangoTextRenderer, TextAlign, TextCase, TextStyle};
 
 /// 2D Rectangle with floating point coordinates and dimensions.
