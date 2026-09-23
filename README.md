@@ -91,6 +91,11 @@ Import a `.rmskin` package:
 pluvia-cli import /path/to/skin.rmskin
 ```
 
+Package a skin directory into a `.rmskin` archive:
+```bash
+pluvia-cli pack /path/to/skin ~/.config/pluvia/packages/skin.rmskin
+```
+
 ## Skin Directory
 
 Place installed Rainmeter skins inside:
