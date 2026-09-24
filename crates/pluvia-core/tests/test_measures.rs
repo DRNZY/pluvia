@@ -157,6 +157,14 @@ fn test_disk_measure() {
     let free_bytes = disk_free.update().to_number_val();
     assert!(free_bytes > 0.0);
 
+    let mut disk_c = DiskMeasure::new("C:", "free");
+    let c_bytes = disk_c.update().to_number_val();
+    assert_eq!(c_bytes, free_bytes);
+
+    let mut disk_d = DiskMeasure::new("D:", "free");
+    let d_bytes = disk_d.update().to_number_val();
+    assert!(d_bytes > 0.0);
+
     let mut disk_total = DiskMeasure::new("/", "total");
     let total_bytes = disk_total.update().to_number_val();
     assert!(total_bytes >= free_bytes);

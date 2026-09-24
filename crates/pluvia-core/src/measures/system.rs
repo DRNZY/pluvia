@@ -4,7 +4,7 @@ use std::ffi::CString;
 use std::fs::File;
 use std::io::Read;
 use std::mem::MaybeUninit;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -373,10 +373,75 @@ pub struct DiskMeasure {
 impl DiskMeasure {
     /// Create a disk measure for a given mount point and metric (`"free"`, `"total"`, `"used"`, `"percent"`).
     pub fn new(mount_path: &str, metric: &str) -> Self {
+        let resolved = Self::resolve_linux_mount_path(mount_path);
         Self {
-            mount_path: mount_path.to_string(),
+            mount_path: resolved,
             metric: metric.to_ascii_lowercase(),
             current_value: MeasureValue::Number(0.0),
+        }
+    }
+
+    /// Automatically maps Windows drive letters (C:, D:, E:) and relative paths to Linux mounts.
+    pub fn resolve_linux_mount_path(drive_str: &str) -> String {
+        let trimmed = drive_str.trim().trim_matches('"').trim();
+        if trimmed.is_empty() {
+            return "/".to_string();
+        }
+        if trimmed.starts_with('/') {
+            return trimmed.to_string();
+        }
+
+        let clean = trimmed.strip_suffix(':').unwrap_or(trimmed).to_ascii_uppercase();
+        match clean.as_str() {
+            "C" => "/".to_string(),
+            "D" => {
+                if Path::new("/home").exists() {
+                    "/home".to_string()
+                } else {
+                    "/".to_string()
+                }
+            }
+            _ => {
+                let mut mounts = Vec::new();
+                if let Ok(user) = std::env::var("USER") {
+                    let user_media = PathBuf::from(format!("/run/media/{}", user));
+                    if let Ok(entries) = std::fs::read_dir(&user_media) {
+                        for entry in entries.flatten() {
+                            if entry.path().is_dir() {
+                                mounts.push(entry.path().to_string_lossy().to_string());
+                            }
+                        }
+                    }
+                    let media = PathBuf::from(format!("/media/{}", user));
+                    if let Ok(entries) = std::fs::read_dir(&media) {
+                        for entry in entries.flatten() {
+                            if entry.path().is_dir() {
+                                mounts.push(entry.path().to_string_lossy().to_string());
+                            }
+                        }
+                    }
+                }
+                if let Ok(entries) = std::fs::read_dir("/mnt") {
+                    for entry in entries.flatten() {
+                        if entry.path().is_dir() {
+                            mounts.push(entry.path().to_string_lossy().to_string());
+                        }
+                    }
+                }
+                if !mounts.is_empty() {
+                    let letter_byte = clean.as_bytes().first().copied().unwrap_or(b'E');
+                    let idx = if letter_byte >= b'E' {
+                        (letter_byte - b'E') as usize
+                    } else {
+                        0
+                    };
+                    mounts.get(idx).cloned().unwrap_or_else(|| mounts[0].clone())
+                } else if Path::new("/home").exists() {
+                    "/home".to_string()
+                } else {
+                    "/".to_string()
+                }
+            }
         }
     }
 
@@ -385,13 +450,6 @@ impl DiskMeasure {
         let drive = config
             .get("drive")
             .unwrap_or("/");
-
-        // Normalize Windows drive letters (C:, C) to Linux root "/"
-        let mount_path = if drive.is_empty() || drive.eq_ignore_ascii_case("c:") || drive.eq_ignore_ascii_case("c") {
-            "/"
-        } else {
-            drive
-        };
 
         let is_total = config.get("total").map(|s| s == "1").unwrap_or(false);
         let is_used = config.get("invertmeasure").map(|s| s == "1").unwrap_or(false);
@@ -411,7 +469,7 @@ impl DiskMeasure {
             "free"
         };
 
-        Self::new(mount_path, metric)
+        Self::new(drive, metric)
     }
 }
 
