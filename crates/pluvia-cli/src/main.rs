@@ -72,6 +72,19 @@ enum Commands {
         /// Destination path for the .rmskin archive
         output: PathBuf,
     },
+
+    /// Start or manage the Pluvia background daemon
+    Daemon {
+        /// Optional UNIX domain socket path to bind
+        #[arg(short, long)]
+        socket: Option<PathBuf>,
+        /// Run with mock display backend
+        #[arg(long)]
+        mock: bool,
+    },
+
+    /// Launch the Pluvia Studio management GUI
+    Studio,
 }
 
 #[tokio::main]
@@ -194,6 +207,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     report.total_uncompressed_bytes,
                     report.package_size
                 );
+            }
+        }
+        Commands::Daemon { socket, mock } => {
+            let mut cmd = std::process::Command::new("pluvia-daemon");
+            if let Some(sock) = socket {
+                cmd.arg("--socket").arg(sock);
+            }
+            if mock {
+                cmd.arg("--mock");
+            }
+            let status = cmd.status().map_err(|e| {
+                format!(
+                    "Failed to spawn pluvia-daemon (make sure pluvia-daemon is installed in PATH): {}",
+                    e
+                )
+            })?;
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
+            }
+        }
+        Commands::Studio => {
+            let status = std::process::Command::new("pluvia-studio")
+                .status()
+                .map_err(|e| {
+                    format!(
+                        "Failed to spawn pluvia-studio (make sure pluvia-studio is installed in PATH): {}",
+                        e
+                    )
+                })?;
+            if !status.success() {
+                std::process::exit(status.code().unwrap_or(1));
             }
         }
     }
