@@ -1623,13 +1623,120 @@ fn eval_coord_num(s: &str, vars: &VariableMap) -> f64 {
     }
 }
 
-fn substitute_measures(template: &str, meter: &MeterConfig, state: &SkinState) -> String {
+
+pub fn format_meter_value(raw_num: f64, meter: &MeterConfig) -> String {
+    let mut val = raw_num;
+
+    // 1. Scale
+    if let Some(scale_str) = meter.get("scale") {
+        if let Ok(scale_factor) = scale_str.trim().parse::<f64>() {
+            if scale_factor.abs() > f64::EPSILON {
+                val /= scale_factor;
+            }
+        }
+    }
+
+    // 2. Percentual
+    let is_percentual = meter.get("percentual").map(|s| s == "1").unwrap_or(false);
+    if is_percentual {
+        if val <= 1.0 && val >= 0.0 {
+            val *= 100.0;
+        }
+    }
+
+    // 3. AutoScale
+    let autoscale = meter.get("autoscale");
+    let mut unit_suffix = "";
+    if let Some(as_mode) = autoscale {
+        let mode = as_mode.trim().to_ascii_lowercase();
+        let base = if mode.starts_with('2') { 1000.0 } else { 1024.0 };
+        let start_kilo = mode.ends_with('k');
+
+        let abs_val = val.abs();
+        if !start_kilo && abs_val < base {
+            unit_suffix = " B";
+        } else if abs_val < base * base {
+            val /= base;
+            unit_suffix = " k";
+        } else if abs_val < base * base * base {
+            val /= base * base;
+            unit_suffix = " M";
+        } else if abs_val < base * base * base * base {
+            val /= base * base * base;
+            unit_suffix = " G";
+        } else {
+            val /= base * base * base * base;
+            unit_suffix = " T";
+        }
+    }
+
+    // 4. NumOfDecimals / Decimals
+    let decimals_opt = meter
+        .get("numofdecimals")
+        .or_else(|| meter.get("decimals"))
+        .and_then(|s| s.trim().parse::<usize>().ok());
+
+    let num_str = match decimals_opt {
+        Some(d) => {
+            if unit_suffix == " B" && (val - val.round()).abs() < 1e-6 {
+                format!("{:.0}", val)
+            } else {
+                format!("{:.1$}", val, d)
+            }
+        }
+        None => {
+            if autoscale.is_some() {
+                if unit_suffix == " B" || (val - val.round()).abs() < 1e-6 {
+                    format!("{:.0}", val)
+                } else {
+                    format!("{:.1}", val)
+                }
+            } else if (val - val.round()).abs() < 1e-6 {
+                format!("{:.0}", val)
+            } else {
+                format!("{}", val)
+            }
+        }
+    };
+
+    let prefix = meter.get("prefix").unwrap_or("");
+    let postfix = meter.get("postfix").unwrap_or("");
+
+    if !unit_suffix.is_empty() {
+        if postfix.starts_with("B") || postfix.starts_with("b") {
+            format!("{}{}{}{}", prefix, num_str, unit_suffix, postfix)
+        } else if postfix.is_empty() {
+            format!("{}{}{}", prefix, num_str, unit_suffix)
+        } else {
+            format!("{}{}{}{}", prefix, num_str, unit_suffix, postfix)
+        }
+    } else {
+        format!("{}{}{}", prefix, num_str, postfix)
+    }
+}
+
+pub fn substitute_measures(template: &str, meter: &MeterConfig, state: &SkinState) -> String {
     let mut result = template.to_string();
     for (idx, mname) in meter.measure_names.iter().enumerate() {
-        let val_str = state
-            .get_measure_value(mname)
-            .map(|v| v.to_string_val())
-            .unwrap_or_default();
+        let val_opt = state.get_measure_value(mname);
+        let val_str = match val_opt {
+            Some(MeasureValue::Number(n)) => format_meter_value(*n, meter),
+            Some(MeasureValue::String(s)) => {
+                if (meter.properties.contains_key("autoscale")
+                    || meter.properties.contains_key("numofdecimals")
+                    || meter.properties.contains_key("scale"))
+                    && s.trim().parse::<f64>().is_ok()
+                {
+                    let n = s.trim().parse::<f64>().unwrap();
+                    format_meter_value(n, meter)
+                } else {
+                    let prefix = meter.get("prefix").unwrap_or("");
+                    let postfix = meter.get("postfix").unwrap_or("");
+                    format!("{}{}{}", prefix, s, postfix)
+                }
+            }
+            None => String::new(),
+        };
         let placeholder = format!("%{}", idx + 1);
         result = result.replace(&placeholder, &val_str);
     }
@@ -1638,12 +1745,16 @@ fn substitute_measures(template: &str, meter: &MeterConfig, state: &SkinState) -
             .measure_names
             .first()
             .and_then(|m| state.get_measure_value(m))
-            .map(|v| v.to_string_val())
+            .map(|v| match v {
+                MeasureValue::Number(n) => format_meter_value(*n, meter),
+                MeasureValue::String(s) => s.clone(),
+            })
             .unwrap_or_default();
         result = result.replace("%0", &val0);
     }
     result
 }
+
 
 fn tokenize_shape_declaration(
     decl: &str,

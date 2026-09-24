@@ -129,10 +129,7 @@ Y=10
         MeasureValue::String("14:30".to_string()),
     );
 
-    let state = SkinState {
-        config,
-        measure_values,
-    };
+    let state = SkinState::new(config, measure_values);
 
     let surface = ImageSurface::create(Format::ARgb32, 300, 100).unwrap();
     let renderer = MeterRenderer::new();
@@ -170,10 +167,7 @@ Y=0
     // 50% CPU
     measure_values.insert("measurecpu".to_string(), MeasureValue::Number(50.0));
 
-    let state = SkinState {
-        config,
-        measure_values,
-    };
+    let state = SkinState::new(config, measure_values);
 
     let surface = ImageSurface::create(Format::ARgb32, 250, 50).unwrap();
     let renderer = MeterRenderer::new();
@@ -213,10 +207,7 @@ Y=10
     );
 
     let config = parse_skin_ini(&ini, tmp.path()).unwrap();
-    let state = SkinState {
-        config,
-        measure_values: HashMap::new(),
-    };
+    let state = SkinState::new(config, HashMap::new());
 
     let surface = ImageSurface::create(Format::ARgb32, 120, 120).unwrap();
     let renderer = MeterRenderer::new();
@@ -244,10 +235,7 @@ Y=0
 "#;
 
     let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
-    let state = SkinState {
-        config,
-        measure_values: HashMap::new(),
-    };
+    let state = SkinState::new(config, HashMap::new());
 
     let surface = ImageSurface::create(Format::ARgb32, 200, 100).unwrap();
     let renderer = MeterRenderer::new();
@@ -287,10 +275,7 @@ Y=50
     let mut measure_values = HashMap::new();
     measure_values.insert("measuresec".to_string(), MeasureValue::Number(0.5));
 
-    let state = SkinState {
-        config,
-        measure_values,
-    };
+    let state = SkinState::new(config, measure_values);
 
     let surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
     let renderer = MeterRenderer::new();
@@ -323,10 +308,7 @@ Y=10
     let mut measure_values = HashMap::new();
     measure_values.insert("measurecpu".to_string(), MeasureValue::Number(40.0));
 
-    let state = SkinState {
-        config,
-        measure_values,
-    };
+    let state = SkinState::new(config, measure_values);
 
     let surface = ImageSurface::create(Format::ARgb32, 150, 80).unwrap();
     let renderer = MeterRenderer::new();
@@ -361,10 +343,7 @@ Y=0r
 "#;
 
     let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
-    let state = SkinState {
-        config,
-        measure_values: HashMap::new(),
-    };
+    let state = SkinState::new(config, HashMap::new());
 
     let surface = ImageSurface::create(Format::ARgb32, 150, 60).unwrap();
     let renderer = MeterRenderer::new();
@@ -394,10 +373,7 @@ Y=0
 "#;
 
     let config = parse_skin_ini(ini, Path::new("/dummy")).unwrap();
-    let state = SkinState {
-        config,
-        measure_values: HashMap::new(),
-    };
+    let state = SkinState::new(config, HashMap::new());
 
     let surface = ImageSurface::create(Format::ARgb32, 200, 150).unwrap();
     let renderer = MeterRenderer::new();
@@ -458,10 +434,7 @@ Y=10
     );
 
     let config = parse_skin_ini(&ini, tmp.path()).unwrap();
-    let state = SkinState {
-        config,
-        measure_values: HashMap::new(),
-    };
+    let state = SkinState::new(config, HashMap::new());
 
     let surface = ImageSurface::create(Format::ARgb32, 120, 70).unwrap();
     let renderer = MeterRenderer::new();
@@ -513,10 +486,7 @@ Y=0
     );
 
     let config = parse_skin_ini(&ini, tmp.path()).unwrap();
-    let state = SkinState {
-        config,
-        measure_values: HashMap::new(),
-    };
+    let state = SkinState::new(config, HashMap::new());
 
     let surface = ImageSurface::create(Format::ARgb32, 60, 30).unwrap();
     let renderer = MeterRenderer::new();
@@ -662,10 +632,7 @@ H=40
     let mut measure_values = HashMap::new();
     measure_values.insert("measureval".to_string(), MeasureValue::Number(15.0));
 
-    let state = SkinState {
-        config,
-        measure_values,
-    };
+    let state = SkinState::new(config, measure_values);
 
     let surface = ImageSurface::create(Format::ARgb32, 200, 200).unwrap();
     let renderer = MeterRenderer::new();

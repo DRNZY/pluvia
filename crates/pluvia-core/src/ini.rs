@@ -23,7 +23,7 @@ pub enum ParseError {
 }
 
 /// Representation of a parsed Rainmeter meter (`Meter=...`).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct MeterConfig {
     pub name: String,
     pub meter_type: String,
