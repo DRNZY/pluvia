@@ -841,50 +841,7 @@ impl SkinRuntime {
     }
 
     fn register_skin_fonts(base_dir: &Path) {
-        let vfs = pluvia_core::vfs::VfsResolver::new();
-        let mut curr = Some(base_dir);
-        let mut depth = 0;
-        while let Some(dir) = curr {
-            if depth >= 3 {
-                break;
-            }
-            let possible_dirs = [
-                vfs.resolve(dir, "@Resources/Fonts"),
-                vfs.resolve(dir, "@Resources/Font"),
-                vfs.resolve(dir, "Fonts"),
-                vfs.resolve(dir, "Font"),
-            ];
-            for p in possible_dirs.into_iter().flatten() {
-                if p.is_dir() {
-                    Self::scan_and_add_fonts(&p, 0);
-                }
-            }
-            curr = dir.parent();
-            depth += 1;
-        }
-    }
-
-    fn scan_and_add_fonts(dir: &Path, depth: usize) {
-        if depth > 2 {
-            return;
-        }
-        if let Ok(entries) = std::fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_dir() {
-                    Self::scan_and_add_fonts(&path, depth + 1);
-                } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                    let ext_lower = ext.to_ascii_lowercase();
-                    if ext_lower == "otf"
-                        || ext_lower == "ttf"
-                        || ext_lower == "woff"
-                        || ext_lower == "woff2"
-                    {
-                        pluvia_core::render::add_application_font(&path);
-                    }
-                }
-            }
-        }
+        pluvia_core::render::pango_text::FontRegistry::register_skin_fonts(base_dir);
     }
 }
 

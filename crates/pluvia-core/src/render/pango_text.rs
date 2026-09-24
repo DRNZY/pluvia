@@ -42,6 +42,77 @@ pub fn add_application_font(path: &Path) -> bool {
     }
 }
 
+/// Font registry that discovers and registers custom fonts bundled in skin suites.
+pub struct FontRegistry;
+
+impl FontRegistry {
+    /// Recursively scans candidate font directories in `skin_dir` and its parent hierarchy
+    /// for `.ttf`, `.otf`, `.woff`, `.woff2` font files and registers them with Fontconfig.
+    pub fn register_skin_fonts(skin_dir: &Path) -> usize {
+        let mut registered = 0;
+        let font_extensions = ["ttf", "otf", "woff", "woff2"];
+
+        let mut search_dirs = Vec::new();
+        search_dirs.push(skin_dir.to_path_buf());
+        if let Some(parent) = skin_dir.parent() {
+            search_dirs.push(parent.to_path_buf());
+            if let Some(grandparent) = parent.parent() {
+                search_dirs.push(grandparent.to_path_buf());
+            }
+        }
+
+        let mut visited_paths = std::collections::HashSet::new();
+
+        for root in search_dirs {
+            let candidate_subdirs = [
+                root.join("@Resources").join("Fonts"),
+                root.join("@resources").join("fonts"),
+                root.join("@Resources").join("Font"),
+                root.join("@resources").join("font"),
+                root.join("@Resources"),
+                root.join("@resources"),
+                root.join("Fonts"),
+                root.join("fonts"),
+            ];
+
+            for dir in candidate_subdirs {
+                if dir.is_dir() {
+                    scan_and_register_fonts(&dir, &font_extensions, &mut visited_paths, &mut registered);
+                }
+            }
+        }
+
+        registered
+    }
+}
+
+fn scan_and_register_fonts(
+    dir: &Path,
+    extensions: &[&str],
+    visited: &mut std::collections::HashSet<std::path::PathBuf>,
+    registered: &mut usize,
+) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                scan_and_register_fonts(&path, extensions, visited, registered);
+            } else if path.is_file() {
+                if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                    let ext_lower = ext.to_ascii_lowercase();
+                    if extensions.contains(&ext_lower.as_str()) {
+                        if visited.insert(path.clone()) {
+                            if add_application_font(&path) {
+                                *registered += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Text alignment within layout and meter bounds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextAlign {
