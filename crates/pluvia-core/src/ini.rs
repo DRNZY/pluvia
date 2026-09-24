@@ -74,7 +74,7 @@ impl MeasureConfig {
 }
 
 /// Complete parsed configuration of a Rainmeter skin.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SkinConfig {
     pub update_rate_ms: u64,
     pub accurate_text: bool,

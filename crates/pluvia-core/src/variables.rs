@@ -146,6 +146,17 @@ impl VariableMap {
         current_section: Option<&str>,
         measures: Option<&HashMap<String, crate::measures::MeasureValue>>,
     ) -> String {
+        self.expand_with_full_context(input, current_section, measures, None)
+    }
+
+    /// Expands variables with full context including dynamic meter bounds (`[Meter:W]`, `[Meter:H]`, `[Meter:X]`, `[Meter:Y]`).
+    pub fn expand_with_full_context(
+        &self,
+        input: &str,
+        current_section: Option<&str>,
+        measures: Option<&HashMap<String, crate::measures::MeasureValue>>,
+        meter_bounds: Option<&HashMap<String, crate::render::Rect>>,
+    ) -> String {
         let mut text = input.to_string();
         if let Some(sec) = current_section {
             let sec_upper = "#CURRENTSECTION#";
@@ -157,8 +168,8 @@ impl VariableMap {
         // Expand standard variables
         text = self.expand(&text);
 
-        // Expand dynamic section variables if measures provided
-        if let Some(m_map) = measures {
+        // Expand dynamic section variables if measures or meter_bounds provided
+        if measures.is_some() || meter_bounds.is_some() {
             let mut result = String::with_capacity(text.len());
             let mut i = 0;
             let bytes = text.as_bytes();
@@ -172,20 +183,52 @@ impl VariableMap {
                             && !inner.contains(' ')
                             && !inner.is_empty()
                         {
-                            let (name, is_num) = if inner.ends_with(':') {
-                                (&inner[..inner.len() - 1], true)
-                            } else {
-                                (inner, false)
-                            };
-                            let clean_name = name.strip_prefix('&').unwrap_or(name);
-                            if let Some(val) = m_map.get(&clean_name.to_ascii_lowercase()) {
-                                if is_num {
-                                    result.push_str(&val.to_number_val().to_string());
-                                } else {
-                                    result.push_str(&val.to_string_val());
+                            if let Some(colon_pos) = inner.find(':') {
+                                let name = &inner[..colon_pos];
+                                let prop = &inner[colon_pos + 1..];
+                                let clean_name = name.strip_prefix('&').unwrap_or(name).to_ascii_lowercase();
+                                let clean_prop = prop.to_ascii_lowercase();
+
+                                if let Some(bounds) = meter_bounds {
+                                    let rect_opt = bounds.get(&clean_name).or_else(|| bounds.iter().find(|(k, _)| k.eq_ignore_ascii_case(&clean_name)).map(|(_, v)| v));
+                                if let Some(rect) = rect_opt {
+                                        let val = match clean_prop.as_str() {
+                                            "w" | "width" => Some(rect.width),
+                                            "h" | "height" => Some(rect.height),
+                                            "x" => Some(rect.x),
+                                            "y" => Some(rect.y),
+                                            _ => None,
+                                        };
+                                        if let Some(v) = val {
+                                            if (v - v.round()).abs() < 1e-6 {
+                                                result.push_str(&format!("{:.0}", v));
+                                            } else {
+                                                result.push_str(&v.to_string());
+                                            }
+                                            i += close + 1;
+                                            continue;
+                                        }
+                                    }
                                 }
-                                i += close + 1;
-                                continue;
+
+                                if prop.is_empty() {
+                                    if let Some(m_map) = measures {
+                                        if let Some(val) = m_map.get(&clean_name) {
+                                            result.push_str(&val.to_number_val().to_string());
+                                            i += close + 1;
+                                            continue;
+                                        }
+                                    }
+                                }
+                            } else {
+                                let clean_name = inner.strip_prefix('&').unwrap_or(inner).to_ascii_lowercase();
+                                if let Some(m_map) = measures {
+                                    if let Some(val) = m_map.get(&clean_name) {
+                                        result.push_str(&val.to_string_val());
+                                        i += close + 1;
+                                        continue;
+                                    }
+                                }
                             }
                         }
                     }

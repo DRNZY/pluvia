@@ -89,11 +89,16 @@ impl MeterRenderer {
         surface: &ImageSurface,
     ) -> Result<AlphaHitMask, RenderError> {
         let cr = Context::new(surface)?;
+        let surface_w = surface.width();
+        let surface_h = surface.height();
 
         let mut prev_x = 0.0;
         let mut prev_y = 0.0;
         let mut prev_w = 0.0;
         let mut prev_h = 0.0;
+
+        let mut meter_bounds: HashMap<String, Rect> = HashMap::new();
+        let mut container_surfaces: HashMap<String, (ImageSurface, Rect)> = HashMap::new();
 
         // Collect all meters referenced as a Container
         let mut container_meters = HashSet::new();
@@ -113,27 +118,52 @@ impl MeterRenderer {
                     continue;
                 }
 
+                let container_opt = meter.properties.get("container").map(|s| s.trim().to_ascii_lowercase());
+                let (base_origin_x, base_origin_y) = if let Some(ref cont_name) = container_opt {
+                    if let Ok(Some((_, cont_rect))) = self.get_or_render_container(
+                        cont_name,
+                        state,
+                        surface_w,
+                        surface_h,
+                        &mut meter_bounds,
+                        &mut container_surfaces,
+                    ) {
+                        (cont_rect.x, cont_rect.y)
+                    } else {
+                        (0.0, 0.0)
+                    }
+                } else {
+                    (0.0, 0.0)
+                };
+
                 let x = resolve_coordinate(
                     meter.x.as_deref(),
                     prev_x,
                     prev_w,
                     &state.config.variables,
-                );
+                    Some(&state.measure_values),
+                    Some(&meter_bounds),
+                ) + base_origin_x;
+
                 let y = resolve_coordinate(
                     meter.y.as_deref(),
                     prev_y,
                     prev_h,
                     &state.config.variables,
-                );
+                    Some(&state.measure_values),
+                    Some(&meter_bounds),
+                ) + base_origin_y;
+
                 let w = meter.w.or_else(|| {
                     meter.get("w").and_then(|s| {
-                        let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                        let exp = state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), Some(&meter_bounds));
                         eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
                     })
                 }).unwrap_or(0.0);
+
                 let h = meter.h.or_else(|| {
                     meter.get("h").and_then(|s| {
-                        let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                        let exp = state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), Some(&meter_bounds));
                         eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
                     })
                 }).unwrap_or(0.0);
@@ -146,27 +176,45 @@ impl MeterRenderer {
                 let render_x = x + pad.0;
                 let render_y = y + pad.1;
 
-                // Optional SolidColor background for meter box
-                if let Some(sc) = meter.solid_color.as_deref().and_then(Color::parse) {
-                    if w > 0.0 && h > 0.0 {
-                        cr.set_source_rgba(sc.r, sc.g, sc.b, sc.a);
-                        cr.rectangle(render_x, render_y, w, h);
-                        cr.fill()?;
-                    }
-                }
+                let rect = if let Some(ref cont_name) = container_opt {
+                    if let Some((mask_surface, _)) = container_surfaces.get(cont_name) {
+                        cr.save()?;
+                        cr.push_group();
 
-                let m_type = meter.meter_type.to_ascii_lowercase();
-                let rect = match m_type.as_str() {
-                    "string" => self.render_string(&cr, meter, render_x, render_y, w, h, state)?,
-                    "image" => self.render_image(&cr, meter, render_x, render_y, w, h, state)?,
-                    "bar" => self.render_bar(&cr, meter, render_x, render_y, w, h, state)?,
-                    "roundline" => self.render_roundline(&cr, meter, render_x, render_y, w, h, state)?,
-                    "shape" => self.render_shape(&cr, meter, render_x, render_y, state)?,
-                    "histogram" => self.render_histogram(&cr, meter, render_x, render_y, w, h, state)?,
-                    "rotator" => self.render_rotator(&cr, meter, render_x, render_y, w, h, state)?,
-                    "bitmap" => self.render_bitmap(&cr, meter, render_x, render_y, w, h, state)?,
-                    "line" => self.render_line(&cr, meter, render_x, render_y, w, h, state)?,
-                    _ => Rect::new(render_x, render_y, w, h),
+                        if let Some(sc) = meter.solid_color.as_deref().and_then(Color::parse) {
+                            if w > 0.0 && h > 0.0 {
+                                cr.set_source_rgba(sc.r, sc.g, sc.b, sc.a);
+                                cr.rectangle(render_x, render_y, w, h);
+                                cr.fill()?;
+                            }
+                        }
+
+                        let r = self.render_meter_type(&cr, meter, render_x, render_y, w, h, state, &meter_bounds)?;
+                        let pattern = cr.pop_group()?;
+                        cr.set_source(&pattern)?;
+                        cr.mask_surface(mask_surface, 0.0, 0.0)?;
+                        cr.restore()?;
+                        r
+                    } else {
+                        if let Some(sc) = meter.solid_color.as_deref().and_then(Color::parse) {
+                            if w > 0.0 && h > 0.0 {
+                                cr.set_source_rgba(sc.r, sc.g, sc.b, sc.a);
+                                cr.rectangle(render_x, render_y, w, h);
+                                cr.fill()?;
+                            }
+                        }
+                        self.render_meter_type(&cr, meter, render_x, render_y, w, h, state, &meter_bounds)?
+                    }
+                } else {
+                    // Optional SolidColor background for meter box
+                    if let Some(sc) = meter.solid_color.as_deref().and_then(Color::parse) {
+                        if w > 0.0 && h > 0.0 {
+                            cr.set_source_rgba(sc.r, sc.g, sc.b, sc.a);
+                            cr.rectangle(render_x, render_y, w, h);
+                            cr.fill()?;
+                        }
+                    }
+                    self.render_meter_type(&cr, meter, render_x, render_y, w, h, state, &meter_bounds)?
                 };
 
                 let effective_rect = Rect::new(
@@ -175,6 +223,9 @@ impl MeterRenderer {
                     rect.width + pad.0 + pad.2,
                     rect.height + pad.1 + pad.3,
                 );
+
+                meter_bounds.insert(meter.name.clone(), effective_rect);
+                meter_bounds.insert(meter_name_lower.clone(), effective_rect);
 
                 prev_x = effective_rect.x;
                 prev_y = effective_rect.y;
@@ -186,6 +237,114 @@ impl MeterRenderer {
         Ok(AlphaHitMask::from_surface(surface))
     }
 
+    fn get_or_render_container(
+        &self,
+        container_name: &str,
+        state: &SkinState,
+        surface_w: i32,
+        surface_h: i32,
+        meter_bounds: &mut HashMap<String, Rect>,
+        container_surfaces: &mut HashMap<String, (ImageSurface, Rect)>,
+    ) -> Result<Option<(ImageSurface, Rect)>, RenderError> {
+        let lower = container_name.trim().to_ascii_lowercase();
+        if let Some((surf, rect)) = container_surfaces.get(&lower) {
+            return Ok(Some((surf.clone(), *rect)));
+        }
+
+        if let Some(cont_meter) = state.config.meters.get(&lower) {
+            let mask_surface = ImageSurface::create(Format::ARgb32, surface_w, surface_h)?;
+            let mask_cr = Context::new(&mask_surface)?;
+
+            let x = resolve_coordinate(
+                cont_meter.x.as_deref(),
+                0.0,
+                0.0,
+                &state.config.variables,
+                Some(&state.measure_values),
+                Some(meter_bounds),
+            );
+            let y = resolve_coordinate(
+                cont_meter.y.as_deref(),
+                0.0,
+                0.0,
+                &state.config.variables,
+                Some(&state.measure_values),
+                Some(meter_bounds),
+            );
+            let w = cont_meter.w.or_else(|| {
+                cont_meter.get("w").and_then(|s| {
+                    let exp = state.config.variables.expand_with_full_context(s, Some(&cont_meter.name), Some(&state.measure_values), Some(meter_bounds));
+                    eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+                })
+            }).unwrap_or(0.0);
+            let h = cont_meter.h.or_else(|| {
+                cont_meter.get("h").and_then(|s| {
+                    let exp = state.config.variables.expand_with_full_context(s, Some(&cont_meter.name), Some(&state.measure_values), Some(meter_bounds));
+                    eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+                })
+            }).unwrap_or(0.0);
+
+            let pad = cont_meter
+                .properties
+                .get("padding")
+                .map(|p| parse_padding(p, &state.config.variables))
+                .unwrap_or((0.0, 0.0, 0.0, 0.0));
+            let render_x = x + pad.0;
+            let render_y = y + pad.1;
+
+            if let Some(sc) = cont_meter.solid_color.as_deref().and_then(Color::parse) {
+                if w > 0.0 && h > 0.0 {
+                    mask_cr.set_source_rgba(sc.r, sc.g, sc.b, sc.a);
+                    mask_cr.rectangle(render_x, render_y, w, h);
+                    mask_cr.fill()?;
+                }
+            }
+
+            let rect = self.render_meter_type(&mask_cr, cont_meter, render_x, render_y, w, h, state, meter_bounds)?;
+            let effective_rect = Rect::new(
+                rect.x - pad.0,
+                rect.y - pad.1,
+                rect.width + pad.0 + pad.2,
+                rect.height + pad.1 + pad.3,
+            );
+
+            meter_bounds.insert(cont_meter.name.clone(), effective_rect);
+            meter_bounds.insert(lower.clone(), effective_rect);
+
+            container_surfaces.insert(lower, (mask_surface.clone(), effective_rect));
+            return Ok(Some((mask_surface, effective_rect)));
+        }
+
+        Ok(None)
+    }
+
+    fn render_meter_type(
+        &self,
+        cr: &Context,
+        meter: &MeterConfig,
+        render_x: f64,
+        render_y: f64,
+        w: f64,
+        h: f64,
+        state: &SkinState,
+        meter_bounds: &HashMap<String, Rect>,
+    ) -> Result<Rect, RenderError> {
+        let m_type = meter.meter_type.to_ascii_lowercase();
+        let rect = match m_type.as_str() {
+            "string" => self.render_string(cr, meter, render_x, render_y, w, h, state, meter_bounds)?,
+            "image" => self.render_image(cr, meter, render_x, render_y, w, h, state, meter_bounds)?,
+            "bar" => self.render_bar(cr, meter, render_x, render_y, w, h, state)?,
+            "roundline" => self.render_roundline(cr, meter, render_x, render_y, w, h, state)?,
+            "shape" => self.render_shape(cr, meter, render_x, render_y, state, meter_bounds)?,
+            "histogram" => self.render_histogram(cr, meter, render_x, render_y, w, h, state)?,
+            "rotator" => self.render_rotator(cr, meter, render_x, render_y, w, h, state)?,
+            "bitmap" => self.render_bitmap(cr, meter, render_x, render_y, w, h, state)?,
+            "line" => self.render_line(cr, meter, render_x, render_y, w, h, state)?,
+            _ => Rect::new(render_x, render_y, w, h),
+        };
+        Ok(rect)
+    }
+
     fn render_string(
         &self,
         cr: &Context,
@@ -195,20 +354,23 @@ impl MeterRenderer {
         _w: f64,
         _h: f64,
         state: &SkinState,
+        meter_bounds: &HashMap<String, Rect>,
     ) -> Result<Rect, RenderError> {
         let raw_text = meter.text.as_deref().or_else(|| meter.get("text")).unwrap_or("%1");
         let substituted = substitute_measures(raw_text, meter, state);
-        let final_text = state.config.variables.expand_with_context(
+        let final_text = state.config.variables.expand_with_full_context(
             &substituted,
             Some(&meter.name),
             Some(&state.measure_values),
+            Some(meter_bounds),
         );
 
         let raw_font = meter.font_face.as_deref().or_else(|| meter.get("fontface")).unwrap_or("Sans");
-        let exp_font = state.config.variables.expand_with_context(
+        let exp_font = state.config.variables.expand_with_full_context(
             raw_font,
             Some(&meter.name),
             Some(&state.measure_values),
+            Some(meter_bounds),
         );
         let font_face = if exp_font.is_empty() || exp_font.starts_with('#') {
             "Sans"
@@ -218,16 +380,17 @@ impl MeterRenderer {
 
         let font_size = meter.font_size.or_else(|| {
             meter.get("fontsize").and_then(|s| {
-                let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                let exp = state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), Some(meter_bounds));
                 eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
             })
         }).unwrap_or(12.0).max(1.0);
 
         let raw_color = meter.font_color.as_deref().or_else(|| meter.get("fontcolor")).unwrap_or("255,255,255,255");
-        let exp_color = state.config.variables.expand_with_context(
+        let exp_color = state.config.variables.expand_with_full_context(
             raw_color,
             Some(&meter.name),
             Some(&state.measure_values),
+            Some(meter_bounds),
         );
         let color = Color::parse(&exp_color).unwrap_or(Color::WHITE);
 
@@ -303,6 +466,7 @@ impl MeterRenderer {
         w: f64,
         h: f64,
         state: &SkinState,
+        meter_bounds: &HashMap<String, Rect>,
     ) -> Result<Rect, RenderError> {
         let raw_img_name = meter
             .get("imagename")
@@ -319,10 +483,11 @@ impl MeterRenderer {
             return Ok(Rect::new(x, y, w, h));
         }
 
-        let exp_img_name = state.config.variables.expand_with_context(
+        let exp_img_name = state.config.variables.expand_with_full_context(
             raw_img_name,
             Some(&meter.name),
             Some(&state.measure_values),
+            Some(meter_bounds),
         );
         let resolved_path = self.resolve_image_path(&exp_img_name, &state.config.skin_dir);
         let img_surface = match resolved_path {
@@ -550,6 +715,7 @@ impl MeterRenderer {
         base_x: f64,
         base_y: f64,
         state: &SkinState,
+        meter_bounds: &HashMap<String, Rect>,
     ) -> Result<Rect, RenderError> {
         let mut shape_keys: Vec<(usize, String, String)> = Vec::new();
         for (k, v) in &meter.properties {
@@ -593,7 +759,7 @@ impl MeterRenderer {
                 continue;
             }
 
-            if let Some(r) = self.render_single_shape(cr, meter, shape_def, base_x, base_y, state)? {
+            if let Some(r) = self.render_single_shape(cr, meter, shape_def, base_x, base_y, state, meter_bounds)? {
                 total_rect = total_rect.union(&r);
             }
         }
@@ -609,6 +775,7 @@ impl MeterRenderer {
         base_x: f64,
         base_y: f64,
         state: &SkinState,
+        meter_bounds: &HashMap<String, Rect>,
     ) -> Result<Option<Rect>, RenderError> {
         let parts: Vec<&str> = def.split('|').map(str::trim).collect();
         if parts.is_empty() {
@@ -628,24 +795,24 @@ impl MeterRenderer {
             let lower = modifier.to_ascii_lowercase();
             if lower.starts_with("fill color") {
                 let col_str = modifier["fill color".len()..].trim();
-                let expanded = vars.expand_with_context(col_str, Some(&meter.name), Some(measures));
+                let expanded = vars.expand_with_full_context(col_str, Some(&meter.name), Some(measures), Some(meter_bounds));
                 fill_color = Color::parse(&expanded);
             } else if lower.starts_with("fill none") {
                 fill_color = None;
             } else if lower.starts_with("stroke color") {
                 let col_str = modifier["stroke color".len()..].trim();
-                let expanded = vars.expand_with_context(col_str, Some(&meter.name), Some(measures));
+                let expanded = vars.expand_with_full_context(col_str, Some(&meter.name), Some(measures), Some(meter_bounds));
                 stroke_color = Color::parse(&expanded);
             } else if lower.starts_with("stroke none") {
                 stroke_color = None;
             } else if lower.starts_with("strokewidth") {
                 let num_str = modifier["strokewidth".len()..].trim();
-                let expanded = vars.expand_with_context(num_str, Some(&meter.name), Some(measures));
+                let expanded = vars.expand_with_full_context(num_str, Some(&meter.name), Some(measures), Some(meter_bounds));
                 stroke_width = eval_formula(&expanded, vars)
                     .unwrap_or_else(|_| expanded.parse::<f64>().unwrap_or(1.0));
             } else if lower.starts_with("rotate") {
                 let rest = modifier["rotate".len()..].trim();
-                let (_, rot_nums) = tokenize_shape_declaration(&format!("dummy {}", rest), vars, Some(&meter.name), Some(measures));
+                let (_, rot_nums) = tokenize_shape_declaration(&format!("dummy {}", rest), vars, Some(&meter.name), Some(measures), Some(meter_bounds));
                 if !rot_nums.is_empty() {
                     let angle = rot_nums[0];
                     let cx = if rot_nums.len() >= 2 { rot_nums[1] } else { base_x };
@@ -686,8 +853,8 @@ impl MeterRenderer {
                     let sub_parts: Vec<&str> = sub_def.split('|').map(str::trim).collect();
                     if !sub_parts.is_empty() {
                         let sub_decl = sub_parts[0];
-                        let (kind, nums) = tokenize_shape_declaration(sub_decl, vars, Some(&meter.name), Some(measures));
-                        self.append_shape_path(cr, meter, state, &kind, &nums, base_x, base_y, sub_decl, &sub_parts[1..])?;
+                        let (kind, nums) = tokenize_shape_declaration(sub_decl, vars, Some(&meter.name), Some(measures), Some(meter_bounds));
+                        self.append_shape_path(cr, meter, state, &kind, &nums, base_x, base_y, sub_decl, &sub_parts[1..], meter_bounds)?;
 
                         // Inherit sub_shape color/stroke if parent combine didn't override
                         if fill_color.is_none() || fill_color == Some(Color::WHITE) {
@@ -695,7 +862,7 @@ impl MeterRenderer {
                                 let sm_lower = smod.to_ascii_lowercase();
                                 if sm_lower.starts_with("fill color") {
                                     let col = smod["fill color".len()..].trim();
-                                    let exp = vars.expand_with_context(col, Some(&meter.name), Some(measures));
+                                    let exp = vars.expand_with_full_context(col, Some(&meter.name), Some(measures), Some(meter_bounds));
                                     if let Some(c) = Color::parse(&exp) {
                                         fill_color = Some(c);
                                     }
@@ -703,13 +870,13 @@ impl MeterRenderer {
                                     fill_color = None;
                                 } else if sm_lower.starts_with("stroke color") {
                                     let col = smod["stroke color".len()..].trim();
-                                    let exp = vars.expand_with_context(col, Some(&meter.name), Some(measures));
+                                    let exp = vars.expand_with_full_context(col, Some(&meter.name), Some(measures), Some(meter_bounds));
                                     if let Some(c) = Color::parse(&exp) {
                                         stroke_color = Some(c);
                                     }
                                 } else if sm_lower.starts_with("strokewidth") {
                                     let num_str = smod["strokewidth".len()..].trim();
-                                    let exp = vars.expand_with_context(num_str, Some(&meter.name), Some(measures));
+                                    let exp = vars.expand_with_full_context(num_str, Some(&meter.name), Some(measures), Some(meter_bounds));
                                     if let Ok(w) = eval_formula(&exp, vars) {
                                         stroke_width = w;
                                     }
@@ -723,8 +890,8 @@ impl MeterRenderer {
                 bound = Some(Rect::new(x1, y1, (x2 - x1).max(0.0), (y2 - y1).max(0.0)));
             }
         } else {
-            let (kind, nums) = tokenize_shape_declaration(shape_decl, vars, Some(&meter.name), Some(measures));
-            bound = self.append_shape_path(cr, meter, state, &kind, &nums, base_x, base_y, shape_decl, &parts[1..])?;
+            let (kind, nums) = tokenize_shape_declaration(shape_decl, vars, Some(&meter.name), Some(measures), Some(meter_bounds));
+            bound = self.append_shape_path(cr, meter, state, &kind, &nums, base_x, base_y, shape_decl, &parts[1..], meter_bounds)?;
         }
 
         if let Some(fill) = fill_color {
@@ -759,6 +926,7 @@ impl MeterRenderer {
         base_y: f64,
         shape_decl: &str,
         modifiers: &[&str],
+        meter_bounds: &HashMap<String, Rect>,
     ) -> Result<Option<Rect>, RenderError> {
         let mut bound = None;
         match kind {
@@ -850,10 +1018,11 @@ impl MeterRenderer {
 
                 // Check if unquoted matches a named custom Path property on the meter (e.g. Area, Line)
                 if let Some(path_prop_val) = meter.properties.get(&unquoted.to_ascii_lowercase()) {
-                    let exp_path_prop = state.config.variables.expand_with_context(
+                    let exp_path_prop = state.config.variables.expand_with_full_context(
                         path_prop_val,
                         Some(&meter.name),
                         Some(&state.measure_values),
+                        Some(meter_bounds),
                     );
                     let segs: Vec<&str> = exp_path_prop.split('|').map(str::trim).collect();
                     if !segs.is_empty() {
@@ -862,6 +1031,7 @@ impl MeterRenderer {
                             &state.config.variables,
                             Some(&meter.name),
                             Some(&state.measure_values),
+                            Some(meter_bounds),
                         );
                         if start_nums.len() >= 2 {
                             cr.move_to(base_x + start_nums[0], base_y + start_nums[1]);
@@ -875,6 +1045,7 @@ impl MeterRenderer {
                                     &state.config.variables,
                                     Some(&meter.name),
                                     Some(&state.measure_values),
+                                    Some(meter_bounds),
                                 );
                                 if line_nums.len() >= 2 {
                                     cr.line_to(base_x + line_nums[0], base_y + line_nums[1]);
@@ -886,6 +1057,7 @@ impl MeterRenderer {
                                     &state.config.variables,
                                     Some(&meter.name),
                                     Some(&state.measure_values),
+                                    Some(meter_bounds),
                                 );
                                 if curve_nums.len() >= 6 {
                                     cr.curve_to(
@@ -924,6 +1096,7 @@ impl MeterRenderer {
                             &state.config.variables,
                             Some(&meter.name),
                             Some(&state.measure_values),
+                            Some(meter_bounds),
                         );
                         if start_nums.len() >= 2 {
                             cr.move_to(base_x + start_nums[0], base_y + start_nums[1]);
@@ -940,6 +1113,7 @@ impl MeterRenderer {
                             &state.config.variables,
                             Some(&meter.name),
                             Some(&state.measure_values),
+                            Some(meter_bounds),
                         );
                         if line_nums.len() >= 2 {
                             cr.line_to(base_x + line_nums[0], base_y + line_nums[1]);
@@ -950,6 +1124,7 @@ impl MeterRenderer {
                             &state.config.variables,
                             Some(&meter.name),
                             Some(&state.measure_values),
+                            Some(meter_bounds),
                         );
                         if curve_nums.len() >= 6 {
                             cr.curve_to(
@@ -1594,6 +1769,8 @@ fn resolve_coordinate(
     prev_pos: f64,
     prev_size: f64,
     vars: &VariableMap,
+    measures: Option<&HashMap<String, MeasureValue>>,
+    meter_bounds: Option<&HashMap<String, Rect>>,
 ) -> f64 {
     let raw = match raw {
         Some(s) => s.trim(),
@@ -1604,18 +1781,23 @@ fn resolve_coordinate(
     }
 
     if let Some(rest) = raw.strip_suffix('R') {
-        let val = eval_coord_num(rest, vars);
+        let val = eval_coord_num(rest, vars, measures, meter_bounds);
         prev_pos + prev_size + val
     } else if let Some(rest) = raw.strip_suffix('r') {
-        let val = eval_coord_num(rest, vars);
+        let val = eval_coord_num(rest, vars, measures, meter_bounds);
         prev_pos + val
     } else {
-        eval_coord_num(raw, vars)
+        eval_coord_num(raw, vars, measures, meter_bounds)
     }
 }
 
-fn eval_coord_num(s: &str, vars: &VariableMap) -> f64 {
-    let exp = vars.expand(s);
+fn eval_coord_num(
+    s: &str,
+    vars: &VariableMap,
+    measures: Option<&HashMap<String, MeasureValue>>,
+    meter_bounds: Option<&HashMap<String, Rect>>,
+) -> f64 {
+    let exp = vars.expand_with_full_context(s, None, measures, meter_bounds);
     if let Ok(val) = eval_formula(&exp, vars) {
         val
     } else {
@@ -1761,6 +1943,7 @@ fn tokenize_shape_declaration(
     vars: &VariableMap,
     current_section: Option<&str>,
     measures: Option<&HashMap<String, MeasureValue>>,
+    meter_bounds: Option<&HashMap<String, Rect>>,
 ) -> (String, Vec<f64>) {
     let trimmed = decl.trim();
     if trimmed.is_empty() {
@@ -1804,11 +1987,7 @@ fn tokenize_shape_declaration(
                 i += 1;
             }
             let formula = &rest[start..i];
-            let expanded = if let Some(m) = measures {
-                vars.expand_with_context(formula, current_section, Some(m))
-            } else {
-                vars.expand(formula)
-            };
+            let expanded = vars.expand_with_full_context(formula, current_section, measures, meter_bounds);
             let val = eval_formula(&expanded, vars).unwrap_or(0.0);
             nums.push(val);
         } else {
@@ -1822,11 +2001,7 @@ fn tokenize_shape_declaration(
                 i += 1;
             }
             let token = &rest[start..i];
-            let expanded = if let Some(m) = measures {
-                vars.expand_with_context(token, current_section, Some(m))
-            } else {
-                vars.expand(token)
-            };
+            let expanded = vars.expand_with_full_context(token, current_section, measures, meter_bounds);
             if let Ok(v) = eval_formula(&expanded, vars) {
                 nums.push(v);
             } else if let Ok(v) = expanded.trim().parse::<f64>() {
@@ -1838,7 +2013,7 @@ fn tokenize_shape_declaration(
 }
 
 fn parse_padding(raw: &str, vars: &VariableMap) -> (f64, f64, f64, f64) {
-    let (_, nums) = tokenize_shape_declaration(&format!("dummy {}", raw), vars, None, None);
+    let (_, nums) = tokenize_shape_declaration(&format!("dummy {}", raw), vars, None, None, None);
     if nums.len() >= 4 {
         (nums[0], nums[1], nums[2], nums[3])
     } else if nums.len() == 1 {
@@ -1883,6 +2058,8 @@ impl MeterRenderer {
         let mut prev_w = 0.0;
         let mut prev_h = 0.0;
 
+        let mut meter_bounds: HashMap<String, Rect> = HashMap::new();
+
         let mut container_meters = HashSet::new();
         for meter in state.config.meters.values() {
             if let Some(c) = meter.properties.get("container") {
@@ -1905,22 +2082,26 @@ impl MeterRenderer {
                     prev_x,
                     prev_w,
                     &state.config.variables,
+                    Some(&state.measure_values),
+                    Some(&meter_bounds),
                 );
                 let y = resolve_coordinate(
                     meter.y.as_deref(),
                     prev_y,
                     prev_h,
                     &state.config.variables,
+                    Some(&state.measure_values),
+                    Some(&meter_bounds),
                 );
                 let w = meter.w.or_else(|| {
                     meter.get("w").and_then(|s| {
-                        let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                        let exp = state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), Some(&meter_bounds));
                         eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
                     })
                 }).unwrap_or(0.0);
                 let h = meter.h.or_else(|| {
                     meter.get("h").and_then(|s| {
-                        let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                        let exp = state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), Some(&meter_bounds));
                         eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
                     })
                 }).unwrap_or(0.0);
@@ -1940,6 +2121,9 @@ impl MeterRenderer {
                     eff_w + pad.0 + pad.2,
                     eff_h + pad.1 + pad.3,
                 );
+
+                meter_bounds.insert(meter.name.clone(), effective_rect);
+                meter_bounds.insert(meter_name_lower.clone(), effective_rect);
 
                 prev_x = effective_rect.x;
                 prev_y = effective_rect.y;
@@ -2046,8 +2230,9 @@ fn parse_point_nums(
     vars: &VariableMap,
     current_section: Option<&str>,
     measures: Option<&HashMap<String, MeasureValue>>,
+    meter_bounds: Option<&HashMap<String, Rect>>,
 ) -> Vec<f64> {
-    let (_, nums) = tokenize_shape_declaration(&format!("dummy {}", s), vars, current_section, measures);
+    let (_, nums) = tokenize_shape_declaration(&format!("dummy {}", s), vars, current_section, measures, meter_bounds);
     nums
 }
 
