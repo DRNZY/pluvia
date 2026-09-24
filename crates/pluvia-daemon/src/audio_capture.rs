@@ -38,12 +38,26 @@ impl AudioCaptureWorker {
                 }
 
                 if process.is_none() {
-                    // Try pw-record first, fallback to parec
+                    // Try pw-record targeting system audio monitor, then parec, then general defaults
                     let spawn_res = Command::new("pw-record")
-                        .args(["--channels=2", "--rate=44100", "--format=s16", "-"])
+                        .args(["--target", "@DEFAULT_MONITOR@", "--channels=2", "--rate=44100", "--format=s16", "-"])
                         .stdout(Stdio::piped())
                         .stderr(Stdio::null())
                         .spawn()
+                        .or_else(|_| {
+                            Command::new("parec")
+                                .args(["-d", "@DEFAULT_MONITOR@", "--channels=2", "--rate=44100", "--format=s16le"])
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::null())
+                                .spawn()
+                        })
+                        .or_else(|_| {
+                            Command::new("pw-record")
+                                .args(["--channels=2", "--rate=44100", "--format=s16", "-"])
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::null())
+                                .spawn()
+                        })
                         .or_else(|_| {
                             Command::new("parec")
                                 .args(["--channels=2", "--rate=44100", "--format=s16le"])
@@ -61,6 +75,14 @@ impl AudioCaptureWorker {
                 }
 
                 if let Some(ref mut child) = process {
+                    match child.try_wait() {
+                        Ok(Some(_status)) => {
+                            process = None;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                            continue;
+                        }
+                        _ => {}
+                    }
                     if let Some(ref mut stdout) = child.stdout {
                         let mut byte_buf = [0u8; 2048];
                         match stdout.read(&mut byte_buf) {

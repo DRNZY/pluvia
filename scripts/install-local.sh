@@ -14,12 +14,10 @@ cargo build --release
 mkdir -p "$INSTALL_BIN" "$INSTALL_APPS" "$INSTALL_ICONS" "$SYSTEMD_USER_DIR"
 
 echo "[Pluvia Installer] Installing binaries to $INSTALL_BIN..."
-cp "$PROJECT_DIR/target/release/pluvia-cli" "$INSTALL_BIN/pluvia"
-cp "$PROJECT_DIR/target/release/pluvia-cli" "$INSTALL_BIN/pluvia-cli"
-cp "$PROJECT_DIR/target/release/pluvia-daemon" "$INSTALL_BIN/pluvia-daemon"
-cp "$PROJECT_DIR/target/release/pluvia-studio" "$INSTALL_BIN/pluvia-studio"
-
-chmod +x "$INSTALL_BIN/pluvia" "$INSTALL_BIN/pluvia-cli" "$INSTALL_BIN/pluvia-daemon" "$INSTALL_BIN/pluvia-studio"
+install -m 755 "$PROJECT_DIR/target/release/pluvia-cli" "$INSTALL_BIN/pluvia"
+install -m 755 "$PROJECT_DIR/target/release/pluvia-cli" "$INSTALL_BIN/pluvia-cli"
+install -m 755 "$PROJECT_DIR/target/release/pluvia-daemon" "$INSTALL_BIN/pluvia-daemon"
+install -m 755 "$PROJECT_DIR/target/release/pluvia-studio" "$INSTALL_BIN/pluvia-studio"
 
 # Create Desktop Entry for Pluvia Studio
 echo "[Pluvia Installer] Creating desktop entry at $INSTALL_APPS/pluvia-studio.desktop..."

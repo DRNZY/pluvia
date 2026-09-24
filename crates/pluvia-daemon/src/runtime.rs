@@ -845,27 +845,39 @@ impl SkinRuntime {
         let vfs = pluvia_core::vfs::VfsResolver::new();
         let mut curr = Some(base_dir);
         while let Some(dir) = curr {
-            if let Some(fonts_dir) = vfs.resolve(dir, "@Resources/Fonts") {
-                if fonts_dir.is_dir() {
-                    if let Ok(entries) = std::fs::read_dir(&fonts_dir) {
-                        for entry in entries.flatten() {
-                            let path = entry.path();
-                            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                                let ext_lower = ext.to_ascii_lowercase();
-                                if ext_lower == "otf"
-                                    || ext_lower == "ttf"
-                                    || ext_lower == "woff"
-                                    || ext_lower == "woff2"
-                                {
-                                    pluvia_core::render::add_application_font(&path);
-                                }
-                            }
-                        }
-                    }
-                    break;
+            let possible_dirs = [
+                vfs.resolve(dir, "@Resources/Fonts"),
+                vfs.resolve(dir, "@Resources/Font"),
+                vfs.resolve(dir, "@Resources"),
+                vfs.resolve(dir, "Fonts"),
+                vfs.resolve(dir, "Font"),
+            ];
+            for p in possible_dirs.into_iter().flatten() {
+                if p.is_dir() {
+                    Self::scan_and_add_fonts(&p);
                 }
             }
             curr = dir.parent();
+        }
+    }
+
+    fn scan_and_add_fonts(dir: &Path) {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    Self::scan_and_add_fonts(&path);
+                } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                    let ext_lower = ext.to_ascii_lowercase();
+                    if ext_lower == "otf"
+                        || ext_lower == "ttf"
+                        || ext_lower == "woff"
+                        || ext_lower == "woff2"
+                    {
+                        pluvia_core::render::add_application_font(&path);
+                    }
+                }
+            }
         }
     }
 }

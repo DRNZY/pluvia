@@ -372,14 +372,7 @@ impl MeterRenderer {
             .map(|v| v.to_number_val())
             .unwrap_or(0.0);
 
-        let min_val = meter
-            .get("minvalue")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        let max_val = meter
-            .get("maxvalue")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(100.0);
+        let (min_val, max_val) = resolve_meter_range(meter, state, val, 1.0);
         let orientation = meter
             .get("barorientation")
             .unwrap_or("horizontal")
@@ -438,14 +431,7 @@ impl MeterRenderer {
             }
         }
 
-        let min_val = meter
-            .get("minvalue")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        let max_val = meter
-            .get("maxvalue")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(1.0);
+        let (min_val, max_val) = resolve_meter_range(meter, state, val, 1.0);
         let progress = if max_val > min_val {
             ((val - min_val) / (max_val - min_val)).clamp(0.0, 1.0)
         } else {
@@ -925,18 +911,11 @@ impl MeterRenderer {
             history.pop_front();
         }
 
-        let min_val = meter
-            .get("minvalue")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
         let autoscale = meter.get("autoscale").map(|s| s == "1").unwrap_or(false);
-        let max_val = if autoscale {
-            history.iter().copied().fold(1.0f64, f64::max)
+        let (min_val, max_val) = if autoscale {
+            (0.0, history.iter().copied().fold(1.0f64, f64::max))
         } else {
-            meter
-                .get("maxvalue")
-                .and_then(|s| s.parse::<f64>().ok())
-                .unwrap_or(100.0)
+            resolve_meter_range(meter, state, primary_val, 100.0)
         };
 
         if history.len() >= 2 && max_val > min_val {
@@ -1133,11 +1112,8 @@ impl MeterRenderer {
             cr.set_source_rgba(color.r, color.g, color.b, color.a);
             cr.set_line_width(line_width);
 
-            let max_val = meter
-                .get("maxvalue")
-                .and_then(|s| s.parse::<f64>().ok())
-                .unwrap_or(100.0)
-                .max(1.0);
+            let (_min_val, max_val) = resolve_meter_range(meter, state, val, 100.0);
+            let max_val = max_val.max(1.0);
 
             let step = (w / 100.0).max(1.0);
             let start_x = x + w - (history.len() - 1) as f64 * step;
@@ -1752,3 +1728,58 @@ impl MeterRenderer {
         hit_boxes
     }
 }
+
+fn resolve_meter_range(
+    meter: &MeterConfig,
+    state: &SkinState,
+    current_val: f64,
+    default_max: f64,
+) -> (f64, f64) {
+    let measure_cfg = meter
+        .measure_name
+        .as_deref()
+        .and_then(|m| state.config.measures.get(&m.to_ascii_lowercase()));
+
+    let min_val = meter
+        .get("minvalue")
+        .or_else(|| measure_cfg.and_then(|m| m.get("minvalue")))
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(0.0);
+
+    let max_val = meter
+        .get("maxvalue")
+        .or_else(|| measure_cfg.and_then(|m| m.get("maxvalue")))
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or_else(|| {
+            if let Some(m) = measure_cfg {
+                let m_type = m.measure_type.to_ascii_lowercase();
+                if m_type == "cpu"
+                    || m_type == "memory"
+                    || m_type == "physicalmemory"
+                    || m_type == "swapmemory"
+                {
+                    return 100.0;
+                }
+                if m_type == "nowplaying"
+                    || m.plugin
+                        .as_deref()
+                        .unwrap_or("")
+                        .to_ascii_lowercase()
+                        .contains("nowplaying")
+                {
+                    let p_type = m.get("playertype").unwrap_or("").to_ascii_lowercase();
+                    if p_type == "progress" || p_type == "volume" {
+                        return 100.0;
+                    }
+                }
+            }
+            if current_val > 1.0 && current_val <= 100.0 {
+                100.0
+            } else {
+                default_max
+            }
+        });
+
+    (min_val, max_val)
+}
+

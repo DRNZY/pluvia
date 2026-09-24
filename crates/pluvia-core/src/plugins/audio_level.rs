@@ -143,6 +143,13 @@ impl AudioLevelPlugin {
         };
         plugin = plugin.with_channel(chan);
 
+        if let Some(sens) = config
+            .get("sensitivity")
+            .and_then(|s| s.parse::<f64>().ok())
+        {
+            plugin = plugin.with_sensitivity(sens);
+        }
+
         plugin
     }
 
@@ -275,7 +282,17 @@ impl AudioLevelPlugin {
                         band_max = magnitudes[k];
                     }
                 }
-                self.raw_bands[b] = band_max.clamp(0.0, 1.0);
+                let raw_val = if self.sensitivity > 0.0 {
+                    if band_max <= 1e-6 {
+                        0.0
+                    } else {
+                        let db = 20.0 * band_max.log10();
+                        ((db + self.sensitivity) / self.sensitivity).clamp(0.0, 1.0)
+                    }
+                } else {
+                    band_max.clamp(0.0, 1.0)
+                };
+                self.raw_bands[b] = raw_val;
                 edge_low = edge_high;
             }
         }

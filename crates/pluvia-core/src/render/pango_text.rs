@@ -13,6 +13,11 @@ extern "C" {
     ) -> libc::c_int;
 }
 
+#[link(name = "pangocairo-1.0")]
+extern "C" {
+    fn pango_cairo_font_map_set_default(fontmap: *mut std::ffi::c_void);
+}
+
 /// Dynamic application font registration for `@Resources/Fonts/*.otf|ttf`.
 pub fn add_application_font(path: &Path) -> bool {
     if !path.exists() {
@@ -28,7 +33,12 @@ pub fn add_application_font(path: &Path) -> bool {
             return false;
         }
         let res = FcConfigAppFontAddFile(config, c_path.as_ptr());
-        res != 0
+        if res != 0 {
+            pango_cairo_font_map_set_default(std::ptr::null_mut());
+            true
+        } else {
+            false
+        }
     }
 }
 

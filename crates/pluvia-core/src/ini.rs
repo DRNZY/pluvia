@@ -370,6 +370,17 @@ pub fn parse_skin_ini<P: AsRef<Path>>(content: &str, skin_dir: P) -> Result<Skin
             }
 
             if props.contains_key("measure") {
+                if let Some(parent_name) = props.get("parent") {
+                    let lower_parent = parent_name.to_ascii_lowercase();
+                    if let Some((_, parent_props)) = state.raw_sections.get(&lower_parent) {
+                        for (pk, pv) in parent_props {
+                            if !props.contains_key(pk) {
+                                props.insert(pk.clone(), pv.clone());
+                            }
+                        }
+                    }
+                }
+
                 let measure_type = props.get("measure").cloned().unwrap_or_default();
                 let plugin = props.get("plugin").map(|s| state.variables.expand(s));
                 let format = props.get("format").map(|s| state.variables.expand(s));
