@@ -1,79 +1,65 @@
-# Pluvia
+<div align="center">
 
-A native Rainmeter desktop widget runtime and management tool for Linux. Basically Rainmeter for linux lol
+# ⚡ Pluvia
 
-## Disclaimer
+<p>
+  <strong>High-Performance Rainmeter Skin Engine for Linux</strong><br/>
+  <em>Pure Rust · 100% Vector Cairo Graphics · Wayland LayerShell & X11 Click-Through</em>
+</p>
 
-This software is currently in early alpha (`v0.1.0-alpha`). It's experimental, dont get ya hopes up.
+<p>
+  <img src="https://img.shields.io/badge/RUST-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
+  <img src="https://img.shields.io/badge/WAYLAND-000000?style=for-the-badge&logo=wayland&logoColor=white" alt="Wayland" />
+  <img src="https://img.shields.io/badge/X11-000000?style=for-the-badge&logo=xorg&logoColor=white" alt="X11" />
+  <img src="https://img.shields.io/badge/LICENSE-MIT-181818?style=for-the-badge" alt="MIT License" />
+</p>
 
-## Features
+<p align="center">
+  <img src="docs/pluvia-launch.gif" width="100%" alt="Pluvia Launch Demo" />
+</p>
 
-- Native parser for Rainmeter `.ini` configuration files.
-- Cairo and Pango vector rendering engine.
-- Libadwaita management GUI (`pluvia-studio`) with live variable tuning, offset adjustments, and skin library browser.
-- Background daemon (`pluvia-daemon`) driving desktop surfaces via X11 and Wayland layer-shell.
-- Command-line controller (`pluvia-cli`) for headless and scriptable skin control.
-- Support for extracting and importing `.rmskin` packages.
+</div>
 
-## Prerequisites
+---
 
-On Arch Linux / Manjaro:
-```bash
-sudo pacman -S base-devel rust cairo pango gtk4 libadwaita xorg-server-devel
-```
+## ⚡ Quick Install
 
-On Ubuntu / Debian (23.04+):
-```bash
-sudo apt update
-sudo apt install build-essential cargo libgtk-4-dev libadwaita-1-dev libcairo2-dev libpango1.0-dev libx11-dev libxext-dev libxfixes-dev
-```
-
-## Installation
-
-Clone the repository and build in release mode:
+Install Pluvia daemon, CLI, and Pluvia Studio with a single command:
 
 ```bash
-git clone https://github.com/DRNZY/pluvia.git
-cd pluvia
-cargo build --release
+curl -sSL https://raw.githubusercontent.com/DRNZY/pluvia/main/scripts/install.sh | bash
 ```
 
-Copy the binaries to your local bin directory:
+---
 
-```bash
-mkdir -p ~/.local/bin
-cp target/release/pluvia-daemon ~/.local/bin/
-cp target/release/pluvia-studio ~/.local/bin/
-cp target/release/pluvia-cli ~/.local/bin/
-chmod +x ~/.local/bin/pluvia-*
-```
+## ✨ Features
 
-Install the desktop launcher for the studio:
+- **Vector Graphics Engine:** Sub-millisecond Cairo and Pango vector compositing with automatic frame damage tracking.
+- **True Desktop Click-Through:** 1-bit alpha shape masks with diff detection for X11 and Wayland `wlr-layer-shell`, keeping transparent widget areas 100% interactive.
+- **Native Audio Spectrum Visualizers:** Zero-latency audio capture via PipeWire and PulseAudio monitor sinks (`@DEFAULT_MONITOR@`). Parent-child FFT snapshot registry eliminates redundant calculations across multi-bar meters.
+- **Pluvia Studio:** Native GTK4 / Libadwaita management control center with live variable tuning, window opacity sliders, and skin browsers.
+- **Deadlock-Free Thread Isolation:** Dedicated OS worker threads for MPRIS2 media controllers and D-Bus IPC with non-blocking timeout channels.
+- **RMSKIN Package Manager:** Safe package importer and exporter with Zip-Slip path traversal protection.
 
-```bash
-mkdir -p ~/.local/share/applications
-cp crates/pluvia-studio/resources/org.pluvia.Studio.desktop ~/.local/share/applications/
-update-desktop-database ~/.local/share/applications/ 2>/dev/null || true
-```
+---
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Graphical Interface
-Launch Pluvia Studio from your application menu or run:
+Launch **Pluvia Studio** from your application menu or run:
 ```bash
 pluvia-studio
 ```
-If the daemon is not running, click "Start Engine" in the studio header to launch the background process.
 
-### Command Line
-Start the background daemon manually:
+### Command Line Interface
+Start the background engine:
 ```bash
 pluvia-daemon &
 ```
 
-Load a skin:
+Load any Rainmeter skin:
 ```bash
-pluvia-cli load ~/.config/pluvia/skins/Monterey/Widgets/Clock/Medium.ini
+pluvia-cli load ~/.config/pluvia/skins/Mond/Clock/Clock.ini
 ```
 
 List active skins:
@@ -83,26 +69,38 @@ pluvia-cli list
 
 Unload a skin:
 ```bash
-pluvia-cli unload Clock/Medium
+pluvia-cli unload Mond/Clock
 ```
 
-Import a `.rmskin` package:
+Import a `.rmskin` archive:
 ```bash
 pluvia-cli import /path/to/skin.rmskin
 ```
 
-Package a skin directory into a `.rmskin` archive:
+---
+
+## 🛠️ Building from Source
+
+### Prerequisites
+- **Arch Linux / CachyOS / Manjaro:**
+  ```bash
+  sudo pacman -S base-devel rust cairo pango gtk4 libadwaita xorg-server-devel
+  ```
+- **Ubuntu / Debian (23.04+):**
+  ```bash
+  sudo apt update && sudo apt install build-essential cargo libgtk-4-dev libadwaita-1-dev libcairo2-dev libpango1.0-dev libx11-dev libxext-dev libxfixes-dev
+  ```
+
+### Build & Install
 ```bash
-pluvia-cli pack /path/to/skin ~/.config/pluvia/packages/skin.rmskin
+git clone https://github.com/DRNZY/pluvia.git
+cd pluvia
+bash scripts/install-local.sh
 ```
 
-## Skin Directory
+---
 
-Place installed Rainmeter skins inside:
-```
-~/.config/pluvia/skins/
-```
+## 📜 License
 
-## License
+This project is licensed under the [MIT License](LICENSE). Maintained with passion by **[@DRNZY](https://github.com/DRNZY)**.
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

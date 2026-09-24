@@ -225,8 +225,13 @@ impl SkinRuntime {
             }
         }
 
-        let w = (max_w.ceil() as u32).max(200);
-        let h = (max_h.ceil() as u32).max(180);
+        // Safety cap: Cairo ImageSurface at ARgb32 costs 4 bytes/pixel.
+        // 8192×8192 = 268 MB max per skin window — well within reason but prevents
+        // formula explosions (e.g. SCREENAREAHEIGHT mis-resolved to a huge value)
+        // from OOM-killing the daemon.
+        const MAX_DIM: u32 = 8192;
+        let w = (max_w.ceil() as u32).max(200).min(MAX_DIM);
+        let h = (max_h.ceil() as u32).max(180).min(MAX_DIM);
 
         let win_x = rainmeter_sec
             .and_then(|s| s.get("windowx").or_else(|| s.get("skinx")))
@@ -302,11 +307,7 @@ impl SkinRuntime {
             return Err(RuntimeError::SkinAlreadyLoaded(id));
         }
 
-        // Register bundled fonts from @Resources/Fonts
         Self::register_skin_fonts(&config.skin_dir);
-        if let Some(parent) = config.skin_dir.parent() {
-            Self::register_skin_fonts(parent);
-        }
 
         let mut measures: HashMap<String, Box<dyn Measure>> = HashMap::new();
         let mut measure_values: HashMap<String, MeasureValue> = HashMap::new();
@@ -335,7 +336,6 @@ impl SkinRuntime {
             last_tick: Instant::now(),
         };
 
-        // Apply initial measure actions (e.g. OnUpdateAction, IfMatchAction) in definition order
         let initial_order = instance.config.measure_order.clone();
         for name in &initial_order {
             if let Some(val) = instance.measure_values.get(name).cloned() {
@@ -343,7 +343,6 @@ impl SkinRuntime {
             }
         }
 
-        // Render initial frame
         Self::render_instance(&self.renderer, &mut instance)?;
 
         let info = SkinInfo {
@@ -844,29 +843,36 @@ impl SkinRuntime {
     fn register_skin_fonts(base_dir: &Path) {
         let vfs = pluvia_core::vfs::VfsResolver::new();
         let mut curr = Some(base_dir);
+        let mut depth = 0;
         while let Some(dir) = curr {
+            if depth >= 3 {
+                break;
+            }
             let possible_dirs = [
                 vfs.resolve(dir, "@Resources/Fonts"),
                 vfs.resolve(dir, "@Resources/Font"),
-                vfs.resolve(dir, "@Resources"),
                 vfs.resolve(dir, "Fonts"),
                 vfs.resolve(dir, "Font"),
             ];
             for p in possible_dirs.into_iter().flatten() {
                 if p.is_dir() {
-                    Self::scan_and_add_fonts(&p);
+                    Self::scan_and_add_fonts(&p, 0);
                 }
             }
             curr = dir.parent();
+            depth += 1;
         }
     }
 
-    fn scan_and_add_fonts(dir: &Path) {
+    fn scan_and_add_fonts(dir: &Path, depth: usize) {
+        if depth > 2 {
+            return;
+        }
         if let Ok(entries) = std::fs::read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() {
-                    Self::scan_and_add_fonts(&path);
+                    Self::scan_and_add_fonts(&path, depth + 1);
                 } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                     let ext_lower = ext.to_ascii_lowercase();
                     if ext_lower == "otf"

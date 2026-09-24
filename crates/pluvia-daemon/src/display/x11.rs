@@ -623,48 +623,51 @@ impl DesktopSurface for X11Surface {
                 }
                 cairo::ffi::cairo_surface_flush(n.cairo_surface);
 
-                // Update 1-bit input shape mask for click-through
+                // Update 1-bit input shape mask for click-through only when shape changes
                 let rects = hit_mask.to_rectangles();
-                let xrects: Vec<XRectangle> = rects
-                    .iter()
-                    .map(|r| XRectangle {
-                        x: r.x as libc::c_short,
-                        y: r.y as libc::c_short,
-                        width: r.width as libc::c_ushort,
-                        height: r.height as libc::c_ushort,
-                    })
-                    .collect();
+                if rects != self.shape_input_rects {
+                    let xrects: Vec<XRectangle> = rects
+                        .iter()
+                        .map(|r| XRectangle {
+                            x: r.x as libc::c_short,
+                            y: r.y as libc::c_short,
+                            width: r.width as libc::c_ushort,
+                            height: r.height as libc::c_ushort,
+                        })
+                        .collect();
 
-                if xrects.is_empty() {
-                    let dummy = XRectangle {
-                        x: 0,
-                        y: 0,
-                        width: 0,
-                        height: 0,
-                    };
-                    XShapeCombineRectangles(
-                        n.display,
-                        n.window,
-                        2, /* ShapeInput */
-                        0,
-                        0,
-                        &dummy,
-                        0,
-                        0, /* ShapeSet */
-                        0,
-                    );
-                } else {
-                    XShapeCombineRectangles(
-                        n.display,
-                        n.window,
-                        2, /* ShapeInput */
-                        0,
-                        0,
-                        xrects.as_ptr(),
-                        xrects.len() as libc::c_int,
-                        0, /* ShapeSet */
-                        0, /* Unsorted */
-                    );
+                    if xrects.is_empty() {
+                        let dummy = XRectangle {
+                            x: 0,
+                            y: 0,
+                            width: 0,
+                            height: 0,
+                        };
+                        XShapeCombineRectangles(
+                            n.display,
+                            n.window,
+                            2, /* ShapeInput */
+                            0,
+                            0,
+                            &dummy,
+                            0,
+                            0, /* ShapeSet */
+                            0,
+                        );
+                    } else {
+                        XShapeCombineRectangles(
+                            n.display,
+                            n.window,
+                            2, /* ShapeInput */
+                            0,
+                            0,
+                            xrects.as_ptr(),
+                            xrects.len() as libc::c_int,
+                            0, /* ShapeSet */
+                            0, /* Unsorted */
+                        );
+                    }
+                    self.shape_input_rects = rects;
                 }
 
                 XFlush(n.display);

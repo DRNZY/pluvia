@@ -1,6 +1,45 @@
 use crate::ini::MeasureConfig;
 use crate::measures::{Measure, MeasureValue};
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, TimeZone};
+use std::fmt::Write;
+
+fn convert_rainmeter_time_format(raw_fmt: &str) -> String {
+    let mut fmt = raw_fmt.trim().trim_matches('"').trim_matches('\'').to_string();
+    if fmt.is_empty() {
+        return "%H:%M:%S".to_string();
+    }
+    // Rainmeter Windows CRT strftime format conversions
+    fmt = fmt.replace("%#x", "%A, %B %-d, %Y");
+    fmt = fmt.replace("%#c", "%A, %B %-d, %Y %-H:%M:%S");
+    fmt = fmt.replace("%#X", "%-H:%M:%S");
+    fmt = fmt.replace("%#d", "%-d");
+    fmt = fmt.replace("%#m", "%-m");
+    fmt = fmt.replace("%#H", "%-H");
+    fmt = fmt.replace("%#I", "%-I");
+    fmt = fmt.replace("%#M", "%-M");
+    fmt = fmt.replace("%#S", "%-S");
+    fmt = fmt.replace("%#y", "%-y");
+    fmt = fmt.replace("%#Y", "%Y");
+    fmt = fmt.replace("%#j", "%-j");
+    fmt = fmt.replace("%#U", "%-U");
+    fmt = fmt.replace("%#W", "%-W");
+    fmt = fmt.replace("%#w", "%-w");
+    fmt = fmt.replace("%#z", "%z");
+    fmt = fmt.replace("%#Z", "%Z");
+    fmt
+}
+
+fn safe_format_time<Tz: TimeZone>(dt: &DateTime<Tz>, fmt_str: &str) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    let mut buf = String::new();
+    if write!(&mut buf, "{}", dt.format(fmt_str)).is_ok() {
+        buf
+    } else {
+        dt.format("%Y-%m-%d %H:%M:%S").to_string()
+    }
+}
 
 /// Measure that produces local or formatted time strings via strftime.
 #[derive(Debug, Clone)]
@@ -71,28 +110,26 @@ impl TimeMeasure {
 impl Measure for TimeMeasure {
     fn update(&mut self) -> MeasureValue {
         let base = self.custom_time.unwrap_or_else(Local::now);
-
-        // Convert Windows-style non-padded specifiers (%#d, %#H, %#I, %#m, etc.) to chrono (%-d, %-H, etc.)
-        let chrono_fmt = self.format.replace("%#", "%-");
+        let chrono_fmt = convert_rainmeter_time_format(&self.format);
 
         let formatted = if let Some(ref tz) = self.time_zone {
             let lower = tz.trim().to_ascii_lowercase();
             if lower == "utc" || lower == "gmt" || lower == "0" {
                 let utc_dt = base.naive_utc().and_utc();
-                utc_dt.format(&chrono_fmt).to_string()
+                safe_format_time(&utc_dt, &chrono_fmt)
             } else if let Ok(offset_hours) = lower.parse::<f64>() {
                 let offset_secs = (offset_hours * 3600.0) as i32;
                 if let Some(offset) = chrono::FixedOffset::east_opt(offset_secs) {
                     let dt = base.naive_utc().and_local_timezone(offset).unwrap();
-                    dt.format(&chrono_fmt).to_string()
+                    safe_format_time(&dt, &chrono_fmt)
                 } else {
-                    base.format(&chrono_fmt).to_string()
+                    safe_format_time(&base, &chrono_fmt)
                 }
             } else {
-                base.format(&chrono_fmt).to_string()
+                safe_format_time(&base, &chrono_fmt)
             }
         } else {
-            base.format(&chrono_fmt).to_string()
+            safe_format_time(&base, &chrono_fmt)
         };
 
         self.current_value = MeasureValue::String(formatted);

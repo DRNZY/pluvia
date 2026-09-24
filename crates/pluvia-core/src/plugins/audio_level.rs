@@ -1,6 +1,8 @@
 use crate::ini::MeasureConfig;
 use crate::measures::{Measure, MeasureValue};
+use std::collections::HashMap;
 use std::f64::consts::PI;
+use std::sync::{OnceLock, RwLock};
 
 /// Target audio property to extract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -20,9 +22,26 @@ pub enum AudioChannel {
     Sum,
 }
 
+/// Shared snapshot of audio analysis output for child band measures.
+#[derive(Debug, Clone, Default)]
+pub struct AudioDataSnapshot {
+    pub rms: f64,
+    pub peak: f64,
+    pub smoothed_bands: Vec<f64>,
+    pub band_center_freqs: Vec<f64>,
+}
+
+static AUDIO_REGISTRY: OnceLock<RwLock<HashMap<String, AudioDataSnapshot>>> = OnceLock::new();
+
+fn get_audio_registry() -> &'static RwLock<HashMap<String, AudioDataSnapshot>> {
+    AUDIO_REGISTRY.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
 /// Linux native AudioLevel plugin emulating Rainmeter's spectrum analyzers and VU meters.
 #[derive(Debug, Clone)]
 pub struct AudioLevelPlugin {
+    name: Option<String>,
+    parent_name: Option<String>,
     level_type: AudioLevelType,
     channel: AudioChannel,
     bands_count: usize,
@@ -52,6 +71,8 @@ impl AudioLevelPlugin {
     pub fn new(level_type: AudioLevelType) -> Self {
         let bands_count = 16;
         let mut plugin = Self {
+            name: None,
+            parent_name: None,
             level_type,
             channel: AudioChannel::Avg,
             bands_count,
@@ -90,6 +111,15 @@ impl AudioLevelPlugin {
         };
 
         let mut plugin = Self::new(level_type);
+
+        let parent_name = config.get("parent").map(|p| p.trim().to_ascii_lowercase());
+        let name = if parent_name.is_none() {
+            Some(config.name.trim().to_ascii_lowercase())
+        } else {
+            None
+        };
+        plugin.name = name;
+        plugin.parent_name = parent_name;
 
         if let Some(bands) = config.get("bands").and_then(|s| s.parse::<usize>().ok()) {
             plugin = plugin.with_bands(bands);
@@ -302,6 +332,18 @@ impl AudioLevelPlugin {
             self.smoothed_peak = self.raw_peak;
             self.smoothed_bands.copy_from_slice(&self.raw_bands);
         }
+
+        if let Some(ref name) = self.name {
+            let snapshot = AudioDataSnapshot {
+                rms: self.smoothed_rms,
+                peak: self.smoothed_peak,
+                smoothed_bands: self.smoothed_bands.clone(),
+                band_center_freqs: self.band_center_freqs.clone(),
+            };
+            if let Ok(mut reg) = get_audio_registry().write() {
+                reg.insert(name.clone(), snapshot);
+            }
+        }
     }
 
     /// Feed stereo audio samples into the audio level analyzer.
@@ -415,7 +457,38 @@ fn compute_fft(re: &mut [f64], im: &mut [f64]) {
 
 impl Measure for AudioLevelPlugin {
     fn update(&mut self) -> MeasureValue {
-        // Apply smoothing to RMS, Peak, and Bands
+        if let Some(ref parent) = self.parent_name {
+            if let Ok(reg) = get_audio_registry().read() {
+                if let Some(snapshot) = reg.get(parent) {
+                    let num_val = match self.level_type {
+                        AudioLevelType::RMS => snapshot.rms,
+                        AudioLevelType::Peak => snapshot.peak,
+                        AudioLevelType::FFT => {
+                            if self.band_idx < snapshot.smoothed_bands.len() {
+                                snapshot.smoothed_bands[self.band_idx]
+                            } else if self.band_idx > 0 && self.band_idx - 1 < snapshot.smoothed_bands.len() {
+                                snapshot.smoothed_bands[self.band_idx - 1]
+                            } else {
+                                0.0
+                            }
+                        }
+                        AudioLevelType::BandFreq => {
+                            if self.band_idx < snapshot.band_center_freqs.len() {
+                                snapshot.band_center_freqs[self.band_idx]
+                            } else if self.band_idx > 0 && self.band_idx - 1 < snapshot.band_center_freqs.len() {
+                                snapshot.band_center_freqs[self.band_idx - 1]
+                            } else {
+                                0.0
+                            }
+                        }
+                    };
+                    self.current_value = MeasureValue::Number(num_val);
+                    return self.current_value.clone();
+                }
+            }
+        }
+
+        // Apply smoothing to RMS, Peak, and Bands for standalone/parent measure
         Self::apply_smoothing(
             &mut self.smoothed_rms,
             self.raw_rms,
@@ -454,6 +527,8 @@ impl Measure for AudioLevelPlugin {
     }
 
     fn feed_audio(&mut self, samples: &[f32]) {
-        self.feed_samples(samples);
+        if self.parent_name.is_none() {
+            self.feed_samples(samples);
+        }
     }
 }

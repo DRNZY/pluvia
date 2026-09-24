@@ -4,7 +4,14 @@ use regex::Regex;
 use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+#[derive(Debug, Default)]
+struct FetchState {
+    in_flight: bool,
+    pending_content: Option<String>,
+}
 
 /// Linux native WebParser plugin executing HTTP queries, regex extractions, and file downloads.
 #[derive(Debug, Clone)]
@@ -19,6 +26,7 @@ pub struct WebParserPlugin {
     raw_content: String,
     cached_captures: Vec<String>,
     current_value: MeasureValue,
+    fetch_state: Arc<Mutex<FetchState>>,
 }
 
 impl WebParserPlugin {
@@ -35,6 +43,7 @@ impl WebParserPlugin {
             raw_content: String::new(),
             cached_captures: Vec::new(),
             current_value: MeasureValue::String(String::new()),
+            fetch_state: Arc::new(Mutex::new(FetchState::default())),
         }
     }
 
@@ -180,13 +189,60 @@ impl Measure for WebParserPlugin {
     fn update(&mut self) -> MeasureValue {
         if let Some(ref mock) = self.mock_data {
             self.raw_content = mock.clone();
-        } else if let Some(ref url) = self.url {
-            if let Ok(fetched) = self.fetch_url(url) {
-                self.raw_content = fetched;
+            self.extract_captures();
+        } else if let Some(url) = self.url.clone() {
+            if url.starts_with("http://") || url.starts_with("https://") {
+                let mut should_spawn = false;
+                let mut new_content = None;
+                if let Ok(mut state) = self.fetch_state.lock() {
+                    if let Some(content) = state.pending_content.take() {
+                        new_content = Some(content);
+                    } else if !state.in_flight && self.raw_content.is_empty() {
+                        state.in_flight = true;
+                        should_spawn = true;
+                    }
+                }
+
+                if let Some(content) = new_content {
+                    self.raw_content = content;
+                    self.extract_captures();
+                }
+
+                if should_spawn {
+                    let state_clone = Arc::clone(&self.fetch_state);
+                    let url_clone = url.clone();
+                    std::thread::spawn(move || {
+                        let client = reqwest::blocking::Client::builder()
+                            .timeout(Duration::from_secs(3))
+                            .build();
+                        if let Ok(client) = client {
+                            if let Ok(resp) = client.get(&url_clone).send() {
+                                if let Ok(text) = resp.text() {
+                                    if let Ok(mut lock) = state_clone.lock() {
+                                        lock.pending_content = Some(text);
+                                        lock.in_flight = false;
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                        if let Ok(mut lock) = state_clone.lock() {
+                            lock.in_flight = false;
+                        }
+                    });
+                }
+            } else if let Some(stripped) = url.strip_prefix("file://") {
+                if let Ok(content) = fs::read_to_string(stripped) {
+                    self.raw_content = content;
+                    self.extract_captures();
+                }
+            } else if Path::new(&url).exists() {
+                if let Ok(content) = fs::read_to_string(&url) {
+                    self.raw_content = content;
+                    self.extract_captures();
+                }
             }
         }
-
-        self.extract_captures();
 
         let val_str = if self.string_index < self.cached_captures.len() {
             self.cached_captures[self.string_index].clone()
@@ -205,6 +261,11 @@ impl Measure for WebParserPlugin {
     }
 
     fn command(&mut self, _cmd: &str) {
+        if let Ok(mut state) = self.fetch_state.lock() {
+            state.pending_content = None;
+            state.in_flight = false;
+        }
+        self.raw_content.clear();
         self.update();
     }
 }

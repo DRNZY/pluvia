@@ -89,6 +89,76 @@ pub enum Bang {
         command: String,
         config: Option<String>,
     },
+    /// `!PauseMeasure <MeasureName> [Config]`
+    PauseMeasure {
+        name: String,
+        config: Option<String>,
+    },
+    /// `!UnpauseMeasure <MeasureName> [Config]`
+    UnpauseMeasure {
+        name: String,
+        config: Option<String>,
+    },
+    /// `!TogglePauseMeasure <MeasureName> [Config]`
+    TogglePauseMeasure {
+        name: String,
+        config: Option<String>,
+    },
+    /// `!UpdateMeterGroup <Group> [Config]`
+    UpdateMeterGroup {
+        group: String,
+        config: Option<String>,
+    },
+    /// `!UpdateMeasureGroup <Group> [Config]`
+    UpdateMeasureGroup {
+        group: String,
+        config: Option<String>,
+    },
+    /// `!RedrawGroup <Group> [Config]`
+    RedrawGroup {
+        group: String,
+        config: Option<String>,
+    },
+    /// `!ShowMeterGroup <Group> [Config]`
+    ShowMeterGroup {
+        group: String,
+        config: Option<String>,
+    },
+    /// `!HideMeterGroup <Group> [Config]`
+    HideMeterGroup {
+        group: String,
+        config: Option<String>,
+    },
+    /// `!ToggleMeterGroup <Group> [Config]`
+    ToggleMeterGroup {
+        group: String,
+        config: Option<String>,
+    },
+    /// `!ShowFade / !ShowFadeGroup`
+    ShowFade {
+        name: String,
+        config: Option<String>,
+    },
+    /// `!HideFade / !HideFadeGroup`
+    HideFade {
+        name: String,
+        config: Option<String>,
+    },
+    /// `!ToggleFade / !ToggleFadeGroup`
+    ToggleFade {
+        name: String,
+        config: Option<String>,
+    },
+    /// `!RefreshGroup <Group>`
+    RefreshGroup {
+        group: String,
+    },
+    /// `!Log <Message>`
+    Log {
+        message: String,
+    },
+    /// `!NoOp` (Graceful fallback for aesthetic/unsupported bangs)
+    NoOp,
     /// External command / shell execution (e.g. `["https://..."]`, `["xdg-open /path"]`)
     Execute(String),
 }
@@ -144,26 +214,50 @@ pub fn parse_bangs(input: &str) -> Vec<Bang> {
     // Check for bracketed syntax `[...]`
     if trimmed.starts_with('[') && trimmed.ends_with(']') {
         let mut bangs = Vec::new();
-        let mut in_bracket = false;
         let mut current = String::new();
+        let mut in_quotes = false;
+        let mut quote_char = '"';
+        let mut depth: usize = 0;
 
         for c in trimmed.chars() {
             match c {
-                '[' => {
-                    in_bracket = true;
-                    current.clear();
+                '"' | '\'' => {
+                    if in_quotes && c == quote_char {
+                        in_quotes = false;
+                    } else if !in_quotes {
+                        in_quotes = true;
+                        quote_char = c;
+                    }
+                    if depth > 0 {
+                        current.push(c);
+                    }
                 }
-                ']' => {
-                    in_bracket = false;
-                    let inner = current.trim();
-                    if !inner.is_empty() {
-                        if let Some(bang) = parse_single_bang(inner) {
-                            bangs.push(bang);
+                '[' if !in_quotes => {
+                    if depth == 0 {
+                        current.clear();
+                    } else {
+                        current.push('[');
+                    }
+                    depth += 1;
+                }
+                ']' if !in_quotes => {
+                    if depth > 0 {
+                        depth -= 1;
+                        if depth == 0 {
+                            let inner = current.trim();
+                            if !inner.is_empty() {
+                                if let Some(bang) = parse_single_bang(inner) {
+                                    bangs.push(bang);
+                                }
+                            }
+                            current.clear();
+                        } else {
+                            current.push(']');
                         }
                     }
                 }
                 _ => {
-                    if in_bracket {
+                    if depth > 0 {
                         current.push(c);
                     }
                 }
@@ -195,6 +289,7 @@ fn parse_single_bang(input: &str) -> Option<Bang> {
         return None;
     }
 
+    let is_explicit_bang = tokens[0].starts_with('!');
     let mut bang_name = tokens[0].as_str();
     if let Some(stripped) = bang_name.strip_prefix('!') {
         bang_name = stripped;
@@ -266,6 +361,51 @@ fn parse_single_bang(input: &str) -> Option<Bang> {
             let config = args.get(1).cloned();
             Some(Bang::ToggleMeter { name, config })
         }
+        "updatemetergroup" => {
+            let group = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::UpdateMeterGroup { group, config })
+        }
+        "updatemeasuregroup" => {
+            let group = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::UpdateMeasureGroup { group, config })
+        }
+        "redrawgroup" => {
+            let group = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::RedrawGroup { group, config })
+        }
+        "showmetergroup" => {
+            let group = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::ShowMeterGroup { group, config })
+        }
+        "hidemetergroup" => {
+            let group = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::HideMeterGroup { group, config })
+        }
+        "togglemetergroup" => {
+            let group = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::ToggleMeterGroup { group, config })
+        }
+        "showfade" | "showfadegroup" => {
+            let name = args.first().cloned().unwrap_or_default();
+            let config = args.get(1).cloned();
+            Some(Bang::ShowFade { name, config })
+        }
+        "hidefade" | "hidefadegroup" => {
+            let name = args.first().cloned().unwrap_or_default();
+            let config = args.get(1).cloned();
+            Some(Bang::HideFade { name, config })
+        }
+        "togglefade" | "togglefadegroup" => {
+            let name = args.first().cloned().unwrap_or_default();
+            let config = args.get(1).cloned();
+            Some(Bang::ToggleFade { name, config })
+        }
         "enablemeasure" => {
             let name = args.first().cloned()?;
             let config = args.get(1).cloned();
@@ -280,6 +420,21 @@ fn parse_single_bang(input: &str) -> Option<Bang> {
             let name = args.first().cloned()?;
             let config = args.get(1).cloned();
             Some(Bang::ToggleMeasure { name, config })
+        }
+        "pausemeasure" => {
+            let name = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::PauseMeasure { name, config })
+        }
+        "unpausemeasure" => {
+            let name = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::UnpauseMeasure { name, config })
+        }
+        "togglepausemeasure" => {
+            let name = args.first().cloned()?;
+            let config = args.get(1).cloned();
+            Some(Bang::TogglePauseMeasure { name, config })
         }
         "activateconfig" => {
             let config = args.first().cloned()?;
@@ -299,7 +454,15 @@ fn parse_single_bang(input: &str) -> Option<Bang> {
             let config = args.first().cloned();
             Some(Bang::Refresh { config })
         }
+        "refreshgroup" => {
+            let group = args.first().cloned().unwrap_or_default();
+            Some(Bang::RefreshGroup { group })
+        }
         "refreshapp" => Some(Bang::RefreshApp),
+        "log" | "logmessage" => {
+            let message = args.join(" ");
+            Some(Bang::Log { message })
+        }
         "commandmeasure" => {
             if args.len() < 2 {
                 return None;
@@ -314,8 +477,11 @@ fn parse_single_bang(input: &str) -> Option<Bang> {
             Some(Bang::Execute(cmd))
         }
         _ => {
-            // Unrecognized or custom shell command execution
-            Some(Bang::Execute(trimmed.to_string()))
+            if is_explicit_bang {
+                Some(Bang::NoOp)
+            } else {
+                Some(Bang::Execute(trimmed.to_string()))
+            }
         }
     }
 }

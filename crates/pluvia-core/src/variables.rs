@@ -8,13 +8,23 @@ pub struct VariableMap {
 }
 
 impl VariableMap {
-    /// Creates a new `VariableMap` initialized with default built-in variables (`#@#`).
+    /// Creates a new `VariableMap` initialized with default built-in variables (`#@#`, `#SCREENAREAWIDTH#`, `#SCREENAREAHEIGHT#`, etc.).
     pub fn new() -> Self {
         let mut map = Self {
             vars: HashMap::new(),
         };
         // Built-in Rainmeter macro: #@# expands to @Resources/
         map.set("@", "@Resources/");
+        map.set("screenareawidth", "1920");
+        map.set("screenareaheight", "1080");
+        map.set("workareawidth", "1920");
+        map.set("workareaheight", "1080");
+        map.set("screenareax", "0");
+        map.set("screenareay", "0");
+        map.set("workareax", "0");
+        map.set("workareay", "0");
+        map.set("programpath", "/usr/local/bin/");
+        map.set("settingspath", "~/.config/pluvia/");
         map
     }
 
@@ -30,6 +40,7 @@ impl VariableMap {
         };
         map.set("currentpath", &formatted);
         map.set("skinspath", &formatted);
+        map.set("rootconfigpath", &formatted);
         map
     }
 

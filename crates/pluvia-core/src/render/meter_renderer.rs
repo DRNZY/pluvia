@@ -24,16 +24,23 @@ pub enum RenderError {
 /// Dynamic snapshot of skin configuration and current measure values.
 #[derive(Debug, Clone)]
 pub struct SkinState {
-    pub config: SkinConfig,
-    pub measure_values: HashMap<String, MeasureValue>,
+    pub config: std::sync::Arc<SkinConfig>,
+    pub measure_values: std::sync::Arc<HashMap<String, MeasureValue>>,
 }
 
 impl SkinState {
     pub fn new(config: SkinConfig, measure_values: HashMap<String, MeasureValue>) -> Self {
         Self {
-            config,
-            measure_values,
+            config: std::sync::Arc::new(config),
+            measure_values: std::sync::Arc::new(measure_values),
         }
+    }
+
+    pub fn from_arc(
+        config: std::sync::Arc<SkinConfig>,
+        measure_values: std::sync::Arc<HashMap<String, MeasureValue>>,
+    ) -> Self {
+        Self { config, measure_values }
     }
 
     pub fn get_measure_value(&self, name: &str) -> Option<&MeasureValue> {
@@ -189,16 +196,40 @@ impl MeterRenderer {
         _h: f64,
         state: &SkinState,
     ) -> Result<Rect, RenderError> {
-        let raw_text = meter.text.as_deref().unwrap_or("%1");
+        let raw_text = meter.text.as_deref().or_else(|| meter.get("text")).unwrap_or("%1");
         let substituted = substitute_measures(raw_text, meter, state);
+        let final_text = state.config.variables.expand_with_context(
+            &substituted,
+            Some(&meter.name),
+            Some(&state.measure_values),
+        );
 
-        let font_face = meter.font_face.as_deref().unwrap_or("Sans");
-        let font_size = meter.font_size.unwrap_or(12.0);
-        let color = meter
-            .font_color
-            .as_deref()
-            .and_then(Color::parse)
-            .unwrap_or(Color::WHITE);
+        let raw_font = meter.font_face.as_deref().or_else(|| meter.get("fontface")).unwrap_or("Sans");
+        let exp_font = state.config.variables.expand_with_context(
+            raw_font,
+            Some(&meter.name),
+            Some(&state.measure_values),
+        );
+        let font_face = if exp_font.is_empty() || exp_font.starts_with('#') {
+            "Sans"
+        } else {
+            &exp_font
+        };
+
+        let font_size = meter.font_size.or_else(|| {
+            meter.get("fontsize").and_then(|s| {
+                let exp = state.config.variables.expand_with_context(s, Some(&meter.name), Some(&state.measure_values));
+                eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+            })
+        }).unwrap_or(12.0).max(1.0);
+
+        let raw_color = meter.font_color.as_deref().or_else(|| meter.get("fontcolor")).unwrap_or("255,255,255,255");
+        let exp_color = state.config.variables.expand_with_context(
+            raw_color,
+            Some(&meter.name),
+            Some(&state.measure_values),
+        );
+        let color = Color::parse(&exp_color).unwrap_or(Color::WHITE);
 
         let align = meter
             .get("stringalign")
@@ -246,7 +277,7 @@ impl MeterRenderer {
 
         let rect = self.text_renderer.render_text_to_context_with_spacing(
             cr,
-            &substituted,
+            &final_text,
             font_face,
             font_size,
             color,
@@ -1519,11 +1550,30 @@ fn draw_rounded_rect(
     radius_x: f64,
     radius_y: f64,
 ) {
-    let pi = std::f64::consts::PI;
-    let r_x = radius_x.min(w / 2.0);
-    let r_y = radius_y.min(h / 2.0);
+    if w <= 0.0 || h <= 0.0 {
+        return;
+    }
+    let r_x = radius_x.min(w / 2.0).max(0.0);
+    let r_y = radius_y.min(h / 2.0).max(0.0);
 
-    cr.save().unwrap();
+    if r_x <= 0.0 || r_y <= 0.0 {
+        cr.rectangle(x, y, w, h);
+        return;
+    }
+
+    let pi = std::f64::consts::PI;
+
+    if (r_x - r_y).abs() < 1e-6 {
+        cr.new_sub_path();
+        cr.arc(x + w - r_x, y + r_x, r_x, -pi / 2.0, 0.0);
+        cr.arc(x + w - r_x, y + h - r_x, r_x, 0.0, pi / 2.0);
+        cr.arc(x + r_x, y + h - r_x, r_x, pi / 2.0, pi);
+        cr.arc(x + r_x, y + r_x, r_x, pi, 3.0 * pi / 2.0);
+        cr.close_path();
+        return;
+    }
+
+    let _ = cr.save();
     cr.translate(x, y);
     cr.scale(1.0, r_y / r_x);
 
@@ -1536,7 +1586,7 @@ fn draw_rounded_rect(
     cr.arc(r_x, r_x, r_x, pi, 3.0 * pi / 2.0);
     cr.close_path();
 
-    cr.restore().unwrap();
+    let _ = cr.restore();
 }
 
 fn resolve_coordinate(

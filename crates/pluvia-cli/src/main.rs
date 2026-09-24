@@ -116,7 +116,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Commands::Load { path } => {
-            let res = client.load_skin(&path).await?;
+            let full_path = if path.is_relative() {
+                std::env::current_dir()?.join(&path)
+            } else {
+                path
+            };
+            let res = client.load_skin(&full_path).await?;
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&res)?);
             } else {

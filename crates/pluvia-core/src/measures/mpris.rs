@@ -2,6 +2,10 @@ use crate::ini::MeasureConfig;
 use crate::measures::{Measure, MeasureValue};
 use std::collections::HashMap;
 use std::ops::Deref;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::OnceLock;
+use std::thread;
+use std::time::Duration;
 use zbus::blocking::{Connection, Proxy};
 use zbus::zvariant::{OwnedValue, Value};
 
@@ -34,14 +38,233 @@ pub struct NowPlayingData {
     pub volume: f64,
 }
 
+enum MprisTask {
+    Query {
+        player_name: Option<String>,
+        reply: Sender<Option<NowPlayingData>>,
+    },
+    Command {
+        player_name: Option<String>,
+        cmd: String,
+        reply: Sender<bool>,
+    },
+}
+
+struct MprisWorker {
+    sender: Sender<MprisTask>,
+}
+
+static MPRIS_WORKER: OnceLock<MprisWorker> = OnceLock::new();
+
+fn get_mpris_worker() -> &'static MprisWorker {
+    MPRIS_WORKER.get_or_init(|| {
+        let (tx, rx) = channel::<MprisTask>();
+        let _ = thread::Builder::new()
+            .name("pluvia-mpris-worker".to_string())
+            .spawn(move || {
+                run_mpris_worker_loop(rx);
+            });
+        MprisWorker { sender: tx }
+    })
+}
+
+fn run_mpris_worker_loop(rx: Receiver<MprisTask>) {
+    let mut connection: Option<Connection> = None;
+
+    while let Ok(task) = rx.recv() {
+        if connection.is_none() {
+            connection = Connection::session().ok();
+        }
+
+        match task {
+            MprisTask::Query { player_name, reply } => {
+                let data = if let Some(ref conn) = connection {
+                    query_mpris_data_internal(conn, player_name.as_deref())
+                } else {
+                    None
+                };
+                let _ = reply.send(data);
+            }
+            MprisTask::Command {
+                player_name,
+                cmd,
+                reply,
+            } => {
+                let res = if let Some(ref conn) = connection {
+                    execute_command_internal(conn, player_name.as_deref(), &cmd)
+                } else {
+                    false
+                };
+                let _ = reply.send(res);
+            }
+        }
+    }
+}
+
+fn get_player_destination(conn: &Connection, player_name: Option<&str>) -> Option<String> {
+    if let Some(target) = player_name {
+        if target.starts_with("org.mpris.MediaPlayer2.") {
+            Some(target.to_string())
+        } else {
+            Some(format!("org.mpris.MediaPlayer2.{}", target))
+        }
+    } else {
+        let dbus_proxy = Proxy::new(
+            conn,
+            "org.freedesktop.DBus",
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+        )
+        .ok()?;
+        let names: Vec<String> = dbus_proxy.call("ListNames", &()).ok()?;
+        names
+            .into_iter()
+            .find(|n| n.starts_with("org.mpris.MediaPlayer2."))
+    }
+}
+
+fn query_mpris_data_internal(conn: &Connection, player_name: Option<&str>) -> Option<NowPlayingData> {
+    let destination = get_player_destination(conn, player_name)?;
+
+    let player_proxy = Proxy::new(
+        conn,
+        destination.as_str(),
+        "/org/mpris/MediaPlayer2",
+        "org.mpris.MediaPlayer2.Player",
+    )
+    .ok()?;
+
+    let status_str: String = player_proxy
+        .get_property("PlaybackStatus")
+        .unwrap_or_else(|_| "Stopped".to_string());
+    let state = match status_str.to_ascii_lowercase().as_str() {
+        "playing" => 1,
+        "paused" => 2,
+        _ => 0,
+    };
+    let status = 1;
+
+    let metadata: HashMap<String, OwnedValue> =
+        player_proxy.get_property("Metadata").unwrap_or_default();
+
+    let title = metadata
+        .get("xesam:title")
+        .and_then(extract_string)
+        .unwrap_or_default();
+    let album = metadata
+        .get("xesam:album")
+        .and_then(extract_string)
+        .unwrap_or_default();
+    let raw_cover = metadata
+        .get("mpris:artUrl")
+        .and_then(extract_string)
+        .unwrap_or_default();
+
+    let cover = normalize_cover_art_url(&raw_cover);
+    let artist = metadata.get("xesam:artist").map(extract_artist).unwrap_or_default();
+
+    let duration_us: u64 = metadata
+        .get("mpris:length")
+        .and_then(extract_u64)
+        .unwrap_or(0);
+    let duration = duration_us as f64 / 1_000_000.0;
+
+    let position_us: i64 = player_proxy.get_property("Position").unwrap_or(0);
+    let position = position_us as f64 / 1_000_000.0;
+
+    let vol_f64: f64 = player_proxy.get_property("Volume").unwrap_or(1.0);
+    let volume = (vol_f64 * 100.0).clamp(0.0, 100.0);
+
+    Some(NowPlayingData {
+        title,
+        artist,
+        album,
+        cover,
+        state,
+        status,
+        duration,
+        position,
+        volume,
+    })
+}
+
+fn execute_command_internal(conn: &Connection, player_name: Option<&str>, cmd: &str) -> bool {
+    let destination = match get_player_destination(conn, player_name) {
+        Some(d) => d,
+        None => return false,
+    };
+
+    let player_proxy = match Proxy::new(
+        conn,
+        destination.as_str(),
+        "/org/mpris/MediaPlayer2",
+        "org.mpris.MediaPlayer2.Player",
+    ) {
+        Ok(p) => p,
+        Err(_) => return false,
+    };
+
+    let trimmed = cmd.trim();
+    let lower = trimmed.to_ascii_lowercase();
+
+    match lower.as_str() {
+        "playpause" | "toggleplaypause" => {
+            let _: Result<(), _> = player_proxy.call("PlayPause", &());
+            true
+        }
+        "play" => {
+            let _: Result<(), _> = player_proxy.call("Play", &());
+            true
+        }
+        "pause" => {
+            let _: Result<(), _> = player_proxy.call("Pause", &());
+            true
+        }
+        "stop" => {
+            let _: Result<(), _> = player_proxy.call("Stop", &());
+            true
+        }
+        "next" => {
+            let _: Result<(), _> = player_proxy.call("Next", &());
+            true
+        }
+        "previous" | "prev" => {
+            let _: Result<(), _> = player_proxy.call("Previous", &());
+            true
+        }
+        _ => {
+            if lower.starts_with("setposition") {
+                let rest = trimmed["setposition".len()..].trim();
+                if let Ok(pos_secs) = rest.parse::<f64>() {
+                    let pos_us = (pos_secs * 1_000_000.0) as i64;
+                    let _: Result<(), _> = player_proxy.call(
+                        "SetPosition",
+                        &("/org/mpris/MediaPlayer2/TrackList/NoTrack", pos_us),
+                    );
+                }
+                true
+            } else if lower.starts_with("setvolume") {
+                let rest = trimmed["setvolume".len()..].trim();
+                if let Ok(vol_pct) = rest.parse::<f64>() {
+                    let vol_frac = (vol_pct / 100.0).clamp(0.0, 1.0);
+                    let _: Result<(), _> = player_proxy.set_property("Volume", vol_frac);
+                }
+                true
+            } else {
+                false
+            }
+        }
+    }
+}
+
 /// Measure connecting to MPRIS D-Bus services (`org.mpris.MediaPlayer2.*`).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NowPlayingMeasure {
     player_type: PlayerType,
     player_name: Option<String>,
     current_value: MeasureValue,
     mock_data: Option<NowPlayingData>,
-    connection: Option<Connection>,
+    cached_data: Option<NowPlayingData>,
 }
 
 impl NowPlayingMeasure {
@@ -57,7 +280,7 @@ impl NowPlayingMeasure {
                 _ => MeasureValue::Number(0.0),
             },
             mock_data: None,
-            connection: None,
+            cached_data: None,
         }
     }
 
@@ -118,101 +341,8 @@ impl NowPlayingMeasure {
                 _ => MeasureValue::Number(0.0),
             },
             mock_data: None,
-            connection: None,
+            cached_data: None,
         }
-    }
-
-    fn get_player_destination(&mut self) -> Option<String> {
-        if self.connection.is_none() {
-            self.connection = Connection::session().ok();
-        }
-        let conn = self.connection.as_ref()?;
-
-        if let Some(ref target) = self.player_name {
-            if target.starts_with("org.mpris.MediaPlayer2.") {
-                Some(target.clone())
-            } else {
-                Some(format!("org.mpris.MediaPlayer2.{}", target))
-            }
-        } else {
-            let dbus_proxy = Proxy::new(
-                conn,
-                "org.freedesktop.DBus",
-                "/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
-            )
-            .ok()?;
-            let names: Vec<String> = dbus_proxy.call("ListNames", &()).ok()?;
-            names
-                .into_iter()
-                .find(|n| n.starts_with("org.mpris.MediaPlayer2."))
-        }
-    }
-
-    fn query_mpris_data(&mut self) -> Option<NowPlayingData> {
-        let destination = self.get_player_destination()?;
-        let conn = self.connection.as_ref()?;
-
-        let player_proxy = Proxy::new(
-            conn,
-            destination.as_str(),
-            "/org/mpris/MediaPlayer2",
-            "org.mpris.MediaPlayer2.Player",
-        )
-        .ok()?;
-
-        let status_str: String = player_proxy
-            .get_property("PlaybackStatus")
-            .unwrap_or_else(|_| "Stopped".to_string());
-        let state = match status_str.to_ascii_lowercase().as_str() {
-            "playing" => 1,
-            "paused" => 2,
-            _ => 0,
-        };
-        let status = 1;
-
-        let metadata: HashMap<String, OwnedValue> =
-            player_proxy.get_property("Metadata").unwrap_or_default();
-
-        let title = metadata
-            .get("xesam:title")
-            .and_then(extract_string)
-            .unwrap_or_default();
-        let album = metadata
-            .get("xesam:album")
-            .and_then(extract_string)
-            .unwrap_or_default();
-        let raw_cover = metadata
-            .get("mpris:artUrl")
-            .and_then(extract_string)
-            .unwrap_or_default();
-
-        let cover = normalize_cover_art_url(&raw_cover);
-        let artist = metadata.get("xesam:artist").map(extract_artist).unwrap_or_default();
-
-        let duration_us: u64 = metadata
-            .get("mpris:length")
-            .and_then(extract_u64)
-            .unwrap_or(0);
-        let duration = duration_us as f64 / 1_000_000.0;
-
-        let position_us: i64 = player_proxy.get_property("Position").unwrap_or(0);
-        let position = position_us as f64 / 1_000_000.0;
-
-        let vol_f64: f64 = player_proxy.get_property("Volume").unwrap_or(1.0);
-        let volume = (vol_f64 * 100.0).clamp(0.0, 100.0);
-
-        Some(NowPlayingData {
-            title,
-            artist,
-            album,
-            cover,
-            state,
-            status,
-            duration,
-            position,
-            volume,
-        })
     }
 
     /// Dispatches playback control commands (Play, Pause, PlayPause, Next, Previous, Stop, etc.).
@@ -251,69 +381,22 @@ impl NowPlayingMeasure {
             }
         }
 
-        let destination = match self.get_player_destination() {
-            Some(d) => d,
-            None => return false,
-        };
-        let conn = match self.connection.as_ref() {
-            Some(c) => c,
-            None => return false,
-        };
-
-        let player_proxy = match Proxy::new(
-            conn,
-            destination.as_str(),
-            "/org/mpris/MediaPlayer2",
-            "org.mpris.MediaPlayer2.Player",
-        ) {
-            Ok(p) => p,
-            Err(_) => return false,
-        };
-
-        match lower.as_str() {
-            "playpause" | "toggleplaypause" => {
-                let _: Result<(), _> = player_proxy.call("PlayPause", &());
-                true
-            }
-            "play" => {
-                let _: Result<(), _> = player_proxy.call("Play", &());
-                true
-            }
-            "pause" => {
-                let _: Result<(), _> = player_proxy.call("Pause", &());
-                true
-            }
-            "stop" => {
-                let _: Result<(), _> = player_proxy.call("Stop", &());
-                true
-            }
-            "next" => {
-                let _: Result<(), _> = player_proxy.call("Next", &());
-                true
-            }
-            "previous" | "prev" => {
-                let _: Result<(), _> = player_proxy.call("Previous", &());
-                true
-            }
-            _ => {
-                if lower.starts_with("setposition") {
-                    let rest = trimmed["setposition".len()..].trim();
-                    if let Ok(pos_secs) = rest.parse::<f64>() {
-                        let pos_us = (pos_secs * 1_000_000.0) as i64;
-                        let _: Result<(), _> = player_proxy.call("SetPosition", &("/org/mpris/MediaPlayer2/TrackList/NoTrack", pos_us));
-                    }
-                    true
-                } else if lower.starts_with("setvolume") {
-                    let rest = trimmed["setvolume".len()..].trim();
-                    if let Ok(vol_pct) = rest.parse::<f64>() {
-                        let vol_frac = (vol_pct / 100.0).clamp(0.0, 1.0);
-                        let _: Result<(), _> = player_proxy.set_property("Volume", vol_frac);
-                    }
-                    true
-                } else {
-                    false
-                }
-            }
+        let (reply_tx, reply_rx) = channel();
+        let worker = get_mpris_worker();
+        if worker
+            .sender
+            .send(MprisTask::Command {
+                player_name: self.player_name.clone(),
+                cmd: cmd.to_string(),
+                reply: reply_tx,
+            })
+            .is_ok()
+        {
+            reply_rx
+                .recv_timeout(Duration::from_millis(100))
+                .unwrap_or(false)
+        } else {
+            false
         }
     }
 }
@@ -393,7 +476,23 @@ impl Measure for NowPlayingMeasure {
         let data = if let Some(ref mock) = self.mock_data {
             Some(mock.clone())
         } else {
-            self.query_mpris_data()
+            let (reply_tx, reply_rx) = channel();
+            let worker = get_mpris_worker();
+            if worker
+                .sender
+                .send(MprisTask::Query {
+                    player_name: self.player_name.clone(),
+                    reply: reply_tx,
+                })
+                .is_ok()
+            {
+                if let Ok(res) = reply_rx.recv_timeout(Duration::from_millis(50)) {
+                    if res.is_some() {
+                        self.cached_data = res;
+                    }
+                }
+            }
+            self.cached_data.clone()
         };
 
         let val = match data {
