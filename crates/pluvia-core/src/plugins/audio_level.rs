@@ -84,8 +84,8 @@ impl AudioLevelPlugin {
         let type_str = config.get("type").unwrap_or("rms").to_ascii_lowercase();
         let level_type = match type_str.as_str() {
             "peak" => AudioLevelType::Peak,
-            "fft" => AudioLevelType::FFT,
-            "bandfreq" => AudioLevelType::BandFreq,
+            "fft" | "band" => AudioLevelType::FFT,
+            "bandfreq" | "freq" => AudioLevelType::BandFreq,
             _ => AudioLevelType::RMS,
         };
 

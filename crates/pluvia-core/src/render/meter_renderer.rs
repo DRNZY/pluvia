@@ -656,7 +656,7 @@ impl MeterRenderer {
                     if !sub_parts.is_empty() {
                         let sub_decl = sub_parts[0];
                         let (kind, nums) = tokenize_shape_declaration(sub_decl, vars, Some(&meter.name), Some(measures));
-                        self.append_shape_path(cr, &kind, &nums, base_x, base_y, sub_decl, &sub_parts[1..])?;
+                        self.append_shape_path(cr, meter, state, &kind, &nums, base_x, base_y, sub_decl, &sub_parts[1..])?;
 
                         // Inherit sub_shape color/stroke if parent combine didn't override
                         if fill_color.is_none() || fill_color == Some(Color::WHITE) {
@@ -693,7 +693,7 @@ impl MeterRenderer {
             }
         } else {
             let (kind, nums) = tokenize_shape_declaration(shape_decl, vars, Some(&meter.name), Some(measures));
-            bound = self.append_shape_path(cr, &kind, &nums, base_x, base_y, shape_decl, &parts[1..])?;
+            bound = self.append_shape_path(cr, meter, state, &kind, &nums, base_x, base_y, shape_decl, &parts[1..])?;
         }
 
         if let Some(fill) = fill_color {
@@ -720,6 +720,8 @@ impl MeterRenderer {
     fn append_shape_path(
         &self,
         cr: &Context,
+        meter: &MeterConfig,
+        state: &SkinState,
         kind: &str,
         nums: &[f64],
         base_x: f64,
@@ -814,19 +816,87 @@ impl MeterRenderer {
                     .unwrap_or("")
                     .trim();
                 let unquoted = raw_args.trim_matches('"').trim();
-                let has_svg = unquoted
-                    .chars()
-                    .any(|c| matches!(c, 'M' | 'm' | 'L' | 'l' | 'C' | 'c' | 'Z' | 'z'));
 
-                if has_svg {
-                    execute_svg_path(cr, unquoted, base_x, base_y)?;
+                // Check if unquoted matches a named custom Path property on the meter (e.g. Area, Line)
+                if let Some(path_prop_val) = meter.properties.get(&unquoted.to_ascii_lowercase()) {
+                    let exp_path_prop = state.config.variables.expand_with_context(
+                        path_prop_val,
+                        Some(&meter.name),
+                        Some(&state.measure_values),
+                    );
+                    let segs: Vec<&str> = exp_path_prop.split('|').map(str::trim).collect();
+                    if !segs.is_empty() {
+                        let start_nums = parse_point_nums(
+                            segs[0],
+                            &state.config.variables,
+                            Some(&meter.name),
+                            Some(&state.measure_values),
+                        );
+                        if start_nums.len() >= 2 {
+                            cr.move_to(base_x + start_nums[0], base_y + start_nums[1]);
+                        }
+                        for seg in &segs[1..] {
+                            let s_lower = seg.to_ascii_lowercase();
+                            if s_lower.starts_with("lineto") {
+                                let rest = seg["lineto".len()..].trim();
+                                let line_nums = parse_point_nums(
+                                    rest,
+                                    &state.config.variables,
+                                    Some(&meter.name),
+                                    Some(&state.measure_values),
+                                );
+                                if line_nums.len() >= 2 {
+                                    cr.line_to(base_x + line_nums[0], base_y + line_nums[1]);
+                                }
+                            } else if s_lower.starts_with("curveto") {
+                                let rest = seg["curveto".len()..].trim();
+                                let curve_nums = parse_point_nums(
+                                    rest,
+                                    &state.config.variables,
+                                    Some(&meter.name),
+                                    Some(&state.measure_values),
+                                );
+                                if curve_nums.len() >= 6 {
+                                    cr.curve_to(
+                                        base_x + curve_nums[2],
+                                        base_y + curve_nums[3],
+                                        base_x + curve_nums[4],
+                                        base_y + curve_nums[5],
+                                        base_x + curve_nums[0],
+                                        base_y + curve_nums[1],
+                                    );
+                                } else if curve_nums.len() >= 4 {
+                                    cr.curve_to(
+                                        base_x + curve_nums[2],
+                                        base_y + curve_nums[3],
+                                        base_x + curve_nums[2],
+                                        base_y + curve_nums[3],
+                                        base_x + curve_nums[0],
+                                        base_y + curve_nums[1],
+                                    );
+                                }
+                            } else if s_lower.starts_with("closepath") || s_lower == "close" {
+                                cr.close_path();
+                            }
+                        }
+                    }
                 } else {
-                    let start_nums: Vec<f64> = unquoted
-                        .split(&[' ', ','][..])
-                        .filter_map(|s| s.parse::<f64>().ok())
-                        .collect();
-                    if start_nums.len() >= 2 {
-                        cr.move_to(base_x + start_nums[0], base_y + start_nums[1]);
+                    let has_svg = unquoted
+                        .chars()
+                        .any(|c| matches!(c, 'M' | 'm' | 'L' | 'l' | 'C' | 'c' | 'Z' | 'z'));
+
+                    if has_svg {
+                        execute_svg_path(cr, unquoted, base_x, base_y)?;
+                    } else {
+                        let start_nums = parse_point_nums(
+                            unquoted,
+                            &state.config.variables,
+                            Some(&meter.name),
+                            Some(&state.measure_values),
+                        );
+                        if start_nums.len() >= 2 {
+                            cr.move_to(base_x + start_nums[0], base_y + start_nums[1]);
+                        }
                     }
                 }
 
@@ -834,18 +904,22 @@ impl MeterRenderer {
                     let p_trimmed = part.trim();
                     let p_lower = p_trimmed.to_ascii_lowercase();
                     if p_lower.starts_with("lineto") {
-                        let line_nums: Vec<f64> = p_trimmed["lineto".len()..]
-                            .split(&[' ', ','][..])
-                            .filter_map(|s| s.parse::<f64>().ok())
-                            .collect();
+                        let line_nums = parse_point_nums(
+                            &p_trimmed["lineto".len()..],
+                            &state.config.variables,
+                            Some(&meter.name),
+                            Some(&state.measure_values),
+                        );
                         if line_nums.len() >= 2 {
                             cr.line_to(base_x + line_nums[0], base_y + line_nums[1]);
                         }
                     } else if p_lower.starts_with("curveto") {
-                        let curve_nums: Vec<f64> = p_trimmed["curveto".len()..]
-                            .split(&[' ', ','][..])
-                            .filter_map(|s| s.parse::<f64>().ok())
-                            .collect();
+                        let curve_nums = parse_point_nums(
+                            &p_trimmed["curveto".len()..],
+                            &state.config.variables,
+                            Some(&meter.name),
+                            Some(&state.measure_values),
+                        );
                         if curve_nums.len() >= 6 {
                             cr.curve_to(
                                 base_x + curve_nums[2],
@@ -1043,6 +1117,11 @@ impl MeterRenderer {
             .unwrap_or(1)
             .max(1);
 
+        let zero_frame = meter
+            .get("bitmapzeroframe")
+            .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
         let val = meter
             .measure_name
             .as_deref()
@@ -1050,7 +1129,25 @@ impl MeterRenderer {
             .map(|v| v.to_number_val())
             .unwrap_or(0.0);
 
-        let frame_idx = (val as usize).min(frames - 1);
+        let (min_val, max_val) = resolve_meter_range(meter, state, val, 1.0);
+        let progress = if max_val > min_val {
+            ((val - min_val) / (max_val - min_val)).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+
+        let frame_idx = if frames <= 1 {
+            0
+        } else if zero_frame {
+            if val <= min_val || progress <= 0.0 {
+                0
+            } else {
+                let active_frames = frames.saturating_sub(1);
+                1 + ((progress * (active_frames - 1) as f64).round() as usize).min(active_frames - 1)
+            }
+        } else {
+            ((progress * (frames - 1) as f64).round() as usize).min(frames - 1)
+        };
 
         let img_w = img.width() as f64;
         let img_h = img.height() as f64;
@@ -1782,4 +1879,15 @@ fn resolve_meter_range(
 
     (min_val, max_val)
 }
+
+fn parse_point_nums(
+    s: &str,
+    vars: &VariableMap,
+    current_section: Option<&str>,
+    measures: Option<&HashMap<String, MeasureValue>>,
+) -> Vec<f64> {
+    let (_, nums) = tokenize_shape_declaration(&format!("dummy {}", s), vars, current_section, measures);
+    nums
+}
+
 
