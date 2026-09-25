@@ -44,7 +44,15 @@ impl SkinState {
     }
 
     pub fn get_measure_value(&self, name: &str) -> Option<&MeasureValue> {
-        self.measure_values.get(&name.to_ascii_lowercase())
+        let clean = name.to_ascii_lowercase();
+        if let Some(v) = self.measure_values.get(&clean) {
+            return Some(v);
+        }
+        let expanded = self.config.variables.expand_with_full_context(name, None, Some(&self.measure_values), None);
+        let clean_exp = expanded.to_ascii_lowercase();
+        self.measure_values.get(&clean_exp).or_else(|| {
+            self.measure_values.iter().find(|(k, _)| k.eq_ignore_ascii_case(&clean_exp)).map(|(_, v)| v)
+        })
     }
 }
 

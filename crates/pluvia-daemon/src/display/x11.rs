@@ -418,7 +418,7 @@ impl X11Surface {
             attrs.colormap = colormap;
             attrs.background_pixel = 0;
             attrs.border_pixel = 0;
-            attrs.override_redirect = 1;
+            attrs.override_redirect = 0;
             attrs.event_mask = (1 << 2) /* ButtonPress */
                 | (1 << 3) /* ButtonRelease */
                 | (1 << 6) /* PointerMotion */
@@ -442,20 +442,40 @@ impl X11Surface {
                 &mut attrs,
             );
 
-            // EWMH atoms
+            // EWMH window type: _NET_WM_WINDOW_TYPE_DESKTOP
             let type_atom = XInternAtom(display, b"_NET_WM_WINDOW_TYPE\0".as_ptr() as *const _, 0);
             let desktop_type_atom = XInternAtom(display, b"_NET_WM_WINDOW_TYPE_DESKTOP\0".as_ptr() as *const _, 0);
             XChangeProperty(display, win, type_atom, 4 /* XA_ATOM */, 32, 0, &desktop_type_atom as *const _ as *const libc::c_uchar, 1);
 
+            // EWMH window states: BELOW, STICKY, SKIP_TASKBAR, SKIP_PAGER
             let state_atom = XInternAtom(display, b"_NET_WM_STATE\0".as_ptr() as *const _, 0);
             let below_atom = XInternAtom(display, b"_NET_WM_STATE_BELOW\0".as_ptr() as *const _, 0);
             let sticky_atom = XInternAtom(display, b"_NET_WM_STATE_STICKY\0".as_ptr() as *const _, 0);
-            let states = [below_atom, sticky_atom];
-            XChangeProperty(display, win, state_atom, 4, 32, 0, states.as_ptr() as *const libc::c_uchar, 2);
+            let skip_tb_atom = XInternAtom(display, b"_NET_WM_STATE_SKIP_TASKBAR\0".as_ptr() as *const _, 0);
+            let skip_pager_atom = XInternAtom(display, b"_NET_WM_STATE_SKIP_PAGER\0".as_ptr() as *const _, 0);
+            let states = [below_atom, sticky_atom, skip_tb_atom, skip_pager_atom];
+            XChangeProperty(display, win, state_atom, 4, 32, 0, states.as_ptr() as *const libc::c_uchar, 4);
 
+            // EWMH desktop: all desktops / workspaces (0xFFFFFFFF)
             let desktop_atom = XInternAtom(display, b"_NET_WM_DESKTOP\0".as_ptr() as *const _, 0);
             let all_desktops: libc::c_ulong = 0xFFFFFFFF;
             XChangeProperty(display, win, desktop_atom, 6 /* XA_CARDINAL */, 32, 0, &all_desktops as *const _ as *const libc::c_uchar, 1);
+
+            // Motif hints: remove all window borders and titlebar
+            let motif_atom = XInternAtom(display, b"_MOTIF_WM_HINTS\0".as_ptr() as *const _, 0);
+            let motif_hints: [libc::c_ulong; 5] = [2 /* MWM_HINTS_DECORATIONS */, 0, 0 /* no decorations */, 0, 0];
+            XChangeProperty(display, win, motif_atom, motif_atom, 32, 0, motif_hints.as_ptr() as *const libc::c_uchar, 5);
+
+            // WM_NORMAL_HINTS size & position hints
+            let normal_hints_atom = XInternAtom(display, b"WM_NORMAL_HINTS\0".as_ptr() as *const _, 0);
+            let size_hints_atom = XInternAtom(display, b"WM_SIZE_HINTS\0".as_ptr() as *const _, 0);
+            let size_hints: [libc::c_long; 18] = [
+                (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3), /* USPosition | USSize | PPosition | PSize */
+                bounds.x as libc::c_long, bounds.y as libc::c_long,
+                w as libc::c_long, h as libc::c_long,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ];
+            XChangeProperty(display, win, normal_hints_atom, size_hints_atom, 32, 0, size_hints.as_ptr() as *const libc::c_uchar, 18);
 
             let utf8_string = XInternAtom(display, b"UTF8_STRING\0".as_ptr() as *const _, 0);
             let name_atom = XInternAtom(display, b"_NET_WM_NAME\0".as_ptr() as *const _, 0);

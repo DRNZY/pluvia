@@ -149,7 +149,8 @@ impl VariableMap {
         self.expand_with_full_context(input, current_section, measures, None)
     }
 
-    /// Expands variables with full context including dynamic meter bounds (`[Meter:W]`, `[Meter:H]`, `[Meter:X]`, `[Meter:Y]`).
+    /// Expands variables with full context including dynamic meter bounds (`[Meter:W]`, `[Meter:H]`, `[Meter:X]`, `[Meter:Y]`),
+    /// bracketed variables (`[#VarName]`), character escape sequences (`[\13][\10]`), and nested section variables.
     pub fn expand_with_full_context(
         &self,
         input: &str,
@@ -165,25 +166,69 @@ impl VariableMap {
             }
         }
 
-        // Expand standard variables
+        // Expand standard variables #Var#
         text = self.expand(&text);
 
-        // Expand dynamic section variables if measures or meter_bounds provided
-        if measures.is_some() || meter_bounds.is_some() {
+        // Iterative innermost bracket expansion (handles nested brackets, escape characters, and section variables)
+        for _ in 0..8 {
+            let mut modified = false;
             let mut result = String::with_capacity(text.len());
             let mut i = 0;
-            let bytes = text.as_bytes();
-            while i < bytes.len() {
-                if bytes[i] == b'[' {
-                    if let Some(close) = text[i..].find(']') {
-                        let inner = &text[i + 1..i + close];
-                        if !inner.starts_with('!')
-                            && !inner.starts_with('"')
-                            && !inner.starts_with('\'')
-                            && !inner.contains(' ')
-                            && !inner.is_empty()
-                        {
-                            if let Some(colon_pos) = inner.find(':') {
+            let chars: Vec<char> = text.chars().collect();
+
+            while i < chars.len() {
+                if chars[i] == '[' {
+                    // Check if there is a matching ']' without another '[' in between
+                    let rest = &chars[i + 1..];
+                    if let Some(close_rel) = rest.iter().position(|&c| c == ']') {
+                        let inner_chars = &rest[..close_rel];
+                        if !inner_chars.contains(&'[') {
+                            let inner: String = inner_chars.iter().collect();
+                            let mut replaced: Option<String> = None;
+
+                            // 1. Rainmeter Character Reference Escape Codes: [\13], [\10], [\n], [\t], [\xHH], [\DDD]
+                            if let Some(esc) = inner.strip_prefix('\\') {
+                                let decoded = match esc.to_ascii_lowercase().as_str() {
+                                    "n" => Some("\n".to_string()),
+                                    "r" => Some("\r".to_string()),
+                                    "t" => Some("\t".to_string()),
+                                    "\\" => Some("\\".to_string()),
+                                    "[" => Some("[".to_string()),
+                                    "]" => Some("]".to_string()),
+                                    "\"" => Some("\"".to_string()),
+                                    "#" => Some("#".to_string()),
+                                    s if s.starts_with('x') => {
+                                        u32::from_str_radix(&s[1..], 16).ok().and_then(char::from_u32).map(|c| c.to_string())
+                                    }
+                                    s => s.parse::<u32>().ok().and_then(char::from_u32).map(|c| c.to_string()),
+                                };
+                                if let Some(s) = decoded {
+                                    replaced = Some(s);
+                                }
+                            }
+                            // 2. Bracketed Variable References: [#VarName] or [#VarName#]
+                            else if let Some(var_raw) = inner.strip_prefix('#') {
+                                let var_name = var_raw.trim_end_matches('#');
+                                if let Some(val) = self.get(var_name) {
+                                    replaced = Some(val.to_string());
+                                }
+                            }
+                            // 3. Section Variable Measure Number: [&MeasureName]
+                            else if let Some(meas_raw) = inner.strip_prefix('&') {
+                                if let Some(m_map) = measures {
+                                    let clean_name = meas_raw.to_ascii_lowercase();
+                                    if let Some(val) = m_map.get(&clean_name).or_else(|| m_map.iter().find(|(k, _)| k.eq_ignore_ascii_case(&clean_name)).map(|(_, v)| v)) {
+                                        let num = val.to_number_val();
+                                        if (num - num.round()).abs() < 1e-6 {
+                                            replaced = Some(format!("{:.0}", num));
+                                        } else {
+                                            replaced = Some(num.to_string());
+                                        }
+                                    }
+                                }
+                            }
+                            // 4. Section Variable Meter Bounds or Colon Properties: [Meter:W], [Meter:H], [Measure:]
+                            else if let Some(colon_pos) = inner.find(':') {
                                 let name = &inner[..colon_pos];
                                 let prop = &inner[colon_pos + 1..];
                                 let clean_name = name.strip_prefix('&').unwrap_or(name).to_ascii_lowercase();
@@ -191,7 +236,7 @@ impl VariableMap {
 
                                 if let Some(bounds) = meter_bounds {
                                     let rect_opt = bounds.get(&clean_name).or_else(|| bounds.iter().find(|(k, _)| k.eq_ignore_ascii_case(&clean_name)).map(|(_, v)| v));
-                                if let Some(rect) = rect_opt {
+                                    if let Some(rect) = rect_opt {
                                         let val = match clean_prop.as_str() {
                                             "w" | "width" => Some(rect.width),
                                             "h" | "height" => Some(rect.height),
@@ -201,42 +246,60 @@ impl VariableMap {
                                         };
                                         if let Some(v) = val {
                                             if (v - v.round()).abs() < 1e-6 {
-                                                result.push_str(&format!("{:.0}", v));
+                                                replaced = Some(format!("{:.0}", v));
                                             } else {
-                                                result.push_str(&v.to_string());
+                                                replaced = Some(v.to_string());
                                             }
-                                            i += close + 1;
-                                            continue;
                                         }
                                     }
                                 }
 
-                                if prop.is_empty() {
+                                if replaced.is_none() && prop.is_empty() {
                                     if let Some(m_map) = measures {
-                                        if let Some(val) = m_map.get(&clean_name) {
-                                            result.push_str(&val.to_number_val().to_string());
-                                            i += close + 1;
-                                            continue;
+                                        let clean = clean_name.to_ascii_lowercase();
+                                        if let Some(val) = m_map.get(&clean).or_else(|| m_map.iter().find(|(k, _)| k.eq_ignore_ascii_case(&clean)).map(|(_, v)| v)) {
+                                            let num = val.to_number_val();
+                                            if (num - num.round()).abs() < 1e-6 {
+                                                replaced = Some(format!("{:.0}", num));
+                                            } else {
+                                                replaced = Some(num.to_string());
+                                            }
                                         }
                                     }
                                 }
-                            } else {
-                                let clean_name = inner.strip_prefix('&').unwrap_or(inner).to_ascii_lowercase();
+                            }
+                            // 5. Section Variable Measure String: [MeasureName]
+                            else if !inner.starts_with('!')
+                                && !inner.starts_with('"')
+                                && !inner.starts_with('\'')
+                                && !inner.contains(' ')
+                                && !inner.is_empty()
+                            {
                                 if let Some(m_map) = measures {
-                                    if let Some(val) = m_map.get(&clean_name) {
-                                        result.push_str(&val.to_string_val());
-                                        i += close + 1;
-                                        continue;
+                                    let clean_name = inner.to_ascii_lowercase();
+                                    if let Some(val) = m_map.get(&clean_name).or_else(|| m_map.iter().find(|(k, _)| k.eq_ignore_ascii_case(&clean_name)).map(|(_, v)| v)) {
+                                        replaced = Some(val.to_string_val());
                                     }
                                 }
+                            }
+
+                            if let Some(rep) = replaced {
+                                result.push_str(&rep);
+                                i += 1 + close_rel + 1;
+                                modified = true;
+                                continue;
                             }
                         }
                     }
                 }
-                result.push(bytes[i] as char);
+                result.push(chars[i]);
                 i += 1;
             }
+
             text = result;
+            if !modified {
+                break;
+            }
         }
 
         text
