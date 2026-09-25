@@ -1,0 +1,14 @@
+[Unit]
+Description=Pluvia Rainmeter Desktop Engine for Linux
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/pluvia-daemon
+Restart=on-failure
+RestartSec=3s
+Slice=app-graphical.slice
+
+[Install]
+WantedBy=graphical-session.target

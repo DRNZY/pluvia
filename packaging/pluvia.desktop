@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Pluvia Studio
+GenericName=Desktop Widget Manager
+Comment=Native Rainmeter skin engine and widget manager for Linux
+Exec=pluvia-studio
+Icon=preferences-desktop-wallpaper
+Terminal=false
+Categories=Utility;DesktopSettings;GTK;
+StartupWMClass=pluvia-studio
+Keywords=Rainmeter;Widgets;Skins;Desktop;Clock;Monitor;
