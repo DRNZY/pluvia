@@ -105,12 +105,19 @@ impl TimeMeasure {
     pub fn set_format(&mut self, format: &str) {
         self.format = format.to_string();
     }
-}
 
-impl Measure for TimeMeasure {
-    fn update(&mut self) -> MeasureValue {
+    fn update_internal(
+        &mut self,
+        vars: Option<&crate::variables::VariableMap>,
+        measures: Option<&std::collections::HashMap<String, MeasureValue>>,
+    ) -> MeasureValue {
         let base = self.custom_time.unwrap_or_else(Local::now);
-        let chrono_fmt = convert_rainmeter_time_format(&self.format);
+        let expanded_fmt = if let Some(v) = vars {
+            v.expand_with_full_context(&self.format, None, measures, None)
+        } else {
+            self.format.clone()
+        };
+        let chrono_fmt = convert_rainmeter_time_format(&expanded_fmt);
 
         let formatted = if let Some(ref tz) = self.time_zone {
             let lower = tz.trim().to_ascii_lowercase();
@@ -134,6 +141,20 @@ impl Measure for TimeMeasure {
 
         self.current_value = MeasureValue::String(formatted);
         self.current_value.clone()
+    }
+}
+
+impl Measure for TimeMeasure {
+    fn update(&mut self) -> MeasureValue {
+        self.update_internal(None, None)
+    }
+
+    fn update_with_context(
+        &mut self,
+        vars: &crate::variables::VariableMap,
+        measures: &std::collections::HashMap<String, MeasureValue>,
+    ) -> MeasureValue {
+        self.update_internal(Some(vars), Some(measures))
     }
 
     fn get_value(&self) -> MeasureValue {

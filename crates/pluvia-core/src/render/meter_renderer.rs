@@ -585,6 +585,8 @@ impl MeterRenderer {
 
         let bar_color = meter
             .get("barcolor")
+            .map(|s| state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), None))
+            .as_deref()
             .and_then(Color::parse)
             .unwrap_or(Color::rgba(0.0, 1.0, 0.0, 1.0));
 
@@ -642,29 +644,23 @@ impl MeterRenderer {
             0.0
         };
 
-        let start_angle = meter
-            .get("startangle")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        let rotation_angle = meter
-            .get("rotationangle")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(std::f64::consts::TAU);
-        let line_length = meter
-            .get("linelength")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or_else(|| w.max(h) / 2.0);
-        let line_start = meter
-            .get("linestart")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        let line_width = meter
-            .get("linewidth")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(1.0);
+        let eval_prop = |key: &str| -> Option<f64> {
+            meter.get(key).and_then(|raw| {
+                let exp = state.config.variables.expand_with_full_context(raw, Some(&meter.name), Some(&state.measure_values), None);
+                eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+            })
+        };
+
+        let start_angle = eval_prop("startangle").unwrap_or(0.0);
+        let rotation_angle = eval_prop("rotationangle").unwrap_or(std::f64::consts::TAU);
+        let line_length = eval_prop("linelength").unwrap_or_else(|| w.max(h) / 2.0);
+        let line_start = eval_prop("linestart").unwrap_or(0.0);
+        let line_width = eval_prop("linewidth").unwrap_or(1.0);
         let solid = meter.get("solid").map(|s| s == "1").unwrap_or(false);
         let line_color = meter
             .get("linecolor")
+            .map(|s| state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), None))
+            .as_deref()
             .and_then(Color::parse)
             .unwrap_or(Color::WHITE);
 
@@ -1186,8 +1182,10 @@ impl MeterRenderer {
 
         let primary_color = meter
             .get("primarycolor")
+            .map(|s| state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), None))
+            .as_deref()
             .and_then(Color::parse)
-            .unwrap_or(Color::rgba(0.0, 1.0, 0.0, 0.8));
+            .unwrap_or(Color::rgba(0.0, 1.0, 0.0, 0.25));
 
         let max_points = (w.ceil() as usize).max(10);
         let mut history_guard = self.histogram_history.lock().unwrap();
@@ -1260,23 +1258,17 @@ impl MeterRenderer {
         let img_w = img.width() as f64;
         let img_h = img.height() as f64;
 
-        let offset_x = meter
-            .get("offsetx")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(img_w / 2.0);
-        let offset_y = meter
-            .get("offsety")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(img_h / 2.0);
+        let eval_prop = |key: &str| -> Option<f64> {
+            meter.get(key).and_then(|raw| {
+                let exp = state.config.variables.expand_with_full_context(raw, Some(&meter.name), Some(&state.measure_values), None);
+                eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
+            })
+        };
 
-        let start_angle = meter
-            .get("startangle")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(0.0);
-        let rotation_angle = meter
-            .get("rotationangle")
-            .and_then(|s| s.parse::<f64>().ok())
-            .unwrap_or(std::f64::consts::TAU);
+        let offset_x = eval_prop("offsetx").unwrap_or(img_w / 2.0);
+        let offset_y = eval_prop("offsety").unwrap_or(img_h / 2.0);
+        let start_angle = eval_prop("startangle").unwrap_or(0.0);
+        let rotation_angle = eval_prop("rotationangle").unwrap_or(std::f64::consts::TAU);
 
         let val = meter
             .measure_name
@@ -1403,6 +1395,8 @@ impl MeterRenderer {
 
         let color = meter
             .get("linecolor")
+            .map(|s| state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), None))
+            .as_deref()
             .and_then(Color::parse)
             .unwrap_or(Color::WHITE);
 
