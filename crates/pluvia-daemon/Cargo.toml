@@ -1,7 +1,8 @@
 [package]
 name = "pluvia-daemon"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [dependencies]
 pluvia-core = { path = "../pluvia-core" }
@@ -10,8 +11,6 @@ tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-anyhow.workspace = true
-futures = "0.3"
 libc = "0.2"
 regex = "1.10"
 
