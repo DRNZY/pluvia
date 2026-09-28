@@ -14,6 +14,7 @@ use std::time::Instant;
 use thiserror::Error;
 use tokio::sync::RwLock;
 
+
 #[derive(Error, Debug)]
 pub enum RuntimeError {
     #[error("Skin not found: {0}")]
@@ -86,7 +87,15 @@ impl SkinRuntime {
         self.backend
     }
 
-    fn calculate_bounds(&self, config: &SkinConfig) -> SurfaceBounds {
+    /// Derives the window size for a skin.
+    ///
+    /// `measure_values` must be populated so String meters can be measured at their real
+    /// text width; measuring with empty values under-reports the extent and clips text.
+    fn calculate_bounds(
+        &self,
+        config: &SkinConfig,
+        measure_values: &HashMap<String, MeasureValue>,
+    ) -> SurfaceBounds {
         let mut max_w: f64 = 0.0;
         let mut max_h: f64 = 0.0;
 
@@ -225,13 +234,28 @@ impl SkinRuntime {
             }
         }
 
+        // Union with the true measured content extent so text that overflows its
+        // declared `W`/`H` box (common with large FontSize or letter spacing) is never
+        // clipped. `measure_content` already applies the skin's `Scale` variable using
+        // the same code path as rendering, so the two agree by construction.
+        let content = self.renderer.measure_content(&SkinState::from_arc(
+            Arc::new(config.clone()),
+            Arc::new(measure_values.clone()),
+        ));
+        if content.width > 0.0 || content.height > 0.0 {
+            max_w = max_w.max(content.x + content.width);
+            max_h = max_h.max(content.y + content.height);
+        }
+
         // Safety cap: Cairo ImageSurface at ARgb32 costs 4 bytes/pixel.
-        // 8192×8192 = 268 MB max per skin window — well within reason but prevents
+        // 8192x8192 = 268 MB max per skin window - well within reason but prevents
         // formula explosions (e.g. SCREENAREAHEIGHT mis-resolved to a huge value)
         // from OOM-killing the daemon.
         const MAX_DIM: u32 = 8192;
-        let w = (max_w.ceil() as u32).max(200).min(MAX_DIM);
-        let h = (max_h.ceil() as u32).max(180).min(MAX_DIM);
+        let w = max_w.ceil().max(0.0) as u32;
+        let w = w.max(200).min(MAX_DIM);
+        let h = max_h.ceil().max(0.0) as u32;
+        let h = h.max(180).min(MAX_DIM);
 
         let win_x = rainmeter_sec
             .and_then(|s| s.get("windowx").or_else(|| s.get("skinx")))
@@ -322,7 +346,7 @@ impl SkinRuntime {
             }
         }
 
-        let bounds = self.calculate_bounds(&config);
+        let bounds = self.calculate_bounds(&config, &measure_values);
         let surface = self.create_surface(&id, bounds);
 
         let mut instance = SkinInstance {

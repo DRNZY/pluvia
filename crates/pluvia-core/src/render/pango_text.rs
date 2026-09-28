@@ -114,24 +114,57 @@ fn scan_and_register_fonts(
 }
 
 /// Text alignment within layout and meter bounds.
+///
+/// Mirrors Rainmeter's `StringAlign` values. The `*B` variants anchor to the text
+/// baseline instead of the top of the meter's `H` box.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextAlign {
     #[default]
     Left,
     Center,
     Right,
+    LeftB,
+    CenterB,
+    RightB,
 }
 
 impl TextAlign {
     pub fn parse(s: &str) -> Self {
-        let lower = s.to_ascii_lowercase();
-        if lower.starts_with("center") {
+        let lower = s.trim().to_ascii_lowercase();
+        // Rainmeter also accepts compound forms like "CenterCenter" / "LeftTop" where
+        // the horizontal and vertical qualifiers are written together.
+        let horizontal = if lower.contains("center") {
             TextAlign::Center
-        } else if lower.starts_with("right") {
+        } else if lower.contains("right") {
             TextAlign::Right
         } else {
             TextAlign::Left
+        };
+
+        match lower.as_str() {
+            "leftb" | "leftbaseline" => TextAlign::LeftB,
+            "centerb" | "centerbaseline" => TextAlign::CenterB,
+            "rightb" | "rightbaseline" => TextAlign::RightB,
+            _ => horizontal,
         }
+    }
+
+    /// Horizontal component, ignoring the baseline variant.
+    pub fn horizontal(self) -> TextAlign {
+        match self {
+            TextAlign::LeftB => TextAlign::Left,
+            TextAlign::CenterB => TextAlign::Center,
+            TextAlign::RightB => TextAlign::Right,
+            other => other,
+        }
+    }
+
+    /// True when this alignment anchors to the text baseline rather than the box top.
+    pub fn is_baseline(self) -> bool {
+        matches!(
+            self,
+            TextAlign::LeftB | TextAlign::CenterB | TextAlign::RightB
+        )
     }
 }
 
@@ -212,6 +245,126 @@ impl PangoTextRenderer {
         Self
     }
 
+    /// Computes the top-left origin for a text run of `text_w` x `text_h` laid out inside
+    /// the meter box `(x, y, w, h)`.
+    ///
+    /// Rainmeter semantics: `X`/`Y` are the top-left of the meter's layout box and
+    /// `StringAlign` positions the text *inside* that box. When the box has no explicit
+    /// `W`/`H`, it collapses to the text's own size, so `Center` degenerates to centring
+    /// on `X` — which preserves the historical behaviour for skins that omit `W`.
+    pub fn resolve_origin(
+        &self,
+        x: f64,
+        y: f64,
+        w: f64,
+        text_w: f64,
+        h_align: TextAlign,
+    ) -> (f64, f64) {
+        // Effective box size falls back to the text size when W is absent, so `Center`
+        // degenerates to centring on `X` for skins that omit `W`.
+        let box_w = if w > 0.0 { w } else { text_w };
+
+        let render_x = match h_align {
+            TextAlign::Left => x,
+            TextAlign::Center => x + (box_w - text_w) / 2.0,
+            TextAlign::Right => x + (box_w - text_w),
+            _ => x,
+        };
+
+        // Vertical anchoring is applied by the caller, which needs the layout ascent to
+        // convert "top of text" into the baseline position `move_to` expects.
+        (render_x, y)
+    }
+
+    /// Builds a Pango layout for the given text and styling and returns its extents.
+    ///
+    /// Used both for rendering and for measuring (window sizing) so the two can never
+    /// disagree about how wide a string is.
+    fn build_layout(
+        &self,
+        cr: &Context,
+        text: &str,
+        font_face: &str,
+        font_size: f64,
+        style: TextStyle,
+        letter_spacing: f64,
+    ) -> pango::Layout {
+        let layout = pangocairo::functions::create_layout(cr);
+        layout.set_text(text);
+
+        let mut desc = pango::FontDescription::from_string(font_face);
+        desc.set_size((font_size.max(1.0) * pango::SCALE as f64) as i32);
+
+        match style {
+            TextStyle::Bold => desc.set_weight(pango::Weight::Bold),
+            TextStyle::Italic => desc.set_style(pango::Style::Italic),
+            TextStyle::BoldItalic => {
+                desc.set_weight(pango::Weight::Bold);
+                desc.set_style(pango::Style::Italic);
+            }
+            TextStyle::Normal => {}
+        }
+
+        layout.set_font_description(Some(&desc));
+
+        if letter_spacing != 0.0 {
+            let attr_list = pango::AttrList::new();
+            let pango_spacing = (letter_spacing * pango::SCALE as f64) as i32;
+            let attr = pango::AttrInt::new_letter_spacing(pango_spacing);
+            attr_list.insert(attr);
+            layout.set_attributes(Some(&attr_list));
+        }
+
+        layout
+    }
+
+    /// Measures a text run without drawing it, returning the rectangle it would occupy
+    /// when laid out inside the meter box `(x, y, w, h)`.
+    ///
+    /// Window sizing uses this so the surface is allocated at the correct size on the
+    /// first try — no oversized scratch buffer, no clipped widgets.
+    pub fn measure_text_in_box(
+        &self,
+        cr: &Context,
+        text: &str,
+        font_face: &str,
+        font_size: f64,
+        x: f64,
+        y: f64,
+        w: f64,
+        #[allow(unused_variables)] h: f64,
+        align: TextAlign,
+        style: TextStyle,
+        case: TextCase,
+        letter_spacing: f64,
+    ) -> Rect {
+        let formatted = case.apply(text);
+        let layout = self.build_layout(cr, &formatted, font_face, font_size, style, letter_spacing);
+
+        let (ink_rect, logical_rect) = layout.pixel_extents();
+        let text_w = logical_rect.width() as f64;
+        let text_h = logical_rect.height() as f64;
+        let ascent = -logical_rect.y() as f64;
+
+        let (render_x, mut render_y) =
+            self.resolve_origin(x, y, w, text_w, align.horizontal());
+        if !align.is_baseline() {
+            render_y += ascent;
+        }
+
+        let bound_x = render_x + ink_rect.x() as f64;
+        let bound_y = render_y + ink_rect.y() as f64;
+        let bound_w = (ink_rect.width() as f64).max(text_w);
+        let bound_h = (ink_rect.height() as f64).max(text_h);
+
+        Rect {
+            x: bound_x,
+            y: bound_y,
+            width: bound_w,
+            height: bound_h,
+        }
+    }
+
     /// Renders text with basic styling to an `ImageSurface` and returns the ink bounding box.
     pub fn render_text(
         &self,
@@ -238,6 +391,140 @@ impl PangoTextRenderer {
             true,
             0.0,
         )
+    }
+
+    /// Renders text to a Cairo `Context` with full alignment, casing, styling, rotation,
+    /// letter spacing, and awareness of the meter's `W`/`H` layout box.
+    ///
+    /// This is the entry point the meter renderer uses: `w`/`h` are the meter's declared
+    /// layout box, and `StringAlign` positions the text inside it.
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_text_in_box(
+        &self,
+        cr: &Context,
+        text: &str,
+        font_face: &str,
+        font_size: f64,
+        color: Color,
+        x: f64,
+        y: f64,
+        w: f64,
+        #[allow(unused_variables)] h: f64,
+        align: TextAlign,
+        style: TextStyle,
+        case: TextCase,
+        antialias: bool,
+        angle: f64,
+        letter_spacing: f64,
+    ) -> Result<Rect, cairo::Error> {
+        let formatted_text = case.apply(text);
+
+        cr.save()?;
+
+        if antialias {
+            cr.set_antialias(cairo::Antialias::Subpixel);
+        } else {
+            cr.set_antialias(cairo::Antialias::None);
+        }
+
+        let layout = pangocairo::functions::create_layout(cr);
+        layout.set_text(&formatted_text);
+
+        let mut desc = pango::FontDescription::from_string(font_face);
+        desc.set_size((font_size.max(1.0) * pango::SCALE as f64) as i32);
+
+        match style {
+            TextStyle::Bold => desc.set_weight(pango::Weight::Bold),
+            TextStyle::Italic => desc.set_style(pango::Style::Italic),
+            TextStyle::BoldItalic => {
+                desc.set_weight(pango::Weight::Bold);
+                desc.set_style(pango::Style::Italic);
+            }
+            TextStyle::Normal => {}
+        }
+
+        layout.set_font_description(Some(&desc));
+
+        if letter_spacing != 0.0 {
+            let attr_list = pango::AttrList::new();
+            let pango_spacing = (letter_spacing * pango::SCALE as f64) as i32;
+            let attr = pango::AttrInt::new_letter_spacing(pango_spacing);
+            attr_list.insert(attr);
+            layout.set_attributes(Some(&attr_list));
+        }
+
+        let (ink_rect, logical_rect) = layout.pixel_extents();        let text_w = logical_rect.width() as f64;
+        let text_h = logical_rect.height() as f64;
+        let ascent = -logical_rect.y() as f64;
+
+        let (render_x, mut render_y) =
+            self.resolve_origin(x, y, w, text_w, align.horizontal());
+
+        // `move_to` positions the baseline. Non-baseline alignments anchor the text's
+        // top at `y`, so shift down by the ascent to compensate.
+        if !align.is_baseline() {
+            render_y += ascent;
+        }
+
+        if angle != 0.0 {
+            cr.translate(render_x, render_y);
+            cr.rotate(angle);
+            cr.move_to(0.0, 0.0);
+        } else {
+            cr.move_to(render_x, render_y);
+        }
+
+        cr.set_source_rgba(color.r, color.g, color.b, color.a);
+        pangocairo::functions::show_layout(cr, &layout);
+
+        cr.restore()?;
+
+        let bound = if angle != 0.0 {
+            let cos_a = angle.cos();
+            let sin_a = angle.sin();
+
+            let corners = [
+                (0.0, 0.0),
+                (text_w, 0.0),
+                (0.0, text_h),
+                (text_w, text_h),
+            ];
+
+            let mut min_x = f64::INFINITY;
+            let mut min_y = f64::INFINITY;
+            let mut max_x = f64::NEG_INFINITY;
+            let mut max_y = f64::NEG_INFINITY;
+
+            for (cx, cy) in corners {
+                let rx = render_x + cx * cos_a - cy * sin_a;
+                let ry = render_y + cx * sin_a + cy * cos_a;
+                min_x = min_x.min(rx);
+                min_y = min_y.min(ry);
+                max_x = max_x.max(rx);
+                max_y = max_y.max(ry);
+            }
+
+            Rect {
+                x: min_x,
+                y: min_y,
+                width: (max_x - min_x).max(1.0),
+                height: (max_y - min_y).max(1.0),
+            }
+        } else {
+            let bound_x = render_x + ink_rect.x() as f64;
+            let bound_y = render_y + ink_rect.y() as f64;
+            let bound_w = (ink_rect.width() as f64).max(text_w);
+            let bound_h = (ink_rect.height() as f64).max(text_h);
+
+            Rect {
+                x: bound_x,
+                y: bound_y,
+                width: bound_w,
+                height: bound_h,
+            }
+        };
+
+        Ok(bound)
     }
 
     /// Renders text to a Cairo `Context` with full alignment, casing, styling, and rotation support.
@@ -327,22 +614,11 @@ impl PangoTextRenderer {
             layout.set_attributes(Some(&attr_list));
         }
 
-        match align {
-            TextAlign::Left => layout.set_alignment(pango::Alignment::Left),
-            TextAlign::Center => layout.set_alignment(pango::Alignment::Center),
-            TextAlign::Right => layout.set_alignment(pango::Alignment::Right),
-        }
-
         let (ink_rect, logical_rect) = layout.pixel_extents();
         let text_w = logical_rect.width() as f64;
         let text_h = logical_rect.height() as f64;
 
-        let render_x = match align {
-            TextAlign::Left => x,
-            TextAlign::Center => x - text_w / 2.0,
-            TextAlign::Right => x - text_w,
-        };
-        let render_y = y;
+        let (render_x, render_y) = self.resolve_origin(x, y, 0.0, text_w, align.horizontal());
 
         if angle != 0.0 {
             cr.translate(render_x, render_y);

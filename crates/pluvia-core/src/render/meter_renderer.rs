@@ -11,6 +11,24 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+/// Upper bound on the global skin `Scale` variable, guarding against absurd values
+/// that would otherwise produce enormous surfaces.
+pub const MAX_SKIN_SCALE: f64 = 8.0;
+
+/// Resolves the global skin scale factor from the `Scale` variable.
+///
+/// Pluvia Studio exposes a per-skin scale control that writes this variable. A value of
+/// `1.0` (or anything missing/invalid) means "render at the skin's authored size".
+pub fn skin_scale(config: &SkinConfig) -> f64 {
+    config
+        .variables
+        .get("scale")
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .filter(|s| s.is_finite() && *s > 0.0)
+        .map(|s| s.min(MAX_SKIN_SCALE))
+        .unwrap_or(1.0)
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum RenderError {
     #[error("Cairo error: {0}")]
@@ -89,6 +107,276 @@ impl MeterRenderer {
         }
     }
 
+    /// Computes the bounding rectangle that actually contains the skin's rendered content.
+    ///
+    /// This walks the same layout logic as [`render_to_surface`] — resolving coordinates,
+    /// measuring text through Pango, honouring `StringAlign` inside each meter's `W`/`H`
+    /// layout box — so the surface is allocated large enough on the first attempt and
+    /// widgets are never clipped. Measuring uses a 1x1 scratch context (Pango lays text
+    /// out independently of the target surface), so no oversized buffer is allocated.
+    pub fn measure_content(&self, state: &SkinState) -> Rect {
+        // 1x1 scratch surface: Pango only needs a Cairo context for font options.
+        let scratch = match ImageSurface::create(Format::ARgb32, 1, 1) {
+            Ok(s) => s,
+            Err(_) => return Rect::ZERO,
+        };
+        let cr = match Context::new(&scratch) {
+            Ok(c) => c,
+            Err(_) => return Rect::ZERO,
+        };
+
+        // Must match the scaling applied in `render_to_surface`, otherwise the measured
+        // bounds disagree with what is actually drawn and content gets clipped.
+        let scale = skin_scale(&state.config);
+
+        let mut prev_x = 0.0;
+        let mut prev_y = 0.0;
+        let mut prev_w = 0.0;
+        let mut prev_h = 0.0;
+        let mut meter_bounds: HashMap<String, Rect> = HashMap::new();
+        let mut union = Rect::ZERO;
+        let mut any = false;
+
+        let mut container_meters = HashSet::new();
+        for meter in state.config.meters.values() {
+            if let Some(c) = meter.properties.get("container") {
+                container_meters.insert(c.trim().to_ascii_lowercase());
+            }
+        }
+
+        for meter_name_lower in &state.config.meter_order {
+            if container_meters.contains(meter_name_lower) {
+                continue;
+            }
+            let meter = match state.config.meters.get(meter_name_lower) {
+                Some(m) => m,
+                None => continue,
+            };
+            if meter.hidden {
+                continue;
+            }
+
+            let container_opt = meter
+                .properties
+                .get("container")
+                .map(|s| s.trim().to_ascii_lowercase());
+            let (base_origin_x, base_origin_y) = match container_opt {
+                Some(ref cont_name) => {
+                    match state.config.meters.get(cont_name) {
+                        Some(cont) => {
+                            let cx = resolve_coordinate(
+                                cont.x.as_deref(),
+                                0.0,
+                                0.0,
+                                &state.config.variables,
+                                Some(&state.measure_values),
+                                Some(&meter_bounds),
+                            );
+                            let cy = resolve_coordinate(
+                                cont.y.as_deref(),
+                                0.0,
+                                0.0,
+                                &state.config.variables,
+                                Some(&state.measure_values),
+                                Some(&meter_bounds),
+                            );
+                            (cx, cy)
+                        }
+                        None => (0.0, 0.0),
+                    }
+                }
+                None => (0.0, 0.0),
+            };
+
+            let x = (resolve_coordinate(
+                meter.x.as_deref(),
+                prev_x,
+                prev_w,
+                &state.config.variables,
+                Some(&state.measure_values),
+                Some(&meter_bounds),
+            ) + base_origin_x)
+                * scale;
+            let y = (resolve_coordinate(
+                meter.y.as_deref(),
+                prev_y,
+                prev_h,
+                &state.config.variables,
+                Some(&state.measure_values),
+                Some(&meter_bounds),
+            ) + base_origin_y)
+                * scale;
+
+            let w = meter.w.unwrap_or(0.0) * scale;
+            let h = meter.h.unwrap_or(0.0) * scale;
+            let rect = if meter.meter_type.eq_ignore_ascii_case("string") {
+                self.measure_string(&cr, meter, x, y, w, h, state, &meter_bounds)
+            } else {
+                Rect::new(x, y, w, h)
+            };
+
+            let raw_pad = meter
+                .properties
+                .get("padding")
+                .map(|p| parse_padding(p, &state.config.variables))
+                .unwrap_or((0.0, 0.0, 0.0, 0.0));
+            let pad = (
+                raw_pad.0 * scale,
+                raw_pad.1 * scale,
+                raw_pad.2 * scale,
+                raw_pad.3 * scale,
+            );
+            let effective = Rect::new(
+                rect.x - pad.0,
+                rect.y - pad.1,
+                rect.width + pad.0 + pad.2,
+                rect.height + pad.1 + pad.3,
+            );
+
+            meter_bounds.insert(meter.name.clone(), effective);
+            meter_bounds.insert(meter_name_lower.clone(), effective);
+
+            union = if any { union.union(&effective) } else { effective };
+            any = true;
+
+            prev_x = effective.x;
+            prev_y = effective.y;
+            prev_w = if w > 0.0 { w + pad.0 + pad.2 } else { effective.width };
+            prev_h = if h > 0.0 { h + pad.1 + pad.3 } else { effective.height };
+        }
+
+        // Container masks occupy their declared box even if the content is sparse.
+        for cont_name in &container_meters {
+            if let Some(cont) = state.config.meters.get(cont_name) {
+                let cx = resolve_coordinate(
+                    cont.x.as_deref(),
+                    0.0,
+                    0.0,
+                    &state.config.variables,
+                    Some(&state.measure_values),
+                    Some(&meter_bounds),
+                );
+                let cy = resolve_coordinate(
+                    cont.y.as_deref(),
+                    0.0,
+                    0.0,
+                    &state.config.variables,
+                    Some(&state.measure_values),
+                    Some(&meter_bounds),
+                );
+                let r = Rect::new(
+                    cx * scale,
+                    cy * scale,
+                    cont.w.unwrap_or(0.0) * scale,
+                    cont.h.unwrap_or(0.0) * scale,
+                );
+                union = if any { union.union(&r) } else { r };
+                any = true;
+            }
+        }
+
+        if !any {
+            return Rect::ZERO;
+        }
+        union
+    }
+
+    /// Measures a String meter's rendered extent without drawing it.
+    fn measure_string(
+        &self,
+        cr: &Context,
+        meter: &MeterConfig,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+        state: &SkinState,
+        meter_bounds: &HashMap<String, Rect>,
+    ) -> Rect {
+        let raw_text = meter
+            .text
+            .as_deref()
+            .or_else(|| meter.get("text"))
+            .unwrap_or("%1");
+        let substituted = substitute_measures(raw_text, meter, state);
+        let final_text = state.config.variables.expand_with_full_context(
+            &substituted,
+            Some(&meter.name),
+            Some(&state.measure_values),
+            Some(meter_bounds),
+        );
+
+        let raw_font = meter
+            .font_face
+            .as_deref()
+            .or_else(|| meter.get("fontface"))
+            .unwrap_or("Sans");
+        let exp_font = state.config.variables.expand_with_full_context(
+            raw_font,
+            Some(&meter.name),
+            Some(&state.measure_values),
+            Some(meter_bounds),
+        );
+        let font_face = if exp_font.is_empty() || exp_font.starts_with('#') {
+            "Sans"
+        } else {
+            exp_font.as_str()
+        };
+
+        let font_size = meter.font_size.unwrap_or(12.0).max(1.0) * skin_scale(&state.config);
+        let align = meter
+            .get("stringalign")
+            .map(TextAlign::parse)
+            .unwrap_or(TextAlign::Left);
+        let style = meter
+            .get("stringstyle")
+            .map(TextStyle::parse)
+            .unwrap_or(TextStyle::Normal);
+        let case = meter
+            .get("stringcase")
+            .map(TextCase::parse)
+            .unwrap_or(TextCase::None);
+
+        let mut letter_spacing = 0.0;
+        if let Some(spacing_str) = meter.get("characterspacing").or_else(|| meter.get("tracking")) {
+            if let Ok(val) = spacing_str.trim().parse::<f64>() {
+                letter_spacing = val;
+            }
+        }
+        if letter_spacing == 0.0 {
+            for (key, val) in &meter.properties {
+                if key.starts_with("inlinesetting") {
+                    let parts: Vec<&str> = val.split('|').map(|s| s.trim()).collect();
+                    if parts.len() >= 2 && parts[0].eq_ignore_ascii_case("characterspacing") {
+                        let s1 = parts[1].parse::<f64>().unwrap_or(0.0);
+                        let s2 = if parts.len() >= 3 {
+                            parts[2].parse::<f64>().unwrap_or(0.0)
+                        } else {
+                            s1
+                        };
+                        letter_spacing = s1 + s2;
+                        break;
+                    }
+                }
+            }
+        }
+
+        self.text_renderer.measure_text_in_box(
+            cr,
+            &final_text,
+            font_face,
+            font_size,
+            x,
+            y,
+            w,
+            h,
+            align,
+            style,
+            case,
+            letter_spacing * skin_scale(&state.config),
+        )
+    }
+
     /// Renders all visible meters from `SkinState` onto the provided `ImageSurface`
     /// and returns the dynamic `AlphaHitMask` of non-transparent interactive areas.
     pub fn render_to_surface(
@@ -99,6 +387,10 @@ impl MeterRenderer {
         let cr = Context::new(surface)?;
         let surface_w = surface.width();
         let surface_h = surface.height();
+
+        // Global skin scale. Applied to coordinates, sizes and font sizes together so
+        // the whole layout scales as one unit instead of only growing the window.
+        let scale = skin_scale(&state.config);
 
         let mut prev_x = 0.0;
         let mut prev_y = 0.0;
@@ -144,23 +436,25 @@ impl MeterRenderer {
                     (0.0, 0.0)
                 };
 
-                let x = resolve_coordinate(
+                let x = (resolve_coordinate(
                     meter.x.as_deref(),
                     prev_x,
                     prev_w,
                     &state.config.variables,
                     Some(&state.measure_values),
                     Some(&meter_bounds),
-                ) + base_origin_x;
+                ) + base_origin_x)
+                    * scale;
 
-                let y = resolve_coordinate(
+                let y = (resolve_coordinate(
                     meter.y.as_deref(),
                     prev_y,
                     prev_h,
                     &state.config.variables,
                     Some(&state.measure_values),
                     Some(&meter_bounds),
-                ) + base_origin_y;
+                ) + base_origin_y)
+                    * scale;
 
                 let w = meter.w.or_else(|| {
                     meter.get("w").and_then(|s| {
@@ -176,11 +470,20 @@ impl MeterRenderer {
                     })
                 }).unwrap_or(0.0);
 
-                let pad = meter
+                let w = w * scale;
+                let h = h * scale;
+
+                let raw_pad = meter
                     .properties
                     .get("padding")
                     .map(|p| parse_padding(p, &state.config.variables))
                     .unwrap_or((0.0, 0.0, 0.0, 0.0));
+                let pad = (
+                    raw_pad.0 * scale,
+                    raw_pad.1 * scale,
+                    raw_pad.2 * scale,
+                    raw_pad.3 * scale,
+                );
                 let render_x = x + pad.0;
                 let render_y = y + pad.1;
 
@@ -359,8 +662,8 @@ impl MeterRenderer {
         meter: &MeterConfig,
         x: f64,
         y: f64,
-        _w: f64,
-        _h: f64,
+        w: f64,
+        h: f64,
         state: &SkinState,
         meter_bounds: &HashMap<String, Rect>,
     ) -> Result<Rect, RenderError> {
@@ -386,12 +689,12 @@ impl MeterRenderer {
             &exp_font
         };
 
-        let font_size = meter.font_size.or_else(|| {
+        let font_size = (meter.font_size.or_else(|| {
             meter.get("fontsize").and_then(|s| {
                 let exp = state.config.variables.expand_with_full_context(s, Some(&meter.name), Some(&state.measure_values), Some(meter_bounds));
                 eval_formula(&exp, &state.config.variables).ok().or_else(|| exp.trim().parse::<f64>().ok())
             })
-        }).unwrap_or(12.0).max(1.0);
+        }).unwrap_or(12.0).max(1.0)) * skin_scale(&state.config);
 
         let raw_color = meter.font_color.as_deref().or_else(|| meter.get("fontcolor")).unwrap_or("255,255,255,255");
         let exp_color = state.config.variables.expand_with_full_context(
@@ -446,7 +749,9 @@ impl MeterRenderer {
             }
         }
 
-        let rect = self.text_renderer.render_text_to_context_with_spacing(
+        let letter_spacing = letter_spacing * skin_scale(&state.config);
+
+        let rect = self.text_renderer.render_text_in_box(
             cr,
             &final_text,
             font_face,
@@ -454,6 +759,8 @@ impl MeterRenderer {
             color,
             x,
             y,
+            w,
+            h,
             align,
             style,
             case,
