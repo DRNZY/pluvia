@@ -251,7 +251,7 @@ impl PangoTextRenderer {
     /// Rainmeter semantics: `X`/`Y` are the top-left of the meter's layout box and
     /// `StringAlign` positions the text *inside* that box. When the box has no explicit
     /// `W`/`H`, it collapses to the text's own size, so `Center` degenerates to centring
-    /// on `X` — which preserves the historical behaviour for skins that omit `W`.
+    /// on `X`. That keeps the old behavior for skins which omit `W`.
     pub fn resolve_origin(
         &self,
         x: f64,
@@ -322,7 +322,7 @@ impl PangoTextRenderer {
     /// when laid out inside the meter box `(x, y, w, h)`.
     ///
     /// Window sizing uses this so the surface is allocated at the correct size on the
-    /// first try — no oversized scratch buffer, no clipped widgets.
+    /// first try, with no oversized scratch buffer and no clipped widgets.
     pub fn measure_text_in_box(
         &self,
         cr: &Context,

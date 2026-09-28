@@ -16,12 +16,10 @@
   <img src="https://img.shields.io/badge/License-GPL--3.0-181818?style=for-the-badge" alt="GPL-3.0 License" />
 </p>
 
-> ### ⚠️ Early alpha
->
-> This is an **early alpha** release (`0.1.0-alpha.1`). The core layout and rendering
-> pipeline works, but expect breaking changes, rough edges and incomplete skin
-> compatibility. Back up your skin folder before letting it touch real `.ini` files, and
-> please report what breaks.
+> **Early alpha.** This is release `0.1.0-alpha.1`. Layout and rendering work, but plenty
+> of skins are still unsupported and things will change between releases. Back up your
+> skin folder before pointing it at your real `.ini` files, and please open an issue when
+> something breaks.
 
 <p align="center">
   <img src="docs/pluvia-launch.gif" width="100%" alt="Pluvia launch demo" />
@@ -31,34 +29,35 @@
 
 ---
 
-Pluvia is a desktop engine that parses standard Rainmeter `.ini` skins and renders them natively on Linux desktops using Wayland layer-shell and X11.
+Pluvia renders standard Rainmeter `.ini` skins natively on Linux, on both Wayland
+(layer-shell) and X11.
 
-## Quick install
+## Install
 
-Run the install script to set up the daemon, CLI, and Pluvia Studio:
+Clone the repo and run the install script. It builds the daemon, CLI and Studio, then
+puts the binaries in `~/.local/bin`:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/DRNZY/pluvia/main/scripts/install.sh | bash
+git clone https://github.com/DRNZY/pluvia.git
+cd pluvia
+bash scripts/install-local.sh
 ```
-
----
 
 ## Features
 
-- Parse standard `.ini` skins, math formulas, dynamic variables, and custom measures.
-- Native click-through transparency on Wayland layer-shell and X11.
-- Real-time audio visualization using PipeWire and PulseAudio.
-- Pluvia Studio GUI (GTK4 / libadwaita) to manage skins, adjust positions, scale, and edit variables live.
-- Isolated worker threads for telemetry measures so desktop rendering never stutters.
-- Import and unpack `.rmskin` packages directly.
-
----
+- Parses standard `.ini` skins, including math formulas, dynamic variables and custom
+  measures
+- Click-through transparency on Wayland layer-shell and X11
+- Live audio visualization through PipeWire and PulseAudio
+- Pluvia Studio (GTK4 / libadwaita) for moving, scaling and editing skins
+- Telemetry measures run on their own threads, so rendering stays smooth
+- Imports `.rmskin` packages
 
 ## Usage
 
-### GUI
+### Studio
 
-Launch Pluvia Studio from your application menu or run:
+Launch Pluvia Studio from your application menu, or run:
 
 ```bash
 pluvia-studio
@@ -78,13 +77,13 @@ Load a skin:
 pluvia-cli load ~/.config/pluvia/skins/Mond/Clock/Clock.ini
 ```
 
-List active skins:
+List the loaded skins:
 
 ```bash
 pluvia-cli list
 ```
 
-Unload a skin:
+Unload one:
 
 ```bash
 pluvia-cli unload Mond/Clock
@@ -96,30 +95,23 @@ Import a `.rmskin` archive:
 pluvia-cli import /path/to/skin.rmskin
 ```
 
----
-
 ## Building from source
 
-### Dependencies
+Install the dependencies first.
 
-- Arch / CachyOS / Manjaro:
-  ```bash
-  sudo pacman -S base-devel rust cairo pango gtk4 libadwaita xorg-server-devel
-  ```
-- Ubuntu / Debian:
-  ```bash
-  sudo apt update && sudo apt install build-essential cargo libgtk-4-dev libadwaita-1-dev libcairo2-dev libpango1.0-dev libx11-dev libxext-dev libxfixes-dev
-  ```
-
-### Build and install
+On Arch, CachyOS or Manjaro:
 
 ```bash
-git clone https://github.com/DRNZY/pluvia.git
-cd pluvia
-bash scripts/install-local.sh
+sudo pacman -S base-devel rust cairo pango gtk4 libadwaita xorg-server-devel
 ```
 
----
+On Ubuntu or Debian:
+
+```bash
+sudo apt update && sudo apt install build-essential cargo libgtk-4-dev libadwaita-1-dev libcairo2-dev libpango1.0-dev libx11-dev libxext-dev libxfixes-dev
+```
+
+Then clone and install, which is the same command as the [install](#install) section above.
 
 ## License
 

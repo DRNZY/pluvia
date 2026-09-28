@@ -107,13 +107,14 @@ impl MeterRenderer {
         }
     }
 
-    /// Computes the bounding rectangle that actually contains the skin's rendered content.
+    /// Computes the bounding rectangle that contains the skin's rendered content.
     ///
-    /// This walks the same layout logic as [`render_to_surface`] — resolving coordinates,
-    /// measuring text through Pango, honouring `StringAlign` inside each meter's `W`/`H`
-    /// layout box — so the surface is allocated large enough on the first attempt and
-    /// widgets are never clipped. Measuring uses a 1x1 scratch context (Pango lays text
-    /// out independently of the target surface), so no oversized buffer is allocated.
+    /// This walks the same layout logic as [`render_to_surface`]: it resolves coordinates,
+    /// measures text through Pango, and honours `StringAlign` inside each meter's `W`/`H`
+    /// layout box. The surface is then allocated large enough on the first attempt, so
+    /// widgets are never clipped. Measurement uses a 1x1 scratch context, since Pango
+    /// lays text out independently of the target surface, so no oversized buffer is
+    /// allocated.
     pub fn measure_content(&self, state: &SkinState) -> Rect {
         // 1x1 scratch surface: Pango only needs a Cairo context for font options.
         let scratch = match ImageSurface::create(Format::ARgb32, 1, 1) {
