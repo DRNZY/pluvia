@@ -7,6 +7,11 @@ type Visual = libc::c_void;
 type Window = libc::c_ulong;
 type Colormap = libc::c_ulong;
 type Atom = libc::c_ulong;
+type XErrorHandler = unsafe extern "C" fn(*mut Display, *mut libc::c_void) -> libc::c_int;
+
+const XA_ATOM: Atom = 4;
+const XA_CARDINAL: Atom = 6;
+const XA_WINDOW: Atom = 33;
 
 #[repr(C)]
 struct XVisualInfo {
@@ -50,12 +55,17 @@ struct XRectangle {
 }
 
 #[repr(C)]
-pub struct XEvent {
+struct XClassHint {
+    res_name: *mut libc::c_char,
+    res_class: *mut libc::c_char,
+}
+
+#[repr(C)]
+struct XEvent {
     pad: [libc::c_long; 24],
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 struct XButtonEvent {
     type_: libc::c_int,
     serial: libc::c_ulong,
@@ -75,7 +85,6 @@ struct XButtonEvent {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
 struct XMotionEvent {
     type_: libc::c_int,
     serial: libc::c_ulong,
@@ -174,9 +183,7 @@ extern "C" {
     fn XPending(display: *mut Display) -> libc::c_int;
     fn XNextEvent(display: *mut Display, event_return: *mut XEvent) -> libc::c_int;
     fn XFlush(display: *mut Display) -> libc::c_int;
-    fn XSetErrorHandler(
-        handler: Option<unsafe extern "C" fn(*mut Display, *mut libc::c_void) -> libc::c_int>,
-    ) -> libc::c_int;
+    fn XSetErrorHandler(handler: Option<XErrorHandler>) -> Option<XErrorHandler>;
     fn XShapeCombineRectangles(
         display: *mut Display,
         dest: Window,
@@ -218,10 +225,130 @@ extern "C" {
         child_return: *mut Window,
     ) -> libc::c_int;
     fn XInitThreads() -> libc::c_int;
+    fn XSetClassHint(
+        display: *mut Display,
+        w: Window,
+        class_hints: *mut XClassHint,
+    ) -> libc::c_int;
 }
 
 unsafe extern "C" fn x11_error_handler(_dpy: *mut Display, _err: *mut libc::c_void) -> libc::c_int {
     0
+}
+
+unsafe fn open_display() -> *mut Display {
+    XSetErrorHandler(Some(x11_error_handler));
+    XOpenDisplay(std::ptr::null())
+}
+
+unsafe fn intern_atom(display: *mut Display, name: &'static [u8]) -> Atom {
+    XInternAtom(display, name.as_ptr() as *const libc::c_char, 0)
+}
+
+unsafe fn property_values(
+    display: *mut Display,
+    window: Window,
+    property: Atom,
+    request_type: Atom,
+    max_items: libc::c_long,
+) -> Option<Vec<Atom>> {
+    let mut actual_type: Atom = 0;
+    let mut actual_format: libc::c_int = 0;
+    let mut nitems: libc::c_ulong = 0;
+    let mut bytes_after: libc::c_ulong = 0;
+    let mut data: *mut libc::c_uchar = std::ptr::null_mut();
+    let status = XGetWindowProperty(
+        display,
+        window,
+        property,
+        0,
+        max_items,
+        0,
+        request_type,
+        &mut actual_type,
+        &mut actual_format,
+        &mut nitems,
+        &mut bytes_after,
+        &mut data,
+    );
+    if status != 0
+        || actual_type != request_type
+        || actual_format != 32
+        || data.is_null()
+        || nitems == 0
+    {
+        if !data.is_null() {
+            XFree(data as *mut libc::c_void);
+        }
+        return None;
+    }
+    let values = std::slice::from_raw_parts(data as *const Atom, nitems as usize).to_vec();
+    XFree(data as *mut libc::c_void);
+    Some(values)
+}
+
+unsafe fn window_rect(
+    display: *mut Display,
+    window: Window,
+    root: Window,
+) -> Option<SurfaceBounds> {
+    let mut geometry_root: Window = 0;
+    let mut geometry_x: libc::c_int = 0;
+    let mut geometry_y: libc::c_int = 0;
+    let mut width: libc::c_uint = 0;
+    let mut height: libc::c_uint = 0;
+    let mut border_width: libc::c_uint = 0;
+    let mut depth: libc::c_uint = 0;
+    if XGetGeometry(
+        display,
+        window,
+        &mut geometry_root,
+        &mut geometry_x,
+        &mut geometry_y,
+        &mut width,
+        &mut height,
+        &mut border_width,
+        &mut depth,
+    ) == 0
+        || width == 0
+        || height == 0
+    {
+        return None;
+    }
+
+    let mut x: libc::c_int = 0;
+    let mut y: libc::c_int = 0;
+    let mut child: Window = 0;
+    if XTranslateCoordinates(
+        display,
+        window,
+        root,
+        0,
+        0,
+        &mut x,
+        &mut y,
+        &mut child,
+    ) == 0
+    {
+        return None;
+    }
+    Some(SurfaceBounds::new(x, y, width, height))
+}
+
+unsafe fn set_window_opacity(display: *mut Display, window: Window, opacity: f64) {
+    let opacity_atom = intern_atom(display, b"_NET_WM_WINDOW_OPACITY\0");
+    let cardinal_atom = intern_atom(display, b"CARDINAL\0");
+    let value = (opacity.clamp(0.0, 1.0) * u32::MAX as f64).round() as u32;
+    XChangeProperty(
+        display,
+        window,
+        opacity_atom,
+        cardinal_atom,
+        32,
+        0,
+        &value as *const _ as *const libc::c_uchar,
+        1,
+    );
 }
 
 /// Must be called once at process startup before any X11 functions are called from multiple threads.
@@ -256,6 +383,21 @@ struct NativeX11 {
 }
 
 impl NativeX11 {
+    fn resize(&mut self, x: i32, y: i32, width: u32, height: u32) {
+        let width = width.max(1);
+        let height = height.max(1);
+        unsafe {
+            XMoveResizeWindow(self.display, self.window, x, y, width, height);
+            cairo_xlib_surface_set_size(
+                self.cairo_surface,
+                width as libc::c_int,
+                height as libc::c_int,
+            );
+        }
+        self.current_w = width;
+        self.current_h = height;
+    }
+
     fn poll_events(&mut self, bounds: &mut SurfaceBounds) {
         unsafe {
             let mut ev = std::mem::zeroed::<XEvent>();
@@ -264,20 +406,20 @@ impl NativeX11 {
                 let ev_type = *(ev.pad.as_ptr() as *const libc::c_int);
                 match ev_type {
                     4 /* ButtonPress */ => {
-                        let btn = *(ev.pad.as_ptr() as *const XButtonEvent);
+                        let btn = &*(ev.pad.as_ptr() as *const XButtonEvent);
                         if btn.button == 1 {
                             self.drag_start = Some((btn.x_root, btn.y_root, bounds.x, bounds.y));
                         }
                     }
                     5 /* ButtonRelease */ => {
-                        let btn = *(ev.pad.as_ptr() as *const XButtonEvent);
+                        let btn = &*(ev.pad.as_ptr() as *const XButtonEvent);
                         if btn.button == 1 {
                             self.drag_start = None;
                         }
                     }
                     6 /* MotionNotify */ => {
                         if let Some((start_rx, start_ry, start_wx, start_wy)) = self.drag_start {
-                            let motion = *(ev.pad.as_ptr() as *const XMotionEvent);
+                            let motion = &*(ev.pad.as_ptr() as *const XMotionEvent);
                             let dx = motion.x_root - start_rx;
                             let dy = motion.y_root - start_ry;
                             let new_x = start_wx + dx;
@@ -398,8 +540,7 @@ impl X11Surface {
 
     fn open_native_window(bounds: &SurfaceBounds, opacity: f64) -> Option<NativeX11> {
         unsafe {
-            XSetErrorHandler(Some(x11_error_handler));
-            let display = XOpenDisplay(std::ptr::null());
+            let display = open_display();
             if display.is_null() {
                 return None;
             }
@@ -443,32 +584,59 @@ impl X11Surface {
             );
 
             // EWMH window type: _NET_WM_WINDOW_TYPE_DESKTOP
-            let type_atom = XInternAtom(display, b"_NET_WM_WINDOW_TYPE\0".as_ptr() as *const _, 0);
-            let desktop_type_atom = XInternAtom(display, b"_NET_WM_WINDOW_TYPE_DESKTOP\0".as_ptr() as *const _, 0);
-            XChangeProperty(display, win, type_atom, 4 /* XA_ATOM */, 32, 0, &desktop_type_atom as *const _ as *const libc::c_uchar, 1);
+            let type_atom = intern_atom(display, b"_NET_WM_WINDOW_TYPE\0");
+            let desktop_type_atom = intern_atom(display, b"_NET_WM_WINDOW_TYPE_DESKTOP\0");
+            XChangeProperty(
+                display,
+                win,
+                type_atom,
+                XA_ATOM,
+                32,
+                0,
+                &desktop_type_atom as *const _ as *const libc::c_uchar,
+                1,
+            );
 
             // EWMH window states: BELOW, STICKY, SKIP_TASKBAR, SKIP_PAGER
-            let state_atom = XInternAtom(display, b"_NET_WM_STATE\0".as_ptr() as *const _, 0);
-            let below_atom = XInternAtom(display, b"_NET_WM_STATE_BELOW\0".as_ptr() as *const _, 0);
-            let sticky_atom = XInternAtom(display, b"_NET_WM_STATE_STICKY\0".as_ptr() as *const _, 0);
-            let skip_tb_atom = XInternAtom(display, b"_NET_WM_STATE_SKIP_TASKBAR\0".as_ptr() as *const _, 0);
-            let skip_pager_atom = XInternAtom(display, b"_NET_WM_STATE_SKIP_PAGER\0".as_ptr() as *const _, 0);
+            let state_atom = intern_atom(display, b"_NET_WM_STATE\0");
+            let below_atom = intern_atom(display, b"_NET_WM_STATE_BELOW\0");
+            let sticky_atom = intern_atom(display, b"_NET_WM_STATE_STICKY\0");
+            let skip_tb_atom = intern_atom(display, b"_NET_WM_STATE_SKIP_TASKBAR\0");
+            let skip_pager_atom = intern_atom(display, b"_NET_WM_STATE_SKIP_PAGER\0");
             let states = [below_atom, sticky_atom, skip_tb_atom, skip_pager_atom];
-            XChangeProperty(display, win, state_atom, 4, 32, 0, states.as_ptr() as *const libc::c_uchar, 4);
+            XChangeProperty(
+                display,
+                win,
+                state_atom,
+                XA_ATOM,
+                32,
+                0,
+                states.as_ptr() as *const libc::c_uchar,
+                4,
+            );
 
             // EWMH desktop: all desktops / workspaces (0xFFFFFFFF)
-            let desktop_atom = XInternAtom(display, b"_NET_WM_DESKTOP\0".as_ptr() as *const _, 0);
+            let desktop_atom = intern_atom(display, b"_NET_WM_DESKTOP\0");
             let all_desktops: libc::c_ulong = 0xFFFFFFFF;
-            XChangeProperty(display, win, desktop_atom, 6 /* XA_CARDINAL */, 32, 0, &all_desktops as *const _ as *const libc::c_uchar, 1);
+            XChangeProperty(
+                display,
+                win,
+                desktop_atom,
+                XA_CARDINAL,
+                32,
+                0,
+                &all_desktops as *const _ as *const libc::c_uchar,
+                1,
+            );
 
             // Motif hints: remove all window borders and titlebar
-            let motif_atom = XInternAtom(display, b"_MOTIF_WM_HINTS\0".as_ptr() as *const _, 0);
+            let motif_atom = intern_atom(display, b"_MOTIF_WM_HINTS\0");
             let motif_hints: [libc::c_ulong; 5] = [2 /* MWM_HINTS_DECORATIONS */, 0, 0 /* no decorations */, 0, 0];
             XChangeProperty(display, win, motif_atom, motif_atom, 32, 0, motif_hints.as_ptr() as *const libc::c_uchar, 5);
 
             // WM_NORMAL_HINTS size & position hints
-            let normal_hints_atom = XInternAtom(display, b"WM_NORMAL_HINTS\0".as_ptr() as *const _, 0);
-            let size_hints_atom = XInternAtom(display, b"WM_SIZE_HINTS\0".as_ptr() as *const _, 0);
+            let normal_hints_atom = intern_atom(display, b"WM_NORMAL_HINTS\0");
+            let size_hints_atom = intern_atom(display, b"WM_SIZE_HINTS\0");
             let size_hints: [libc::c_long; 18] = [
                 (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3), /* USPosition | USSize | PPosition | PSize */
                 bounds.x as libc::c_long, bounds.y as libc::c_long,
@@ -477,19 +645,21 @@ impl X11Surface {
             ];
             XChangeProperty(display, win, normal_hints_atom, size_hints_atom, 32, 0, size_hints.as_ptr() as *const libc::c_uchar, 18);
 
-            let utf8_string = XInternAtom(display, b"UTF8_STRING\0".as_ptr() as *const _, 0);
-            let name_atom = XInternAtom(display, b"_NET_WM_NAME\0".as_ptr() as *const _, 0);
+            let utf8_string = intern_atom(display, b"UTF8_STRING\0");
+            let name_atom = intern_atom(display, b"_NET_WM_NAME\0");
             let title = b"Pluvia\0";
             XChangeProperty(display, win, name_atom, utf8_string, 8, 0, title.as_ptr(), 6);
-            let wm_name = XInternAtom(display, b"WM_NAME\0".as_ptr() as *const _, 0);
+            let wm_name = intern_atom(display, b"WM_NAME\0");
             XChangeProperty(display, win, wm_name, 31 /* XA_STRING */, 8, 0, title.as_ptr(), 6);
 
-            // Apply opacity
-            let opacity_atom = XInternAtom(display, b"_NET_WM_WINDOW_OPACITY\0".as_ptr() as *const _, 0);
-            let cardinal_atom = XInternAtom(display, b"CARDINAL\0".as_ptr() as *const _, 0);
-            let alpha = opacity.clamp(0.0, 1.0);
-            let val: u32 = (alpha * 4294967295.0).round() as u32;
-            XChangeProperty(display, win, opacity_atom, cardinal_atom, 32, 0, &val as *const _ as *const libc::c_uchar, 1);
+            // Set WM_CLASS so GNOME Shell and window managers identify the surface
+            let mut class_hints = XClassHint {
+                res_name: b"pluvia-widget\0".as_ptr() as *mut libc::c_char,
+                res_class: b"PluviaWidget\0".as_ptr() as *mut libc::c_char,
+            };
+            XSetClassHint(display, win, &mut class_hints);
+
+            set_window_opacity(display, win, opacity);
 
             XMapWindow(display, win);
             // Lower window to desktop bottom layer so normal windows naturally sit above it
@@ -540,22 +710,10 @@ impl DesktopSurface for X11Surface {
             return Err(DisplayError::SurfaceDestroyed);
         }
         self.bounds = bounds;
-        let guard = self.native.lock().unwrap();
-        if let Some(ref n) = *guard {
+        let mut guard = self.native.lock().unwrap();
+        if let Some(n) = guard.as_mut() {
+            n.resize(bounds.x, bounds.y, bounds.width, bounds.height);
             unsafe {
-                XMoveResizeWindow(
-                    n.display,
-                    n.window,
-                    bounds.x,
-                    bounds.y,
-                    bounds.width.max(1),
-                    bounds.height.max(1),
-                );
-                cairo_xlib_surface_set_size(
-                    n.cairo_surface,
-                    bounds.width.max(1) as libc::c_int,
-                    bounds.height.max(1) as libc::c_int,
-                );
                 XFlush(n.display);
             }
         }
@@ -593,48 +751,27 @@ impl DesktopSurface for X11Surface {
         if self.destroyed {
             return Err(DisplayError::SurfaceDestroyed);
         }
-        self.shape_input_rects = hit_mask.to_rectangles();
-        self.bounds.width = surface.width() as u32;
-        self.bounds.height = surface.height() as u32;
-        self.damage_rects.push(Rect::new(
-            0.0,
-            0.0,
-            surface.width() as f64,
-            surface.height() as f64,
-        ));
+        let rects = hit_mask.to_rectangles();
+        let width = surface.width() as u32;
+        let height = surface.height() as u32;
+        self.bounds.width = width;
+        self.bounds.height = height;
+        self.damage_rects.push(Rect::new(0.0, 0.0, width as f64, height as f64));
 
-        // Connect/lazy-open native X11 window if possible
         let mut guard = self.native.lock().unwrap();
         if guard.is_none() && std::env::var("DISPLAY").is_ok() {
             *guard = Self::open_native_window(&self.bounds, self.opacity);
-            if let Some(ref n) = *guard {
+            if let Some(n) = guard.as_ref() {
                 self.window_id = n.window as u32;
             }
         }
 
-        if let Some(ref mut n) = *guard {
+        if let Some(n) = guard.as_mut() {
             unsafe {
-                let w = surface.width() as u32;
-                let h = surface.height() as u32;
-                if n.current_w != w || n.current_h != h {
-                    XMoveResizeWindow(
-                        n.display,
-                        n.window,
-                        self.bounds.x,
-                        self.bounds.y,
-                        w.max(1),
-                        h.max(1),
-                    );
-                    cairo_xlib_surface_set_size(
-                        n.cairo_surface,
-                        w.max(1) as libc::c_int,
-                        h.max(1) as libc::c_int,
-                    );
-                    n.current_w = w;
-                    n.current_h = h;
+                if n.current_w != width || n.current_h != height {
+                    n.resize(self.bounds.x, self.bounds.y, width, height);
                 }
 
-                // Paint image surface to xlib surface
                 let dest = cairo::Surface::from_raw_none(n.cairo_surface);
                 if let Ok(cr) = cairo::Context::new(&dest) {
                     cr.set_operator(cairo::Operator::Source);
@@ -643,8 +780,6 @@ impl DesktopSurface for X11Surface {
                 }
                 cairo::ffi::cairo_surface_flush(n.cairo_surface);
 
-                // Update 1-bit input shape mask for click-through only when shape changes
-                let rects = hit_mask.to_rectangles();
                 if rects != self.shape_input_rects {
                     let xrects: Vec<XRectangle> = rects
                         .iter()
@@ -666,34 +801,33 @@ impl DesktopSurface for X11Surface {
                         XShapeCombineRectangles(
                             n.display,
                             n.window,
-                            2, /* ShapeInput */
+                            2,
                             0,
                             0,
                             &dummy,
                             0,
-                            0, /* ShapeSet */
+                            0,
                             0,
                         );
                     } else {
                         XShapeCombineRectangles(
                             n.display,
                             n.window,
-                            2, /* ShapeInput */
+                            2,
                             0,
                             0,
                             xrects.as_ptr(),
                             xrects.len() as libc::c_int,
-                            0, /* ShapeSet */
-                            0, /* Unsorted */
+                            0,
+                            0,
                         );
                     }
-                    self.shape_input_rects = rects;
                 }
 
                 XFlush(n.display);
             }
         }
-
+        self.shape_input_rects = rects;
         Ok(())
     }
 
@@ -727,22 +861,9 @@ impl DesktopSurface for X11Surface {
         }
         self.opacity = opacity;
         let guard = self.native.lock().unwrap();
-        if let Some(ref n) = *guard {
+        if let Some(n) = guard.as_ref() {
             unsafe {
-                let opacity_atom = XInternAtom(n.display, b"_NET_WM_WINDOW_OPACITY\0".as_ptr() as *const _, 0);
-                let cardinal_atom = XInternAtom(n.display, b"CARDINAL\0".as_ptr() as *const _, 0);
-                let alpha = opacity.clamp(0.0, 1.0);
-                let val: u32 = (alpha * 4294967295.0).round() as u32;
-                XChangeProperty(
-                    n.display,
-                    n.window,
-                    opacity_atom,
-                    cardinal_atom,
-                    32,
-                    0,
-                    &val as *const _ as *const libc::c_uchar,
-                    1,
-                );
+                set_window_opacity(n.display, n.window, opacity);
                 XFlush(n.display);
             }
         }
@@ -766,73 +887,24 @@ pub fn is_fullscreen_window_active() -> bool {
         return false;
     }
     unsafe {
-        XSetErrorHandler(Some(x11_error_handler));
-        let display = XOpenDisplay(std::ptr::null());
+        let display = open_display();
         if display.is_null() {
             return false;
         }
         let screen = XDefaultScreen(display);
         let root = XRootWindow(display, screen);
-
-        let net_active_window = XInternAtom(display, b"_NET_ACTIVE_WINDOW\0".as_ptr() as *const _, 0);
-        let net_wm_state = XInternAtom(display, b"_NET_WM_STATE\0".as_ptr() as *const _, 0);
-        let net_wm_state_fullscreen = XInternAtom(display, b"_NET_WM_STATE_FULLSCREEN\0".as_ptr() as *const _, 0);
-
-        let mut actual_type: Atom = 0;
-        let mut actual_format: libc::c_int = 0;
-        let mut nitems: libc::c_ulong = 0;
-        let mut bytes_after: libc::c_ulong = 0;
-        let mut prop: *mut libc::c_uchar = std::ptr::null_mut();
-
-        let status = XGetWindowProperty(
-            display,
-            root,
-            net_active_window,
-            0,
-            1,
-            0,
-            33, /* XA_WINDOW */
-            &mut actual_type,
-            &mut actual_format,
-            &mut nitems,
-            &mut bytes_after,
-            &mut prop,
-        );
-
-        let mut is_fullscreen = false;
-        if status == 0 && !prop.is_null() && nitems > 0 {
-            let active_win = *(prop as *const Window);
-            XFree(prop as *mut libc::c_void);
-
-            if active_win != 0 {
-                let mut state_prop: *mut libc::c_uchar = std::ptr::null_mut();
-                let status_state = XGetWindowProperty(
-                    display,
-                    active_win,
-                    net_wm_state,
-                    0,
-                    1024,
-                    0,
-                    4, /* XA_ATOM */
-                    &mut actual_type,
-                    &mut actual_format,
-                    &mut nitems,
-                    &mut bytes_after,
-                    &mut state_prop,
-                );
-
-                if status_state == 0 && !state_prop.is_null() {
-                    let atoms = std::slice::from_raw_parts(state_prop as *const Atom, nitems as usize);
-                    if atoms.contains(&net_wm_state_fullscreen) {
-                        is_fullscreen = true;
-                    }
-                    XFree(state_prop as *mut libc::c_void);
-                }
-            }
-        }
-
+        let active_atom = intern_atom(display, b"_NET_ACTIVE_WINDOW\0");
+        let state_atom = intern_atom(display, b"_NET_WM_STATE\0");
+        let fullscreen_atom = intern_atom(display, b"_NET_WM_STATE_FULLSCREEN\0");
+        let active = property_values(display, root, active_atom, XA_WINDOW, 1)
+            .and_then(|values| values.first().copied())
+            .filter(|window| *window != 0);
+        let result = active.map_or(false, |window| {
+            property_values(display, window, state_atom, XA_ATOM, 1024)
+                .map_or(false, |states| states.contains(&fullscreen_atom))
+        });
         XCloseDisplay(display);
-        is_fullscreen
+        result
     }
 }
 
@@ -844,107 +916,48 @@ pub fn get_visible_normal_window_rects() -> Vec<SurfaceBounds> {
     }
     let mut rects = Vec::new();
     unsafe {
-        XSetErrorHandler(Some(x11_error_handler));
-        let display = XOpenDisplay(std::ptr::null());
+        let display = open_display();
         if display.is_null() {
             return rects;
         }
-        let screen = XDefaultScreen(display);
-        let root = XRootWindow(display, screen);
-
-        let net_wm_state = XInternAtom(display, b"_NET_WM_STATE\0".as_ptr() as *const _, 0);
-        let net_wm_state_hidden = XInternAtom(display, b"_NET_WM_STATE_HIDDEN\0".as_ptr() as *const _, 0);
-        let net_wm_window_type = XInternAtom(display, b"_NET_WM_WINDOW_TYPE\0".as_ptr() as *const _, 0);
-        let net_wm_window_type_normal = XInternAtom(display, b"_NET_WM_WINDOW_TYPE_NORMAL\0".as_ptr() as *const _, 0);
-        let net_wm_window_type_dialog = XInternAtom(display, b"_NET_WM_WINDOW_TYPE_DIALOG\0".as_ptr() as *const _, 0);
-
-        let mut root_ret: Window = 0;
-        let mut parent_ret: Window = 0;
+        let root = XRootWindow(display, XDefaultScreen(display));
+        let state_atom = intern_atom(display, b"_NET_WM_STATE\0");
+        let hidden_atom = intern_atom(display, b"_NET_WM_STATE_HIDDEN\0");
+        let type_atom = intern_atom(display, b"_NET_WM_WINDOW_TYPE\0");
+        let normal_atom = intern_atom(display, b"_NET_WM_WINDOW_TYPE_NORMAL\0");
+        let dialog_atom = intern_atom(display, b"_NET_WM_WINDOW_TYPE_DIALOG\0");
+        let mut root_return: Window = 0;
+        let mut parent_return: Window = 0;
         let mut children: *mut Window = std::ptr::null_mut();
-        let mut nchildren: libc::c_uint = 0;
+        let mut child_count: libc::c_uint = 0;
 
-        if XQueryTree(display, root, &mut root_ret, &mut parent_ret, &mut children, &mut nchildren) != 0
-            && !children.is_null()
+        if XQueryTree(
+            display,
+            root,
+            &mut root_return,
+            &mut parent_return,
+            &mut children,
+            &mut child_count,
+        ) != 0 && !children.is_null()
         {
-            let window_list = std::slice::from_raw_parts(children, nchildren as usize);
-            for &win in window_list {
-                // Check window type — only include normal/dialog windows
-                let mut actual_type: Atom = 0;
-                let mut actual_format: libc::c_int = 0;
-                let mut nitems: libc::c_ulong = 0;
-                let mut bytes_after: libc::c_ulong = 0;
-                let mut type_prop: *mut libc::c_uchar = std::ptr::null_mut();
-
-                let type_ok = XGetWindowProperty(
-                    display, win, net_wm_window_type, 0, 4, 0, 4 /* XA_ATOM */,
-                    &mut actual_type, &mut actual_format, &mut nitems,
-                    &mut bytes_after, &mut type_prop,
-                ) == 0 && !type_prop.is_null() && nitems > 0;
-
-                let is_normal_type = if type_ok {
-                    let atoms = std::slice::from_raw_parts(type_prop as *const Atom, nitems as usize);
-                    let result = atoms.contains(&net_wm_window_type_normal)
-                        || atoms.contains(&net_wm_window_type_dialog);
-                    XFree(type_prop as *mut libc::c_void);
-                    result
-                } else {
-                    // No _NET_WM_WINDOW_TYPE set — treat as normal if it has no type (older apps)
-                    if !type_prop.is_null() { XFree(type_prop as *mut libc::c_void); }
-                    false
-                };
-
-                if !is_normal_type {
-                    continue;
-                }
-
-                // Check if window is hidden/minimized
-                let mut state_prop: *mut libc::c_uchar = std::ptr::null_mut();
-                let state_ok = XGetWindowProperty(
-                    display, win, net_wm_state, 0, 64, 0, 4 /* XA_ATOM */,
-                    &mut actual_type, &mut actual_format, &mut nitems,
-                    &mut bytes_after, &mut state_prop,
-                ) == 0 && !state_prop.is_null();
-
-                let is_hidden = if state_ok {
-                    let atoms = std::slice::from_raw_parts(state_prop as *const Atom, nitems as usize);
-                    let hidden = atoms.contains(&net_wm_state_hidden);
-                    XFree(state_prop as *mut libc::c_void);
-                    hidden
-                } else {
-                    if !state_prop.is_null() { XFree(state_prop as *mut libc::c_void); }
-                    false
-                };
-
-                if is_hidden {
-                    continue;
-                }
-
-                // Get geometry — coordinates are relative to the parent (usually root)
-                let mut geom_root: Window = 0;
-                let mut gx: libc::c_int = 0;
-                let mut gy: libc::c_int = 0;
-                let mut gw: libc::c_uint = 0;
-                let mut gh: libc::c_uint = 0;
-                let mut bw: libc::c_uint = 0;
-                let mut depth: libc::c_uint = 0;
-
-                if XGetGeometry(display, win, &mut geom_root, &mut gx, &mut gy, &mut gw, &mut gh, &mut bw, &mut depth) == 0
-                    || gw == 0 || gh == 0
+            let windows = std::slice::from_raw_parts(children, child_count as usize);
+            for &window in windows {
+                let is_normal = property_values(display, window, type_atom, XA_ATOM, 4).map_or(
+                    false,
+                    |types| types.contains(&normal_atom) || types.contains(&dialog_atom),
+                );
+                if !is_normal
+                    || property_values(display, window, state_atom, XA_ATOM, 64)
+                        .map_or(false, |states| states.contains(&hidden_atom))
                 {
                     continue;
                 }
-
-                // Translate to root/screen coords
-                let mut rx: libc::c_int = 0;
-                let mut ry: libc::c_int = 0;
-                let mut child: Window = 0;
-                XTranslateCoordinates(display, win, root, 0, 0, &mut rx, &mut ry, &mut child);
-
-                rects.push(SurfaceBounds::new(rx, ry, gw, gh));
+                if let Some(rect) = window_rect(display, window, root) {
+                    rects.push(rect);
+                }
             }
             XFree(children as *mut libc::c_void);
         }
-
         XCloseDisplay(display);
     }
     rects

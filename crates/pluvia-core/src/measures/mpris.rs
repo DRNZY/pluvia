@@ -5,7 +5,7 @@ use std::ops::Deref;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::OnceLock;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use zbus::blocking::{Connection, Proxy};
 use zbus::zvariant::{OwnedValue, Value};
 
@@ -70,6 +70,7 @@ fn get_mpris_worker() -> &'static MprisWorker {
 
 fn run_mpris_worker_loop(rx: Receiver<MprisTask>) {
     let mut connection: Option<Connection> = None;
+    let mut query_cache: HashMap<Option<String>, (Instant, Option<NowPlayingData>)> = HashMap::new();
 
     while let Ok(task) = rx.recv() {
         if connection.is_none() {
@@ -78,11 +79,19 @@ fn run_mpris_worker_loop(rx: Receiver<MprisTask>) {
 
         match task {
             MprisTask::Query { player_name, reply } => {
+                if let Some((ts, cached)) = query_cache.get(&player_name) {
+                    if ts.elapsed() < Duration::from_millis(250) {
+                        let _ = reply.send(cached.clone());
+                        continue;
+                    }
+                }
+
                 let data = if let Some(ref conn) = connection {
                     query_mpris_data_internal(conn, player_name.as_deref())
                 } else {
                     None
                 };
+                query_cache.insert(player_name, (Instant::now(), data.clone()));
                 let _ = reply.send(data);
             }
             MprisTask::Command {
@@ -90,6 +99,7 @@ fn run_mpris_worker_loop(rx: Receiver<MprisTask>) {
                 cmd,
                 reply,
             } => {
+                query_cache.clear();
                 let res = if let Some(ref conn) = connection {
                     execute_command_internal(conn, player_name.as_deref(), &cmd)
                 } else {
