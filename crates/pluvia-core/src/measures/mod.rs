@@ -3,6 +3,7 @@ pub mod gpu;
 pub mod mpris;
 pub mod plugin_fallback;
 pub mod power;
+pub mod rounding_measure;
 pub mod string_measure;
 pub mod substitute;
 pub mod system;
@@ -145,6 +146,9 @@ pub fn create_measure(config: &MeasureConfig) -> Option<Box<dyn Measure>> {
     let m_type = config.measure_type.to_ascii_lowercase();
     match m_type.as_str() {
         "time" => Some(Box::new(time::TimeMeasure::from_config(config))),
+        "roundingmeasure" | "rounding" => {
+            Some(Box::new(rounding_measure::RoundingMeasure::from_config(config)))
+        }
         "string" => Some(Box::new(string_measure::StringMeasure::from_config(config))),
         "calc" => Some(Box::new(calc_measure::CalcMeasure::from_config(config))),
         "cpu" => Some(Box::new(system::CpuMeasure::from_config(config))),
