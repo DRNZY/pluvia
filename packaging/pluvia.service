@@ -1,5 +1,5 @@
 [Unit]
-Description=Pluvia Rainmeter Desktop Engine for Linux
+Description=Pluvia (early alpha) Rainmeter desktop engine for Linux
 PartOf=graphical-session.target
 After=graphical-session.target
 

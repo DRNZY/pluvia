@@ -27,7 +27,7 @@ Version=1.0
 Type=Application
 Name=Pluvia Studio
 GenericName=Desktop Widget Manager
-Comment=Native Rainmeter skin engine and widget manager for Linux
+Comment=Early alpha Rainmeter skin engine and widget manager for Linux
 Exec=pluvia-studio
 Icon=preferences-desktop-wallpaper
 Terminal=false
@@ -40,7 +40,7 @@ DESKTOP_EOF
 echo "[Pluvia Installer] Creating systemd service at $SYSTEMD_USER_DIR/pluvia.service..."
 cat << 'SYSTEMD_EOF' > "$SYSTEMD_USER_DIR/pluvia.service"
 [Unit]
-Description=Pluvia Rainmeter Desktop Engine for Linux
+Description=Pluvia (early alpha) Rainmeter desktop engine for Linux
 PartOf=graphical-session.target
 After=graphical-session.target
 
@@ -59,4 +59,4 @@ SYSTEMD_EOF
 systemctl --user daemon-reload 2>/dev/null || true
 update-desktop-database "$INSTALL_APPS" 2>/dev/null || true
 
-echo "[Pluvia Installer] Successfully installed Pluvia ecosystem to $INSTALL_BIN."
+echo "[Pluvia Installer] Successfully installed Pluvia (early alpha) to $INSTALL_BIN."

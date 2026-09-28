@@ -1,0 +1,14 @@
+{
+  "uuid": "pluvia-shell@pluvia.org",
+  "name": "Pluvia Desktop Anchor",
+  "description": "Enforces background window layering and z-ordering for Pluvia desktop widgets on GNOME Wayland.",
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49"
+  ],
+  "url": "https://github.com/DRNZY/pluvia",
+  "version": 1
+}

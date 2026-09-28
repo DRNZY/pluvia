@@ -1,7 +1,8 @@
 [Desktop Entry]
+Version=1.0
 Name=Pluvia Studio
-Comment=Rainmeter Skin Manager and Customizer for Linux
-Exec=/home/darnell/Projects/pluvia/target/release/pluvia-studio
+Comment=Early alpha Rainmeter skin manager and customizer for Linux
+Exec=pluvia-studio
 Icon=preferences-desktop-wallpaper
 Terminal=false
 Type=Application

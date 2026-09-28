@@ -1,12 +1,12 @@
 # Maintainer: DRNZY <https://github.com/DRNZY>
 pkgname=pluvia-bin
 _pkgname=pluvia
-pkgver=0.1.0
+pkgver=0.1.0.alpha1
 pkgrel=1
-pkgdesc="Native Rainmeter skin engine and widget runtime for Linux (Wayland & X11)"
+pkgdesc="Early alpha: native Rainmeter skin engine and widget runtime for Linux (Wayland & X11)"
 arch=('x86_64')
 url="https://github.com/DRNZY/pluvia"
-license=('MIT')
+license=('GPL-3.0-or-later')
 depends=(
     'cairo'
     'pango'

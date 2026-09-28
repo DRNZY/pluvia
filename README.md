@@ -8,11 +8,20 @@
 </p>
 
 <p>
+  <img src="https://img.shields.io/badge/status-EARLY%20ALPHA-ff4d00?style=for-the-badge" alt="Early alpha" />
+  <img src="https://img.shields.io/badge/version-0.1.0--alpha.1-blue?style=for-the-badge" alt="v0.1.0-alpha.1" />
   <img src="https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust" />
   <img src="https://img.shields.io/badge/Wayland-000000?style=for-the-badge&logo=wayland&logoColor=white" alt="Wayland" />
   <img src="https://img.shields.io/badge/X11-000000?style=for-the-badge&logo=xorg&logoColor=white" alt="X11" />
-  <img src="https://img.shields.io/badge/License-MIT-181818?style=for-the-badge" alt="MIT License" />
+  <img src="https://img.shields.io/badge/License-GPL--3.0-181818?style=for-the-badge" alt="GPL-3.0 License" />
 </p>
+
+> ### ⚠️ Early alpha
+>
+> This is an **early alpha** release (`0.1.0-alpha.1`). The core layout and rendering
+> pipeline works, but expect breaking changes, rough edges and incomplete skin
+> compatibility. Back up your skin folder before letting it touch real `.ini` files, and
+> please report what breaks.
 
 <p align="center">
   <img src="docs/pluvia-launch.gif" width="100%" alt="Pluvia launch demo" />
@@ -114,4 +123,4 @@ bash scripts/install-local.sh
 
 ## License
 
-MIT. Built and maintained by [@DRNZY](https://github.com/DRNZY).
+GNU General Public License v3.0 (GPL-3.0). Built and maintained by [@DRNZY](https://github.com/DRNZY).
