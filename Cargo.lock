@@ -88,12 +88,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.104"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
-
-[[package]]
 name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -683,21 +677,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "futures"
-version = "0.3.34"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a31d2a3fbaaeb2af2368bbdd904aa8e812d3c04a1ee10d3171f52d556e5d0a3"
-dependencies = [
- "futures-channel",
- "futures-core",
- "futures-executor",
- "futures-io",
- "futures-sink",
- "futures-task",
- "futures-util",
-]
-
-[[package]]
 name = "futures-channel"
 version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -772,7 +751,6 @@ version = "0.3.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
 dependencies = [
- "futures-channel",
  "futures-core",
  "futures-io",
  "futures-macro",
@@ -1797,12 +1775,10 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "pluvia-cli"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
- "anyhow",
  "clap",
  "pluvia-core",
- "serde",
  "serde_json",
  "thiserror",
  "tokio",
@@ -1810,7 +1786,7 @@ dependencies = [
 
 [[package]]
 name = "pluvia-core"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "cairo-rs",
  "chrono",
@@ -1830,11 +1806,9 @@ dependencies = [
 
 [[package]]
 name = "pluvia-daemon"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
- "anyhow",
  "cairo-rs",
- "futures",
  "libc",
  "pluvia-cli",
  "pluvia-core",
@@ -1849,15 +1823,13 @@ dependencies = [
 
 [[package]]
 name = "pluvia-studio"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
- "anyhow",
  "gtk4",
  "libadwaita",
  "pluvia-core",
  "serde",
  "serde_json",
- "tokio",
 ]
 
 [[package]]
