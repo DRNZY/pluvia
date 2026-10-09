@@ -19,7 +19,7 @@
 > **Early alpha.** This is release `0.1.0-alpha.1`. Layout and rendering work, but plenty
 > of skins are still unsupported and things will change between releases. Back up your
 > skin folder before pointing it at your real `.ini` files, and please open an issue when
-> something breaks.
+> something breaks (it will happen, a lot. This wasn't easy, at all.
 
 <p align="center">
   <img src="docs/pluvia-launch.gif" width="100%" alt="Pluvia launch demo" />
